@@ -1,2 +1,8 @@
 .DS_Store
 .claude/settings.local.json
+
+# Python pipeline
+pipeline/.env
+pipeline/venv/
+**/__pycache__/
+*.pyc
