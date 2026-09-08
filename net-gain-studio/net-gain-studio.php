@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.1.0
+ * Version:           0.2.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'NET_GAIN_VERSION', '0.1.0' );
+define( 'NET_GAIN_VERSION', '0.2.0' );
 define( 'NET_GAIN_PLUGIN_FILE', __FILE__ );
 define( 'NET_GAIN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -24,6 +24,7 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/class-secrets.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-cpt-vertical.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-cpt-show.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-cpt-episode.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/class-guidelines.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-permissions.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-tick-context.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-show-actions.php';
@@ -32,6 +33,10 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-episode-steps.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-secrets.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-activator.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-deactivator.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-admin-menu.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-shows-list-page.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-edit-show-page.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-admin-actions.php';
 
 register_activation_hook( __FILE__, array( 'Net_Gain_Activator', 'activate' ) );
 register_deactivation_hook( __FILE__, array( 'Net_Gain_Deactivator', 'deactivate' ) );
@@ -55,3 +60,7 @@ add_action(
 		( new Net_Gain_REST_Secrets() )->register_routes();
 	}
 );
+
+add_action( 'admin_menu', array( 'Net_Gain_Admin_Menu', 'register' ) );
+add_action( 'admin_enqueue_scripts', array( 'Net_Gain_Admin_Menu', 'enqueue_assets' ) );
+Net_Gain_Admin_Actions::register();

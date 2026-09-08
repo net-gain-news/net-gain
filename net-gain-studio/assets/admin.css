@@ -1,0 +1,14 @@
+.ng-edit-show .form-table th {
+	width: 240px;
+}
+
+.ng-edit-show .description {
+	max-width: 640px;
+}
+
+.ng-frame-picker {
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	padding: 12px;
+	max-width: 420px;
+}

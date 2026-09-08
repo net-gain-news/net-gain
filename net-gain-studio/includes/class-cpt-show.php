@@ -33,12 +33,34 @@ class Net_Gain_CPT_Show {
 		self::register_meta();
 	}
 
+	/** Canonical list of Show meta keys - reused by the Phase 2 admin save handler so the two can never drift apart. */
+	public static function meta_keys() {
+		return array_keys( self::field_definitions() );
+	}
+
 	private static function register_meta() {
 		$auth_callback = function ( $allowed, $meta_key, $post_id ) {
 			return current_user_can( 'edit_post', $post_id );
 		};
 
-		$fields = array(
+		foreach ( self::field_definitions() as $key => $args ) {
+			register_post_meta(
+				self::POST_TYPE,
+				$key,
+				array_merge(
+					array(
+						'single'        => true,
+						'show_in_rest'  => true,
+						'auth_callback' => $auth_callback,
+					),
+					$args
+				)
+			);
+		}
+	}
+
+	private static function field_definitions() {
+		return array(
 			'ng_vertical_id'         => array( 'type' => 'integer', 'default' => 0 ),
 			'ng_custom_domain'       => array( 'type' => 'string', 'default' => '' ),
 			'ng_recording_days'      => array(
@@ -85,20 +107,5 @@ class Net_Gain_CPT_Show {
 				),
 			),
 		);
-
-		foreach ( $fields as $key => $args ) {
-			register_post_meta(
-				self::POST_TYPE,
-				$key,
-				array_merge(
-					array(
-						'single'        => true,
-						'show_in_rest'  => true,
-						'auth_callback' => $auth_callback,
-					),
-					$args
-				)
-			);
-		}
 	}
 }
