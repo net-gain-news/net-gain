@@ -102,6 +102,8 @@ class Net_Gain_Admin_Actions {
 			$status = 'active';
 		}
 		update_post_meta( $show_id, 'ng_status', $status );
+
+		update_post_meta( $show_id, 'ng_is_test', ! empty( $_POST['ng_is_test'] ) );
 	}
 
 	public static function connect_captivate() {

@@ -164,6 +164,18 @@ class Net_Gain_REST_Episode_Steps {
 		$finalization['last_action_at'] = current_time( 'mysql' );
 		$finalization['last_action_by'] = get_current_user_id();
 
+		if ( 'abort' === $action ) {
+			// The audio that was "received" is being discarded pending a replacement
+			// upload - leaving audio_received marked done would misreport this on
+			// the dashboard (Phase 7). A fresh upload re-marks it done on its own.
+			$step_status = get_post_meta( $episode_id, 'ng_step_status', true );
+			$step_status = is_array( $step_status ) ? $step_status : Net_Gain_Step_Status::default_status();
+			$updated     = Net_Gain_Step_Status::apply_update( $step_status, 'audio_received', 'pending' );
+			if ( ! is_wp_error( $updated ) ) {
+				update_post_meta( $episode_id, 'ng_step_status', $updated );
+			}
+		}
+
 		update_post_meta( $episode_id, 'ng_finalization', $finalization );
 		return rest_ensure_response( $finalization );
 	}

@@ -81,6 +81,7 @@ class Net_Gain_CPT_Show {
 			'ng_frame_16x9_id'       => array( 'type' => 'integer', 'default' => 0 ),
 			'ng_frame_1200x630_id'   => array( 'type' => 'integer', 'default' => 0 ),
 			'ng_status'              => array( 'type' => 'string', 'default' => 'active' ), // active|paused|concluded - never "archived", see Spec 4.2.
+			'ng_is_test'             => array( 'type' => 'boolean', 'default' => false ), // Spec Section 13 - hidden from the dashboard by default.
 			'ng_captivate_show_id'   => array( 'type' => 'string', 'default' => '' ),
 			'ng_youtube_channel_id'  => array( 'type' => 'string', 'default' => '' ), // non-secret; OAuth tokens live in wp_ng_secrets.
 			'ng_publish_mode'        => array( 'type' => 'string', 'default' => 'immediate' ), // immediate|scheduled

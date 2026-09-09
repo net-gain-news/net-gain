@@ -247,6 +247,17 @@ class Net_Gain_Edit_Show_Page {
 						</td>
 					</tr>
 
+					<tr>
+						<th><label for="ng_is_test">Test show</label></th>
+						<td>
+							<label>
+								<input type="checkbox" id="ng_is_test" name="ng_is_test" value="1" <?php checked( (bool) $get( 'ng_is_test', false ) ); ?>>
+								This is a test show
+							</label>
+							<p class="description">Keeps this show collapsed out of the way on the operations dashboard by default (Spec Section 13) — use this for a dedicated test show, never for a real underwriter's show, however small.</p>
+						</td>
+					</tr>
+
 				</table>
 
 				<?php submit_button( 'Save changes' ); ?>

@@ -1,6 +1,6 @@
 # Net Gain Studio (WordPress plugin)
 
-Phases 1–6 of the Net Gain multi-tenant newscast studio build — see `../SPEC.md` and `../CLAUDE.md` for the full design. Phase 5 (Captivate publishing) is almost entirely on the Python side — see `../pipeline/README.md` — the one plugin change was adding a `finalized_at` timestamp to `ng_finalization` so scheduled-publish timing can be computed correctly. Phase 6 (website publishing) is the opposite: almost entirely this plugin, since it runs inside the same WordPress process as the audio file.
+Phases 1–7 of the Net Gain multi-tenant newscast studio build — see `../SPEC.md` and `../CLAUDE.md` for the full design. Phase 5 (Captivate publishing) is almost entirely on the Python side — see `../pipeline/README.md` — the one plugin change was adding a `finalized_at` timestamp to `ng_finalization` so scheduled-publish timing can be computed correctly. Phase 6 (website publishing) is the opposite: almost entirely this plugin, since it runs inside the same WordPress process as the audio file. Phase 7 (the operations dashboard) is PHP-only too — it's a pure read layer over data every prior phase already produces.
 
 ## What's here
 
@@ -30,6 +30,12 @@ Phases 1–6 of the Net Gain multi-tenant newscast studio build — see `../SPEC
 - `includes/shortcodes/class-shortcodes.php`: `[net_gain_shows_hub]` (the cross-show "all our shows" page) and `[net_gain_show_episodes]` (a single show's episode list) — both auto-placed on lazily-created hub pages (`/shows/` and `/shows/{slug}/`).
 - `ng_service` gained `edit_posts`/`edit_pages`/`publish_posts`/`publish_pages`/`manage_categories` — needed because this phase creates real WordPress Posts, Pages, and taxonomy terms, none of which were covered by the plugin's own `ng_show`/`ng_episode` capability types.
 
+**Phase 7 — Operations dashboard:**
+- `class-dashboard-page.php` is now the default "Net Gain Studio" landing page — Shows management moved to its own visible "Shows" submenu instead of being the default. One day at a time, with prev/next navigation; every Active show gets a row even with no episode yet that day.
+- `class-dashboard-status.php`: "queued" and the audio-countdown's blue "in progress" state are computed at display time from data that already exists (`ng_step_status` + `ng_finalization` + the show's `publish_mode`) — nothing new is persisted for this. Tooltips are seeded from this project's own real incidents (e.g. the Captivate-failure tooltip literally says to check the raw response body first, per Section 1's actual lesson).
+- Test shows (a new `ng_is_test` checkbox on the setup screen) render in a native `<details>`/`<summary>` disclosure, collapsed by default — Section 13's "turning triangle," with zero JS.
+- Bundled fix: aborting the finalization countdown (Phase 4) never reset the audio-received step back to pending, so a dashboard built on that data would have shown "done" for audio that was just discarded.
+
 ## Setup required at install time
 
 Add to `wp-config.php` before activating (needed for the secrets table to actually encrypt anything):
@@ -44,6 +50,5 @@ After activation, create an Application Password for a user with the `ng_service
 
 - The real YouTube OAuth flow (`/shows/{id}/secrets/youtube-oauth` currently just stores whatever payload it's given — see the `TODO(youtube-phase)` marker in `includes/rest/class-rest-secrets.php`; the admin screen's YouTube button is disabled for the same reason).
 - Live Captivate validation at connect-time (Section 6.1's verification happens at episode-publish time, Phase 5) — the admin screen just saves the ID.
-- The operations dashboard (Phase 7) — episode status is only visible via the Episodes list, episode detail view, and raw REST calls for now.
 - `cover_image_id` on the public episode post, and `episode_art` on Captivate — both wait on Phase 8 (images); neither blocks publishing in the meantime.
 - Real image generation and YouTube publishing — the manual-trigger buttons in the episode detail view queue an intent that nothing processes yet (Phases 8, 9).

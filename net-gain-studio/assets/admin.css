@@ -12,3 +12,98 @@
 	padding: 12px;
 	max-width: 420px;
 }
+
+/* --- Operations dashboard (Phase 7, Spec Section 10) --- */
+
+.ng-dashboard-table td,
+.ng-dashboard-table th {
+	text-align: center;
+	vertical-align: middle;
+}
+
+.ng-dashboard-table td:first-child,
+.ng-dashboard-table th:first-child {
+	text-align: left;
+}
+
+.ng-led {
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: #dcdcde; /* pending: gray */
+}
+
+.ng-led-done {
+	background: #46b450; /* green: fully verified */
+}
+
+.ng-led-degraded {
+	background: #dba617; /* amber: completed but flagged - never red */
+}
+
+.ng-led-failed {
+	background: #d63638; /* red: genuine failure */
+}
+
+.ng-led-in_progress {
+	background: #2271b1; /* blue, pulsing: genuinely in progress */
+	animation: ng-led-pulse 1.4s ease-in-out infinite;
+}
+
+.ng-led-queued {
+	background: transparent;
+	border: 2px solid #8c8f94; /* hollow gray outline: waiting on purpose, not "hasn't started" */
+}
+
+@keyframes ng-led-pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.35; }
+}
+
+.ng-test-shows {
+	margin-top: 24px;
+}
+
+.ng-test-shows summary {
+	cursor: pointer;
+	font-weight: 600;
+	padding: 8px 0;
+}
+
+/* Responsive: stacked cards, not the same grid with horizontal scrolling (Section 10). */
+@media screen and (max-width: 782px) {
+	.ng-dashboard-table thead {
+		display: none;
+	}
+
+	.ng-dashboard-table,
+	.ng-dashboard-table tbody,
+	.ng-dashboard-table tr,
+	.ng-dashboard-table td {
+		display: block;
+		width: 100%;
+	}
+
+	.ng-dashboard-table tr {
+		margin-bottom: 16px;
+		border: 1px solid #dcdcde;
+		border-radius: 4px;
+		padding: 8px;
+	}
+
+	.ng-dashboard-table td {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 6px 8px;
+		border: none;
+		text-align: right;
+	}
+
+	.ng-dashboard-table td::before {
+		content: attr(data-label);
+		font-weight: 600;
+		text-align: left;
+	}
+}
