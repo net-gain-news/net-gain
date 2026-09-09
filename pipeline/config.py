@@ -19,6 +19,8 @@ REQUIRED_VARS = [
     "WP_BASE_URL",
     "WP_SERVICE_USERNAME",
     "WP_SERVICE_APP_PASSWORD",
+    "CAPTIVATE_USER_ID",
+    "CAPTIVATE_API_TOKEN",
 ]
 
 
@@ -40,6 +42,8 @@ def load_config():
         "WP_BASE_URL": os.environ["WP_BASE_URL"].rstrip("/"),
         "WP_SERVICE_USERNAME": os.environ["WP_SERVICE_USERNAME"],
         "WP_SERVICE_APP_PASSWORD": os.environ["WP_SERVICE_APP_PASSWORD"],
+        "CAPTIVATE_USER_ID": os.environ["CAPTIVATE_USER_ID"],
+        "CAPTIVATE_API_TOKEN": os.environ["CAPTIVATE_API_TOKEN"],
         "SMTP_HOST": os.environ.get("SMTP_HOST", ""),
         "SMTP_PORT": int(os.environ.get("SMTP_PORT", "587")),
         "SMTP_USERNAME": os.environ.get("SMTP_USERNAME", ""),

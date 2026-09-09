@@ -1,6 +1,6 @@
 # Net Gain Studio (WordPress plugin)
 
-Phases 1–4 of the Net Gain multi-tenant newscast studio build — see `../SPEC.md` and `../CLAUDE.md` for the full design.
+Phases 1–5 of the Net Gain multi-tenant newscast studio build — see `../SPEC.md` and `../CLAUDE.md` for the full design. Phase 5 (Captivate publishing) is almost entirely on the Python side — see `../pipeline/README.md` — the one plugin change was adding a `finalized_at` timestamp to `ng_finalization` so scheduled-publish timing can be computed correctly.
 
 ## What's here
 

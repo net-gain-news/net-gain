@@ -6,7 +6,13 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tick import check_finalizations, finalization_elapsed, script_generation_due
+from tick import (
+    captivate_publish_due,
+    check_finalizations,
+    compute_target_publish_moment,
+    finalization_elapsed,
+    script_generation_due,
+)
 
 
 class ScriptGenerationDueTests(unittest.TestCase):
@@ -127,6 +133,84 @@ class CheckFinalizationsTests(unittest.TestCase):
         }
 
         check_finalizations(FakeWP(), show)  # must not raise
+
+
+class ComputeTargetPublishMomentTests(unittest.TestCase):
+    def test_immediate_mode_returns_finalized_at(self):
+        finalized_at = datetime(2026, 9, 7, 20, 0, tzinfo=timezone.utc)
+        show = {"publish_mode": "immediate"}
+        finalization = {"finalized_at": _gmt_mysql(finalized_at)}
+        self.assertEqual(compute_target_publish_moment(show, finalization), finalized_at)
+
+    def test_scheduled_same_day_when_finalized_before_publish_time(self):
+        # 09:00 UTC = 05:00 Eastern (EDT, UTC-4) - before 07:00 Eastern, so the
+        # target should be that same Eastern calendar day, not roll to the next.
+        finalized_at = datetime(2026, 9, 7, 9, 0, tzinfo=timezone.utc)
+        show = {"publish_mode": "scheduled", "publish_timezone": "America/New_York", "publish_time": "07:00"}
+        finalization = {"finalized_at": _gmt_mysql(finalized_at)}
+
+        target = compute_target_publish_moment(show, finalization)
+
+        expected = datetime(2026, 9, 7, 7, 0, tzinfo=ZoneInfo("America/New_York"))
+        self.assertEqual(target.astimezone(timezone.utc), expected.astimezone(timezone.utc))
+
+    def test_scheduled_next_day_when_finalized_after_publish_time(self):
+        # Spec Section 8.2's own example: records Pacific afternoon, publishes
+        # 7am Eastern the NEXT day. 20:00 UTC = 16:00 Eastern (EDT), already past 07:00.
+        finalized_at = datetime(2026, 9, 7, 20, 0, tzinfo=timezone.utc)
+        show = {"publish_mode": "scheduled", "publish_timezone": "America/New_York", "publish_time": "07:00"}
+        finalization = {"finalized_at": _gmt_mysql(finalized_at)}
+
+        target = compute_target_publish_moment(show, finalization)
+
+        expected = datetime(2026, 9, 8, 7, 0, tzinfo=ZoneInfo("America/New_York"))
+        self.assertEqual(target.astimezone(timezone.utc), expected.astimezone(timezone.utc))
+
+
+class CaptivatePublishDueTests(unittest.TestCase):
+    def _episode(self, state="finalized", captivate_status="pending", finalized_seconds_ago=3600):
+        finalized_at = _gmt_mysql(datetime.now(timezone.utc) - timedelta(seconds=finalized_seconds_ago))
+        return {
+            "id": 42,
+            "finalization": {"state": state, "finalized_at": finalized_at},
+            "step_status": {"captivate_published": {"status": captivate_status}},
+        }
+
+    def test_not_due_when_not_finalized(self):
+        show = {"publish_mode": "immediate", "pending_actions": []}
+        episode = self._episode(state="counting_down")
+        self.assertFalse(captivate_publish_due(show, episode))
+
+    def test_due_when_finalized_and_immediate_mode(self):
+        show = {"publish_mode": "immediate", "pending_actions": []}
+        episode = self._episode()
+        self.assertTrue(captivate_publish_due(show, episode))
+
+    def test_not_due_again_once_already_published(self):
+        show = {"publish_mode": "immediate", "pending_actions": []}
+        episode = self._episode(captivate_status="done")
+        self.assertFalse(captivate_publish_due(show, episode))
+
+    def test_forced_action_bypasses_already_published_skip(self):
+        show = {
+            "publish_mode": "immediate",
+            "pending_actions": [{"action": "publish_captivate", "status": "pending", "force": True}],
+        }
+        episode = self._episode(captivate_status="done")
+        self.assertTrue(captivate_publish_due(show, episode))
+
+    def test_not_due_when_scheduled_target_is_in_the_future(self):
+        # publish_time set 2 hours ahead of right now, so the target is always in
+        # the future regardless of what time this test happens to run.
+        future = datetime.now(timezone.utc) + timedelta(hours=2)
+        show = {
+            "publish_mode": "scheduled",
+            "publish_timezone": "UTC",
+            "publish_time": future.strftime("%H:%M"),
+            "pending_actions": [],
+        }
+        episode = self._episode(finalized_seconds_ago=1)
+        self.assertFalse(captivate_publish_due(show, episode))
 
 
 if __name__ == "__main__":

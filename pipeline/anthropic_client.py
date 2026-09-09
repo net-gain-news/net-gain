@@ -46,15 +46,28 @@ class GenerationError(RuntimeError):
     pass
 
 
-def generate(client, system, user_content, tools=None):
+def generate(client, system, user_content, tools=None, response_schema=None):
     """
-    Runs one script-generation call to completion, transparently resuming
-    through any pause_turn stops. Returns the concatenated text of the final
+    Runs one generation call to completion, transparently resuming through
+    any pause_turn stops. Returns the concatenated text of the final
     response. Raises GenerationError on refusal or a truncated (max_tokens)
-    result - callers should not silently accept a partial script.
+    result - callers should not silently accept a partial result.
+
+    tools defaults to web search (script generation's use case) - pass
+    tools=[] explicitly for calls that shouldn't search (e.g. metadata
+    generation, which only repackages an already-written script).
+
+    response_schema, if given, is a JSON Schema object enforced via
+    output_config.format (structured outputs) - the returned text is then
+    guaranteed valid JSON matching it, rather than relying on a prompt
+    instruction alone.
     """
     tools = tools if tools is not None else [WEB_SEARCH_TOOL]
     messages = [{"role": "user", "content": user_content}]
+
+    output_config = {"effort": "low"}
+    if response_schema is not None:
+        output_config["format"] = {"type": "json_schema", "schema": response_schema}
 
     for _ in range(MAX_PAUSE_RESUMES + 1):
         response = call_with_retries(
@@ -63,7 +76,7 @@ def generate(client, system, user_content, tools=None):
                 max_tokens=MAX_TOKENS,
                 system=system,
                 thinking={"type": "adaptive"},
-                output_config={"effort": "low"},
+                output_config=output_config,
                 tools=tools,
                 messages=messages,
             ),

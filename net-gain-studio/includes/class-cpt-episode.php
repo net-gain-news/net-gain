@@ -93,6 +93,7 @@ class Net_Gain_CPT_Episode {
 							'state'                => array( 'type' => 'string' ),
 							'countdown_started_at' => array( 'type' => array( 'string', 'null' ) ),
 							'countdown_seconds'    => array( 'type' => 'integer' ),
+							'finalized_at'         => array( 'type' => array( 'string', 'null' ) ),
 						),
 					),
 				),

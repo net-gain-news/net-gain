@@ -73,6 +73,32 @@ class WPClient:
         page = self._request("GET", f"/wp-json/wp/v2/pages/{page_id}")
         return page.get("content", {}).get("rendered", "")
 
+    # --- media ---------------------------------------------------------------
+
+    def get_attachment_url(self, attachment_id):
+        media = self._request("GET", f"/wp-json/wp/v2/media/{attachment_id}")
+        return media.get("source_url", "")
+
+    def download_binary(self, url):
+        """
+        Fetches raw bytes from a URL (e.g. a WP media attachment) for handing
+        to a third-party API (Captivate) - a plain GET, not routed through
+        _request() since that assumes a JSON response body.
+        """
+
+        def do_request():
+            response = self.session.get(url, timeout=self.timeout)
+            if response.status_code >= 500 or response.status_code == 429:
+                raise requests.exceptions.ConnectionError(
+                    f"GET {url} returned {response.status_code}"
+                )
+            return response
+
+        response = call_with_retries(do_request, RETRYABLE_EXCEPTIONS)
+        if not response.ok:
+            raise WPClientError(f"GET {url} failed ({response.status_code})")
+        return response.content
+
     # --- episodes ------------------------------------------------------------
 
     def list_episodes_for_show(self, show_id, per_page=100):
@@ -86,6 +112,9 @@ class WPClient:
                 "per_page": per_page,
             },
         )
+
+    def get_episode(self, episode_id):
+        return self._request("GET", f"/wp-json/wp/v2/ng_episode/{episode_id}")
 
     def find_episode_by_date(self, show_id, episode_date):
         for episode in self.list_episodes_for_show(show_id):

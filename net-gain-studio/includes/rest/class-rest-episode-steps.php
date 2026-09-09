@@ -155,6 +155,11 @@ class Net_Gain_REST_Episode_Steps {
 		}
 
 		$finalization['state']          = 'abort' === $action ? 'awaiting_replacement' : 'finalized';
+		if ( 'publish_now' === $action ) {
+			// GMT, matching countdown_started_at - Phase 5's scheduled-publish timing
+			// computation needs an unambiguous "when did this actually finalize" moment.
+			$finalization['finalized_at'] = current_time( 'mysql', true );
+		}
 		$finalization['last_action']    = $action;
 		$finalization['last_action_at'] = current_time( 'mysql' );
 		$finalization['last_action_by'] = get_current_user_id();

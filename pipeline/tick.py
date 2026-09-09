@@ -1,28 +1,34 @@
 """
 Cron entry point (SPEC.md Section 3.1): invoked directly as a CLI process by
 a single Canspace cron entry, frequently. Each pass checks every Active show
-for anything due. Phase 3 added script generation; Phase 4 adds detecting an
-elapsed finalization countdown (Section 8.1) - the visible countdown in the
-UI reflects this state, it is not the source of truth for it, so it must
-resolve correctly even if no browser tab is open. Later phases extend the
-same loop further, per CLAUDE.md's architecture note that manual and
-scheduled triggers must share one code path.
+for anything due. Phase 3 added script generation; Phase 4 added detecting
+an elapsed finalization countdown (Section 8.1); Phase 5 adds metadata
+generation and Captivate publishing (Section 6.1), both deliberately
+triggered at the same moment - the closest point to actual publication, per
+the Phase 4 amendment deferring generation work to avoid wasting it on
+episodes later aborted and replaced. Later phases extend the same loop
+further, per CLAUDE.md's architecture note that manual and scheduled
+triggers must share one code path.
 
 Each show is processed in complete isolation (Section 3.1: "each show's
 processing must run as a fully independent, isolated process with no shared
 lock or queue across shows") - one show's failure is logged and alerted on,
-never allowed to stop the loop for the rest.
+never allowed to stop the loop for the rest. Within one show, Captivate
+publishing is likewise isolated from script generation (Section 9:
+publish-target independence) - a failure in one must not prevent the other.
 """
 
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import anthropic
 
 from anthropic_client import generate as anthropic_generate
+from captivate_client import CaptivateClient
 from config import ConfigError, load_config
+from metadata_generation import generate_metadata_for_episode
 from notify import notify_failure
 from script_generation import generate_script_for_show
 from wp_client import WPClient
@@ -31,6 +37,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logger = logging.getLogger("net_gain.tick")
 
 WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+def _gmt_mysql(dt):
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def script_generation_due(show, today_str, now_local):
@@ -75,15 +85,185 @@ def check_finalizations(wp, show):
         if not finalization_elapsed(finalization):
             continue
         finalization["state"] = "finalized"
+        finalization["finalized_at"] = _gmt_mysql(datetime.now(timezone.utc))
         wp.update_episode_meta(episode["id"], {"ng_finalization": finalization})
         logger.info("Finalization countdown elapsed for episode %s (%s) - marked finalized.", episode["id"], show["name"])
 
 
-def process_show(wp, client, config, show):
+def compute_target_publish_moment(show, finalization):
+    """
+    The earliest moment (UTC) an episode is allowed to publish. Immediate
+    mode: as soon as finalized. Scheduled mode: the next occurrence of
+    publish_time (in publish_timezone) at or after the moment it was
+    finalized (Section 8.2's "records Pacific afternoon, publishes 7am
+    Eastern the next day" example - always the next upcoming occurrence,
+    never one that's already passed).
+    """
+    finalized_raw = finalization.get("finalized_at")
+    finalized_at = (
+        datetime.fromisoformat(finalized_raw).replace(tzinfo=timezone.utc)
+        if finalized_raw
+        else datetime.now(timezone.utc)
+    )
+
+    if (show.get("publish_mode") or "immediate") != "scheduled":
+        return finalized_at
+
+    publish_tz = ZoneInfo(show.get("publish_timezone") or "UTC")
+    hour, minute = (int(part) for part in (show.get("publish_time") or "00:00").split(":"))
+
+    finalized_local = finalized_at.astimezone(publish_tz)
+    target_local = finalized_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if target_local <= finalized_local:
+        target_local += timedelta(days=1)
+
+    return target_local.astimezone(timezone.utc)
+
+
+def captivate_publish_due(show, episode):
+    finalization = episode.get("finalization") or {}
+    if finalization.get("state") != "finalized":
+        return False
+
+    step_status = episode.get("step_status") or {}
+    current = step_status.get("captivate_published", {}).get("status", "pending")
+    pending = [
+        a
+        for a in show.get("pending_actions", []) or []
+        if a.get("action") == "publish_captivate" and a.get("status") == "pending"
+    ]
+    if current in ("done", "degraded") and not any(a.get("force") for a in pending):
+        return False
+
+    return datetime.now(timezone.utc) >= compute_target_publish_moment(show, finalization)
+
+
+def generate_metadata(wp, client, show, episode_id):
+    episode = wp.get_episode(episode_id)
+    meta = episode.get("meta", {})
+
+    metadata = generate_metadata_for_episode(
+        lambda **kwargs: anthropic_generate(client, **kwargs),
+        show["name"],
+        meta.get("ng_episode_date", ""),
+        meta.get("ng_script_final", ""),
+    )
+
+    wp.update_episode_meta(
+        episode_id,
+        {
+            "ng_meta_captivate_title": metadata["captivate_title"],
+            "ng_meta_captivate_notes": metadata["captivate_notes"],
+            "ng_meta_aioseo_title": metadata["aioseo_title"],
+            "ng_meta_aioseo_description": metadata["aioseo_description"],
+            "ng_meta_youtube_title": metadata["youtube_title"],
+            "ng_meta_youtube_description": metadata["youtube_description"],
+            "ng_meta_youtube_tags": metadata["youtube_tags"],
+        },
+    )
+    wp.update_step(episode_id, "metadata_generated", "done")
+
+
+def publish_to_captivate(wp, captivate, show, episode_id, finalization):
+    captivate_show_id = show.get("captivate_show_id")
+    if not captivate_show_id:
+        raise RuntimeError(f"Show '{show['name']}' has no Captivate show connected yet.")
+
+    captivate.ensure_authenticated()
+    captivate_show = captivate.get_show(captivate_show_id)
+    captivate_timezone = captivate_show.get("time_zone") or "UTC"
+
+    episode = wp.get_episode(episode_id)
+    meta = episode.get("meta", {})
+
+    audio_id = meta.get("ng_audio_attachment_id")
+    if not audio_id:
+        raise RuntimeError("No audio attached to this episode yet.")
+    audio_url = wp.get_attachment_url(audio_id)
+    audio_bytes = wp.download_binary(audio_url)
+    filename = audio_url.rsplit("/", 1)[-1] or "episode.mp3"
+    media_id = captivate.upload_media(captivate_show_id, audio_bytes, filename)
+
+    target_moment = compute_target_publish_moment(show, finalization)
+    if (show.get("publish_mode") or "immediate") != "scheduled":
+        # A small buffer in the past, not "now" exactly, so this is unambiguously
+        # in the past relative to Captivate's own clock (SPEC Section 6.1: "a past
+        # value publishes immediately").
+        target_moment = datetime.now(timezone.utc) - timedelta(minutes=1)
+    date_field = target_moment.astimezone(ZoneInfo(captivate_timezone)).strftime("%Y-%m-%d %H:%M:%S")
+
+    title = meta.get("ng_meta_captivate_title") or episode.get("title", {}).get("rendered", "")
+    payload = {
+        "shows_id": captivate_show_id,
+        "title": title,
+        "shownotes": meta.get("ng_meta_captivate_notes", ""),
+        "media_id": media_id,
+        "date": date_field,
+        "status": "Published",
+    }
+    image_id = meta.get("ng_image_square_id")
+    if image_id:
+        payload["episode_art"] = wp.get_attachment_url(image_id)
+
+    created = captivate.create_episode(payload)
+    new_episode_id = created.get("id") or (created.get("episode") or {}).get("id")
+    if not new_episode_id:
+        raise RuntimeError(f"Captivate did not return an episode id from creation: {created}")
+
+    # Full end-to-end verification (Section 6.1 & 9): re-fetch and confirm, rather
+    # than trusting the create call's own success response alone.
+    verification = captivate.get_episode(new_episode_id)
+    verified_title = verification.get("title") or (verification.get("episode") or {}).get("title")
+    if verified_title != title:
+        raise RuntimeError(
+            f"Verification failed: re-fetched Captivate episode title {verified_title!r} "
+            f"does not match what was sent {title!r}."
+        )
+
+    public_url = verification.get("link") or (verification.get("episode") or {}).get("link") or ""
+    wp.update_episode_meta(episode_id, {"ng_url_captivate": public_url})
+
+
+def process_captivate_publishes(wp, client, captivate, config, show):
+    for episode in show.get("in_flight_episodes", []) or []:
+        if not captivate_publish_due(show, episode):
+            continue
+
+        episode_id = episode["id"]
+        step_status = episode.get("step_status") or {}
+        metadata_status = step_status.get("metadata_generated", {}).get("status", "pending")
+
+        try:
+            if metadata_status not in ("done", "degraded"):
+                generate_metadata(wp, client, show, episode_id)
+
+            wp.update_step(episode_id, "captivate_published", "in_progress")
+            publish_to_captivate(wp, captivate, show, episode_id, episode.get("finalization") or {})
+            wp.update_step(episode_id, "captivate_published", "done")
+
+            for action in show.get("pending_actions", []) or []:
+                if action.get("action") == "publish_captivate" and action.get("status") == "pending":
+                    wp.update_action(show["id"], action["id"], "done")
+            logger.info("Published episode %s to Captivate for %s.", episode_id, show["name"])
+        except Exception as exc:
+            logger.exception("Captivate publish failed for episode %s (%s)", episode_id, show["name"])
+            wp.update_step(episode_id, "captivate_published", "failed", note=str(exc)[:500])
+            for action in show.get("pending_actions", []) or []:
+                if action.get("action") == "publish_captivate" and action.get("status") == "pending":
+                    wp.update_action(show["id"], action["id"], "failed")
+            notify_failure(config, show["name"], "captivate_published", str(exc))
+
+
+def process_show(wp, client, captivate, config, show):
     try:
         check_finalizations(wp, show)
     except Exception:
         logger.exception("Error checking finalizations for %s", show["name"])
+
+    try:
+        process_captivate_publishes(wp, client, captivate, config, show)
+    except Exception:
+        logger.exception("Error processing Captivate publishes for %s", show["name"])
 
     tz_name = show.get("recording_timezone") or "UTC"
     now_local = datetime.now(ZoneInfo(tz_name))
@@ -146,13 +326,14 @@ def main():
 
     wp = WPClient(config["WP_BASE_URL"], config["WP_SERVICE_USERNAME"], config["WP_SERVICE_APP_PASSWORD"])
     client = anthropic.Anthropic(api_key=config["ANTHROPIC_API_KEY"])
+    captivate = CaptivateClient(config["CAPTIVATE_USER_ID"], config["CAPTIVATE_API_TOKEN"])
 
     shows = wp.get_tick_context()
     logger.info("Tick: %d active show(s).", len(shows))
 
     for show in shows:
         try:
-            process_show(wp, client, config, show)
+            process_show(wp, client, captivate, config, show)
         except Exception:
             # A failure in due-checking/episode lookup itself (before we even reach
             # process_show's own try/except) must still not stop the other shows.
