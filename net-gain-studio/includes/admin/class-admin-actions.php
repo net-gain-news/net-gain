@@ -14,6 +14,8 @@ class Net_Gain_Admin_Actions {
 	public static function register() {
 		add_action( 'admin_post_ng_save_show', array( __CLASS__, 'save_show' ) );
 		add_action( 'admin_post_ng_connect_captivate', array( __CLASS__, 'connect_captivate' ) );
+		add_action( 'admin_post_ng_save_script_review', array( __CLASS__, 'save_script_review' ) );
+		add_action( 'admin_post_ng_enqueue_action', array( __CLASS__, 'enqueue_action' ) );
 	}
 
 	public static function save_show() {
@@ -125,6 +127,90 @@ class Net_Gain_Admin_Actions {
 				admin_url( 'admin.php' )
 			)
 		);
+		exit;
+	}
+
+	/**
+	 * Similarity check (Spec Section 5.2): a suspiciously-close-to-identical
+	 * final vs. draft is flagged (Amber/degraded), never blocked - a
+	 * legitimate zero-edit day is possible.
+	 */
+	public static function save_script_review() {
+		check_admin_referer( 'ng_save_script_review', 'ng_save_script_review_nonce' );
+
+		$episode_id = isset( $_POST['episode_id'] ) ? (int) $_POST['episode_id'] : 0;
+		if ( ! $episode_id || Net_Gain_CPT_Episode::POST_TYPE !== get_post_type( $episode_id ) ) {
+			wp_die( 'Episode not found.' );
+		}
+		if ( ! Net_Gain_REST_Permissions::can_act_on_episode_finalization( $episode_id ) ) {
+			wp_die( 'You do not have permission to review this episode.' );
+		}
+
+		$final = sanitize_textarea_field( wp_unslash( $_POST['script_final'] ?? '' ) );
+		$draft = get_post_meta( $episode_id, 'ng_script_draft', true );
+
+		similar_text( $draft, $final, $similarity_percent );
+		$changed_percent = round( 100 - $similarity_percent );
+		$is_suspicious    = $changed_percent < 8; // less than 8% changed - tunable.
+
+		$status = $is_suspicious ? 'degraded' : 'done';
+		$note   = "{$changed_percent}% changed from the AI draft";
+
+		$step_status = get_post_meta( $episode_id, 'ng_step_status', true );
+		$step_status = is_array( $step_status ) ? $step_status : Net_Gain_Step_Status::default_status();
+
+		$result = Net_Gain_Step_Status::apply_update( $step_status, 'script_reviewed', $status, $note );
+		if ( is_wp_error( $result ) ) {
+			wp_die( esc_html( $result->get_error_message() ) );
+		}
+
+		update_post_meta( $episode_id, 'ng_script_final', $final );
+		update_post_meta( $episode_id, 'ng_step_status', $result );
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'       => Net_Gain_Script_Review_Page::SLUG,
+					'episode_id' => $episode_id,
+					'ng_notice'  => 'saved',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	/** Manual step triggers (Spec Section 8.3) - just enqueues; the tick loop does the work. */
+	public static function enqueue_action() {
+		if ( ! current_user_can( Net_Gain_Admin_Menu::CAPABILITY ) ) {
+			wp_die( 'You do not have permission to do this.' );
+		}
+		check_admin_referer( 'ng_enqueue_action', 'ng_enqueue_action_nonce' );
+
+		$show_id = isset( $_POST['show_id'] ) ? (int) $_POST['show_id'] : 0;
+		$action  = sanitize_key( $_POST['episode_action'] ?? '' );
+
+		if ( ! $show_id || ! in_array( $action, Net_Gain_REST_Show_Actions::ALLOWED_ACTIONS, true ) ) {
+			wp_die( 'Invalid request.' );
+		}
+
+		$entry = array(
+			'id'           => wp_generate_uuid4(),
+			'action'       => $action,
+			'episode_date' => sanitize_text_field( wp_unslash( $_POST['episode_date'] ?? current_time( 'Y-m-d' ) ) ),
+			'requested_at' => current_time( 'mysql' ),
+			'requested_by' => get_current_user_id(),
+			'status'       => 'pending',
+			'force'        => ! empty( $_POST['force'] ),
+		);
+
+		$pending   = get_post_meta( $show_id, 'ng_pending_actions', true );
+		$pending   = is_array( $pending ) ? $pending : array();
+		$pending[] = $entry;
+		update_post_meta( $show_id, 'ng_pending_actions', $pending );
+
+		$redirect = wp_get_referer() ?: admin_url( 'admin.php?page=' . Net_Gain_Admin_Menu::LIST_SLUG );
+		wp_safe_redirect( add_query_arg( 'ng_notice', 'action_queued', $redirect ) );
 		exit;
 	}
 }

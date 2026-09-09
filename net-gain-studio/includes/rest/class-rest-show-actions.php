@@ -34,8 +34,9 @@ class Net_Gain_REST_Show_Actions {
 						return Net_Gain_REST_Permissions::can_manage_show( (int) $request['id'] );
 					},
 					'args'                => array(
-						'action' => array( 'required' => true, 'type' => 'string' ),
+						'action'       => array( 'required' => true, 'type' => 'string' ),
 						'episode_date' => array( 'required' => false, 'type' => 'string' ),
+						'force'        => array( 'required' => false, 'type' => 'boolean' ),
 					),
 				),
 			)
@@ -77,6 +78,12 @@ class Net_Gain_REST_Show_Actions {
 			'requested_at' => current_time( 'mysql' ),
 			'requested_by' => get_current_user_id(),
 			'status'       => 'pending',
+			// Set only by an explicit "Regenerate" click on an already-completed step
+			// (Section 8.2) - the tick loop's ordinary idempotent skip-if-done check
+			// bypasses that skip only when this is true, so a routine manual trigger
+			// (clicked before the step has run) still can't double-run against a
+			// scheduled trigger racing it.
+			'force'        => (bool) $request->get_param( 'force' ),
 		);
 
 		$pending   = get_post_meta( $show_id, 'ng_pending_actions', true );

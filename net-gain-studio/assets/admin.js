@@ -32,5 +32,97 @@
 			var scheduled = $( '.ng-publish-mode:checked' ).val() === 'scheduled';
 			$( '.ng-publish-schedule-row' ).toggle( scheduled );
 		} );
+
+		// --- My Show page: audio upload, finalization countdown, abort/publish-now ---
+
+		function ngRestPost( path, data ) {
+			return $.ajax( {
+				url: ngAdmin.restUrl + path,
+				method: 'POST',
+				beforeSend: function ( xhr ) {
+					xhr.setRequestHeader( 'X-WP-Nonce', ngAdmin.nonce );
+				},
+				data: data,
+			} );
+		}
+
+		function ngReloadWithNotice( notice ) {
+			var url = new URL( window.location.href );
+			url.searchParams.set( 'ng_notice', notice );
+			window.location.href = url.toString();
+		}
+
+		function ngShowError( xhr ) {
+			var message = ( xhr.responseJSON && xhr.responseJSON.message ) || 'Unknown error';
+			alert( message );
+		}
+
+		// Event delegation + per-element data-episode-id throughout, since a talent
+		// covering/hosting multiple shows can have more than one of these cards on
+		// the page at once - ids would collide, so nothing here is id-addressed.
+		$( document ).on( 'click', '.ng-upload-audio', function ( e ) {
+			e.preventDefault();
+			var episodeId = $( this ).data( 'episode-id' );
+
+			var frame = wp.media( {
+				title: 'Select or Upload Audio',
+				button: { text: 'Use this file' },
+				library: { type: 'audio' },
+				multiple: false,
+			} );
+
+			frame.on( 'select', function () {
+				var attachment = frame.state().get( 'selection' ).first().toJSON();
+				ngRestPost( '/episodes/' + episodeId + '/audio', { attachment_id: attachment.id } )
+					.done( function () { ngReloadWithNotice( 'audio_uploaded' ); } )
+					.fail( ngShowError );
+			} );
+
+			frame.open();
+		} );
+
+		$( document ).on( 'click', '.ng-abort, .ng-publish-now', function () {
+			var episodeId = $( this ).data( 'episode-id' );
+			var isAbort = $( this ).hasClass( 'ng-abort' );
+
+			ngRestPost( '/episodes/' + episodeId + '/finalize-action', { action: isAbort ? 'abort' : 'publish_now' } )
+				.done( function () { ngReloadWithNotice( isAbort ? 'aborted' : 'published_now' ); } )
+				.fail( ngShowError );
+		} );
+
+		// The countdown reflects server state, it isn't the source of truth for it -
+		// once one reaches zero, poll that episode until the tick loop has actually
+		// finalized it (the visible timer can hit zero before the next tick pass
+		// runs). Each .ng-countdown element on the page runs its own independent
+		// timer/poll loop.
+		$( '.ng-countdown' ).each( function () {
+			var $countdown = $( this );
+			var episodeId  = $countdown.data( 'episode-id' );
+			var remaining  = parseInt( $countdown.data( 'seconds' ), 10 ) || 0;
+
+			var pollUntilFinalized = function () {
+				$.get( ngAdmin.apiRoot + 'wp/v2/ng_episode/' + episodeId ).done( function ( episode ) {
+					var state = episode.meta && episode.meta.ng_finalization ? episode.meta.ng_finalization.state : null;
+					if ( 'counting_down' !== state ) {
+						window.location.reload();
+					} else {
+						setTimeout( pollUntilFinalized, 5000 );
+					}
+				} );
+			};
+
+			var tick = function () {
+				if ( remaining > 0 ) {
+					$countdown.text( remaining );
+					remaining -= 1;
+					setTimeout( tick, 1000 );
+					return;
+				}
+				$countdown.text( 'finalizing…' );
+				pollUntilFinalized();
+			};
+
+			tick();
+		} );
 	} );
 } )( jQuery );

@@ -167,9 +167,16 @@ class Net_Gain_Edit_Show_Page {
 					<tr>
 						<th><label for="ng_primary_talent">Primary talent</label></th>
 						<td>
-							<?php $talent_users = get_users( array( 'role' => Net_Gain_Roles::TALENT_ROLE ) ); ?>
+							<?php
+							// Administrators are included alongside the ng_talent role - a studio's
+							// own proprietor is often also its host, and WordPress's built-in user
+							// screen only lets an account hold one role at a time, so requiring a
+							// second "Net Gain Talent" role just to appear here would be a needless
+							// hurdle for that common case.
+							$talent_users = get_users( array( 'role__in' => array( Net_Gain_Roles::TALENT_ROLE, 'administrator' ) ) );
+							?>
 							<?php if ( empty( $talent_users ) ) : ?>
-								<p class="description">No talent users yet. Create one first: <a href="<?php echo esc_url( admin_url( 'user-new.php' ) ); ?>" target="_blank" rel="noopener">Users → Add New</a>, then set their role to "Net Gain Talent".</p>
+								<p class="description">No eligible users yet. Create one first: <a href="<?php echo esc_url( admin_url( 'user-new.php' ) ); ?>" target="_blank" rel="noopener">Users → Add New</a>, then set their role to "Net Gain Talent" (or "Administrator").</p>
 							<?php else : ?>
 								<select id="ng_primary_talent" name="ng_primary_talent">
 									<option value="0">— None —</option>

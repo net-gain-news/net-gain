@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.2.0
+ * Version:           0.3.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'NET_GAIN_VERSION', '0.2.0' );
+define( 'NET_GAIN_VERSION', '0.3.0' );
 define( 'NET_GAIN_PLUGIN_FILE', __FILE__ );
 define( 'NET_GAIN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -33,9 +33,13 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-episode-steps.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-secrets.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-activator.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-deactivator.php';
-require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-admin-menu.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-shows-list-page.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-edit-show-page.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-episodes-list-page.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-episode-detail-page.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-script-review-page.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-my-show-page.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-admin-menu.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-admin-actions.php';
 
 register_activation_hook( __FILE__, array( 'Net_Gain_Activator', 'activate' ) );

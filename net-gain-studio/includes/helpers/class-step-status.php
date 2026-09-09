@@ -28,22 +28,29 @@ class Net_Gain_Step_Status {
 	const STATUSES = array( 'pending', 'in_progress', 'queued', 'done', 'degraded', 'failed' );
 
 	/**
-	 * Each step's prerequisites. Steps 1-5 are a strict chain (Section 10's listed
-	 * order, confirmed by Section 8.3's own example: "image generation before that
-	 * day's metadata exists" should be disabled). Steps 6-8 (Captivate/website/
-	 * YouTube publish) each depend only on images_rendered (which already implies
-	 * the whole upstream chain) and are otherwise mutually independent per Section 9 -
-	 * a failure in one must never block the other two.
+	 * Each step's prerequisites. Steps 1-3 (script generated/reviewed, audio
+	 * received) are a strict chain. metadata_generated and images_rendered are
+	 * SIBLINGS - both depend only on audio_received, neither on the other -
+	 * per an explicit build-time decision (Phase 4): metadata generation is
+	 * deliberately deferred close to publish time to avoid wasted work on
+	 * episodes later aborted, but image generation must remain independently
+	 * triggerable at any time (Section 8.3), so it cannot be gated behind
+	 * metadata. This supersedes Section 8.3's original illustrative example
+	 * ("image generation before that day's metadata exists" should be
+	 * disabled), which assumed the two were chained. The three publish steps
+	 * each require BOTH metadata_generated and images_rendered (Section 9's
+	 * literal list of shared upstream steps) and are otherwise mutually
+	 * independent - a failure in one must never block the other two.
 	 */
 	const PREREQUISITES = array(
 		'script_generated'     => array(),
 		'script_reviewed'      => array( 'script_generated' ),
 		'audio_received'       => array( 'script_reviewed' ),
 		'metadata_generated'   => array( 'audio_received' ),
-		'images_rendered'      => array( 'metadata_generated' ),
-		'captivate_published'  => array( 'images_rendered' ),
-		'website_published'    => array( 'images_rendered' ),
-		'youtube_published'    => array( 'images_rendered' ),
+		'images_rendered'      => array( 'audio_received' ),
+		'captivate_published'  => array( 'metadata_generated', 'images_rendered' ),
+		'website_published'    => array( 'metadata_generated', 'images_rendered' ),
+		'youtube_published'    => array( 'metadata_generated', 'images_rendered' ),
 	);
 
 	public static function is_valid_step( $step_key ) {
@@ -83,6 +90,40 @@ class Net_Gain_Step_Status {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Validates and applies one step transition against a full ng_step_status
+	 * array, returning the updated array on success or a WP_Error on failure
+	 * (invalid step/status, or an unmet prerequisite). Shared by the REST
+	 * route (class-rest-episode-steps.php) and the admin UI's save handlers
+	 * (Phase 4) so the two can never enforce this differently - the admin UI
+	 * calls this directly rather than looping back through its own REST API.
+	 */
+	public static function apply_update( array $step_status, $step_key, $status, $note = '' ) {
+		if ( ! self::is_valid_step( $step_key ) ) {
+			return new WP_Error( 'ng_invalid_step', 'Unknown step: ' . $step_key, array( 'status' => 400 ) );
+		}
+		if ( ! self::is_valid_status( $status ) ) {
+			return new WP_Error( 'ng_invalid_status', 'Unknown status: ' . $status, array( 'status' => 400 ) );
+		}
+
+		$blocker = self::unmet_prerequisite( $step_key, $step_status );
+		if ( $blocker && 'pending' !== $status ) {
+			return new WP_Error(
+				'ng_prerequisite_not_met',
+				"Cannot set {$step_key} to {$status}: prerequisite step \"{$blocker}\" is not done yet.",
+				array( 'status' => 409 )
+			);
+		}
+
+		$step_status[ $step_key ] = array(
+			'status' => $status,
+			'at'     => current_time( 'mysql' ),
+			'note'   => $note,
+		);
+
+		return $step_status;
 	}
 
 	public static function rest_schema() {

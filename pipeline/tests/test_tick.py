@@ -1,12 +1,12 @@
 import os
 import sys
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tick import script_generation_due
+from tick import check_finalizations, finalization_elapsed, script_generation_due
 
 
 class ScriptGenerationDueTests(unittest.TestCase):
@@ -53,6 +53,80 @@ class ScriptGenerationDueTests(unittest.TestCase):
         now_local = datetime(2026, 9, 8, 9, 0, tzinfo=ZoneInfo("UTC"))
         episode_date, _ = script_generation_due(show, "2026-09-08", now_local)
         self.assertIsNone(episode_date)
+
+
+def _gmt_mysql(dt):
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+class FinalizationElapsedTests(unittest.TestCase):
+    def test_not_elapsed_when_not_counting_down(self):
+        self.assertFalse(finalization_elapsed({"state": "finalized"}))
+        self.assertFalse(finalization_elapsed({"state": "pending"}))
+        self.assertFalse(finalization_elapsed({}))
+
+    def test_not_elapsed_within_window(self):
+        started = _gmt_mysql(datetime.now(timezone.utc) - timedelta(seconds=30))
+        finalization = {"state": "counting_down", "countdown_started_at": started, "countdown_seconds": 90}
+        self.assertFalse(finalization_elapsed(finalization))
+
+    def test_elapsed_after_window(self):
+        started = _gmt_mysql(datetime.now(timezone.utc) - timedelta(seconds=120))
+        finalization = {"state": "counting_down", "countdown_started_at": started, "countdown_seconds": 90}
+        self.assertTrue(finalization_elapsed(finalization))
+
+    def test_missing_started_at_is_not_elapsed(self):
+        self.assertFalse(finalization_elapsed({"state": "counting_down"}))
+
+
+class CheckFinalizationsTests(unittest.TestCase):
+    def test_transitions_elapsed_episode_to_finalized(self):
+        started = _gmt_mysql(datetime.now(timezone.utc) - timedelta(seconds=200))
+
+        class FakeWP:
+            def __init__(self):
+                self.updates = []
+
+            def update_episode_meta(self, episode_id, meta):
+                self.updates.append((episode_id, meta))
+
+        wp = FakeWP()
+        show = {
+            "name": "Net Gain Edtech",
+            "in_flight_episodes": [
+                {
+                    "id": 42,
+                    "finalization": {
+                        "state": "counting_down",
+                        "countdown_started_at": started,
+                        "countdown_seconds": 90,
+                    },
+                }
+            ],
+        }
+
+        check_finalizations(wp, show)
+
+        self.assertEqual(len(wp.updates), 1)
+        episode_id, meta = wp.updates[0]
+        self.assertEqual(episode_id, 42)
+        self.assertEqual(meta["ng_finalization"]["state"], "finalized")
+
+    def test_leaves_non_elapsed_episode_alone(self):
+        started = _gmt_mysql(datetime.now(timezone.utc) - timedelta(seconds=10))
+
+        class FakeWP:
+            def update_episode_meta(self, episode_id, meta):
+                raise AssertionError("should not be called")
+
+        show = {
+            "name": "Net Gain Edtech",
+            "in_flight_episodes": [
+                {"id": 42, "finalization": {"state": "counting_down", "countdown_started_at": started, "countdown_seconds": 90}}
+            ],
+        }
+
+        check_finalizations(FakeWP(), show)  # must not raise
 
 
 if __name__ == "__main__":

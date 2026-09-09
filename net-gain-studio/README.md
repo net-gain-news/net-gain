@@ -1,6 +1,6 @@
 # Net Gain Studio (WordPress plugin)
 
-Phases 1–2 of the Net Gain multi-tenant newscast studio build — see `../SPEC.md` and `../CLAUDE.md` for the full design.
+Phases 1–4 of the Net Gain multi-tenant newscast studio build — see `../SPEC.md` and `../CLAUDE.md` for the full design.
 
 ## What's here
 
@@ -15,6 +15,12 @@ Phases 1–2 of the Net Gain multi-tenant newscast studio build — see `../SPEC
 - Implements every field in Spec Section 11: recording/publish schedule, timezones (via core's `wp_timezone_choice()`), lookback window, primary talent (writes to `wp_ng_talent_assignments`, not postmeta), branding-frame uploads (via core's `wp.media` picker — no build step), a guidelines page auto-seeded once from the chosen Vertical's content, and Show status.
 - "Connect Captivate show" saves an ID via its own form/action. "Connect YouTube channel" is a **visibly disabled** control with a status readout — real OAuth is Phase 9, not faked here.
 - Plain PHP-rendered pages + one vanilla-JS file (`assets/admin.js`) — no JS build tooling anywhere in this plugin.
+
+**Phase 4 — Review, finalization & queue:**
+- **Script review** (`class-script-review-page.php`): full-width final-script editor, AI draft behind a collapsed toggle, PHP `similar_text()` similarity check that marks a suspiciously-close save `degraded` rather than `done`.
+- **"My Show"** (`class-my-show-page.php`) — the first talent-facing screen, gated by the talent-assignment relationship rather than a WordPress role. Audio upload via `wp.media` (filtered to audio) immediately starts a server-truth finalization countdown; the visible timer is a reflection of that state, not its source — `pipeline/tick.py` independently detects an elapsed countdown even if no browser is watching.
+- **Episode detail/queue view** (`class-episode-detail-page.php`, reached via a new Episodes list per show): every deliverable with a direct action, plus the Section 8.3 manual triggers (Generate/Regenerate Script, Generate Images, Publish Captivate), prerequisite-aware disabling.
+- **Two build-time corrections to the original spec text**, now reflected in `SPEC.md` itself: metadata generation is deferred until close to publish time rather than triggered at finalization (avoids wasted work on later-aborted episodes), and image generation no longer depends on metadata generation, so it stays manually triggerable at any time.
 
 ## Setup required at install time
 
@@ -31,4 +37,5 @@ After activation, create an Application Password for a user with the `ng_service
 - The real YouTube OAuth flow (`/shows/{id}/secrets/youtube-oauth` currently just stores whatever payload it's given — see the `TODO(youtube-phase)` marker in `includes/rest/class-rest-secrets.php`; the admin screen's YouTube button is disabled for the same reason).
 - Wiring `ng_episode` to an actual public Seriously Simple Podcasting post at publish time (Phase 6) — `ng_website_post_id` is reserved for this.
 - Live Captivate validation at connect-time (Section 6.1's verification happens at episode-publish time, Phase 5) — the admin screen just saves the ID.
-- Episode-facing UI (script review, audio upload, the operations dashboard) or the Python tick loop itself (Phase 3+).
+- The operations dashboard (Phase 7) — episode status is only visible via the Episodes list, episode detail view, and raw REST calls for now.
+- Real metadata generation, image generation, and Captivate/website/YouTube publishing — the manual-trigger buttons in the episode detail view queue an intent that nothing processes yet (Phases 5, 6, 8, 9).

@@ -1,10 +1,10 @@
 <?php
 /**
- * Per-step status updates (prerequisite-validated, Spec Section 8.3) and the
- * talent-facing abort/publish-now controls for the upload countdown and
- * publish queue (Section 8.1/8.2). This route records state transitions and
- * enforces authorization; the actual side effects (stopping a timer,
- * triggering a real publish) are the tick loop's job in a later phase.
+ * Per-step status updates (prerequisite-validated, Spec Section 8.3), audio
+ * intake (Section 8.1), and the talent-facing abort/publish-now controls for
+ * the upload countdown (Section 8.1). Countdown elapse itself is detected
+ * server-side by the Python tick loop, not here - the visible countdown
+ * reflects that state, it isn't the source of truth for it.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -32,6 +32,21 @@ class Net_Gain_REST_Episode_Steps {
 
 		register_rest_route(
 			'net-gain/v1',
+			'/episodes/(?P<id>\d+)/audio',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'upload_audio' ),
+				'permission_callback' => function ( WP_REST_Request $request ) {
+					return Net_Gain_REST_Permissions::can_act_on_episode_finalization( (int) $request['id'] );
+				},
+				'args'                => array(
+					'attachment_id' => array( 'required' => true, 'type' => 'integer' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			'net-gain/v1',
 			'/episodes/(?P<id>\d+)/finalize-action',
 			array(
 				'methods'             => 'POST',
@@ -48,38 +63,77 @@ class Net_Gain_REST_Episode_Steps {
 
 	public function update_step( WP_REST_Request $request ) {
 		$episode_id = (int) $request['id'];
-		$step_key   = $request['step_key'];
-		$status     = $request->get_param( 'status' );
 
-		if ( ! Net_Gain_Step_Status::is_valid_step( $step_key ) ) {
-			return new WP_Error( 'ng_invalid_step', 'Unknown step: ' . $step_key, array( 'status' => 400 ) );
+		$step_status = get_post_meta( $episode_id, 'ng_step_status', true );
+		$step_status = is_array( $step_status ) ? $step_status : Net_Gain_Step_Status::default_status();
+
+		$result = Net_Gain_Step_Status::apply_update(
+			$step_status,
+			$request['step_key'],
+			$request->get_param( 'status' ),
+			$request->get_param( 'note' ) ?: ''
+		);
+		if ( is_wp_error( $result ) ) {
+			return $result;
 		}
-		if ( ! Net_Gain_Step_Status::is_valid_status( $status ) ) {
-			return new WP_Error( 'ng_invalid_status', 'Unknown status: ' . $status, array( 'status' => 400 ) );
+
+		update_post_meta( $episode_id, 'ng_step_status', $result );
+		return rest_ensure_response( $result[ $request['step_key'] ] );
+	}
+
+	/**
+	 * Handles both a first audio upload and a replacement upload after an
+	 * abort identically - either way, a successful upload (re)starts a fresh
+	 * countdown (Spec Section 8.1: "which starts a fresh countdown of its own").
+	 */
+	public function upload_audio( WP_REST_Request $request ) {
+		$episode_id    = (int) $request['id'];
+		$attachment_id = (int) $request->get_param( 'attachment_id' );
+
+		if ( ! wp_attachment_is( 'audio', $attachment_id ) ) {
+			return new WP_Error( 'ng_invalid_attachment', 'That attachment is not an audio file.', array( 'status' => 400 ) );
 		}
 
 		$step_status = get_post_meta( $episode_id, 'ng_step_status', true );
 		$step_status = is_array( $step_status ) ? $step_status : Net_Gain_Step_Status::default_status();
 
-		$blocker = Net_Gain_Step_Status::unmet_prerequisite( $step_key, $step_status );
-		if ( $blocker && 'pending' !== $status ) {
-			return new WP_Error(
-				'ng_prerequisite_not_met',
-				"Cannot set {$step_key} to {$status}: prerequisite step \"{$blocker}\" is not done yet.",
-				array( 'status' => 409 )
-			);
+		$result = Net_Gain_Step_Status::apply_update( $step_status, 'audio_received', 'done' );
+		if ( is_wp_error( $result ) ) {
+			return $result;
 		}
 
-		$step_status[ $step_key ] = array(
-			'status' => $status,
-			'at'     => current_time( 'mysql' ),
-			'note'   => $request->get_param( 'note' ) ?: '',
-		);
+		update_post_meta( $episode_id, 'ng_audio_attachment_id', $attachment_id );
+		update_post_meta( $episode_id, 'ng_step_status', $result );
 
-		update_post_meta( $episode_id, 'ng_step_status', $step_status );
-		return rest_ensure_response( $step_status[ $step_key ] );
+		// 90s is a code-tunable default (Section 11's confirmed Show fields don't
+		// include a per-show override) rather than a new admin-screen field.
+		$countdown_seconds = apply_filters( 'net_gain_finalization_countdown_seconds', 90, $episode_id );
+		$finalization = array(
+			'state' => 'counting_down',
+			// GMT, not site-local (current_time('mysql')'s default) - this is an
+			// internal value the Python tick loop does elapsed-time math against,
+			// not something displayed to a person, so it must be unambiguous
+			// regardless of the WP site's configured timezone (Spec Section 1:
+			// "never assume a host's timezone").
+			'countdown_started_at' => current_time( 'mysql', true ),
+			'countdown_seconds'    => $countdown_seconds,
+		);
+		update_post_meta( $episode_id, 'ng_finalization', $finalization );
+
+		return rest_ensure_response(
+			array(
+				'step_status'  => $result['audio_received'],
+				'finalization' => $finalization,
+			)
+		);
 	}
 
+	/**
+	 * Scoped deliberately to the audio-intake countdown only (state must be
+	 * counting_down) - extending abort/publish-now to a later "queued,
+	 * waiting on a real scheduled publish" state is a Phase 5+ concern once
+	 * that actually exists to override.
+	 */
 	public function finalize_action( WP_REST_Request $request ) {
 		$episode_id = (int) $request['id'];
 		$action     = $request->get_param( 'action' );
@@ -88,10 +142,19 @@ class Net_Gain_REST_Episode_Steps {
 			return new WP_Error( 'ng_invalid_action', 'action must be "abort" or "publish_now".', array( 'status' => 400 ) );
 		}
 
-		$finalization = get_post_meta( $episode_id, 'ng_finalization', true );
-		$finalization = is_array( $finalization ) ? $finalization : array();
+		$finalization  = get_post_meta( $episode_id, 'ng_finalization', true );
+		$finalization  = is_array( $finalization ) ? $finalization : array();
+		$current_state = $finalization['state'] ?? 'pending';
 
-		$finalization['state'] = 'abort' === $action ? 'awaiting_replacement' : 'publish_now_requested';
+		if ( 'counting_down' !== $current_state ) {
+			return new WP_Error(
+				'ng_nothing_to_finalize',
+				"Cannot {$action}: this episode is not currently in the finalization countdown (state: {$current_state}).",
+				array( 'status' => 409 )
+			);
+		}
+
+		$finalization['state']          = 'abort' === $action ? 'awaiting_replacement' : 'finalized';
 		$finalization['last_action']    = $action;
 		$finalization['last_action_at'] = current_time( 'mysql' );
 		$finalization['last_action_by'] = get_current_user_id();

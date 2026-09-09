@@ -65,7 +65,10 @@ class Net_Gain_Shows_List_Page {
 								<td><?php echo esc_html( $vertical ); ?></td>
 								<td><?php echo esc_html( ucfirst( $status ) ); ?></td>
 								<td><?php echo esc_html( $primary ); ?></td>
-								<td><a href="<?php echo esc_url( $edit_url ); ?>">Edit</a></td>
+								<td>
+									<a href="<?php echo esc_url( $edit_url ); ?>">Edit</a> |
+									<a href="<?php echo esc_url( add_query_arg( array( 'page' => Net_Gain_Episodes_List_Page::SLUG, 'show_id' => $show->ID ), admin_url( 'admin.php' ) ) ); ?>">Episodes</a>
+								</td>
 							</tr>
 						<?php endforeach; ?>
 					</tbody>

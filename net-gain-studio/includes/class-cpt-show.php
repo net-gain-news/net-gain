@@ -101,6 +101,7 @@ class Net_Gain_CPT_Show {
 								'requested_at' => array( 'type' => 'string' ),
 								'requested_by' => array( 'type' => 'integer' ),
 								'status'       => array( 'type' => 'string' ),
+								'force'        => array( 'type' => 'boolean' ),
 							),
 						),
 					),

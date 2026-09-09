@@ -1,10 +1,12 @@
 """
 Cron entry point (SPEC.md Section 3.1): invoked directly as a CLI process by
 a single Canspace cron entry, frequently. Each pass checks every Active show
-for anything due. This phase only drives script generation - later phases
-extend the same loop for finalization/queue/publish steps, per CLAUDE.md's
-architecture note that manual and scheduled triggers must share one code
-path.
+for anything due. Phase 3 added script generation; Phase 4 adds detecting an
+elapsed finalization countdown (Section 8.1) - the visible countdown in the
+UI reflects this state, it is not the source of truth for it, so it must
+resolve correctly even if no browser tab is open. Later phases extend the
+same loop further, per CLAUDE.md's architecture note that manual and
+scheduled triggers must share one code path.
 
 Each show is processed in complete isolation (Section 3.1: "each show's
 processing must run as a fully independent, isolated process with no shared
@@ -14,7 +16,7 @@ never allowed to stop the loop for the rest.
 
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 import anthropic
@@ -49,7 +51,40 @@ def script_generation_due(show, today_str, now_local):
     return None, []
 
 
+def finalization_elapsed(finalization):
+    """
+    True if a counting_down finalization's countdown has run out.
+    countdown_started_at is stored in GMT (WordPress's current_time('mysql', true))
+    specifically so this comparison is unambiguous regardless of the WP site's
+    configured timezone (Section 1: "never assume a host's timezone").
+    """
+    if finalization.get("state") != "counting_down":
+        return False
+    started_raw = finalization.get("countdown_started_at")
+    if not started_raw:
+        return False
+    started = datetime.fromisoformat(started_raw).replace(tzinfo=timezone.utc)
+    total_seconds = int(finalization.get("countdown_seconds") or 90)
+    elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+    return elapsed >= total_seconds
+
+
+def check_finalizations(wp, show):
+    for episode in show.get("in_flight_episodes", []) or []:
+        finalization = episode.get("finalization") or {}
+        if not finalization_elapsed(finalization):
+            continue
+        finalization["state"] = "finalized"
+        wp.update_episode_meta(episode["id"], {"ng_finalization": finalization})
+        logger.info("Finalization countdown elapsed for episode %s (%s) - marked finalized.", episode["id"], show["name"])
+
+
 def process_show(wp, client, config, show):
+    try:
+        check_finalizations(wp, show)
+    except Exception:
+        logger.exception("Error checking finalizations for %s", show["name"])
+
     tz_name = show.get("recording_timezone") or "UTC"
     now_local = datetime.now(ZoneInfo(tz_name))
     today_str = now_local.date().isoformat()
@@ -64,7 +99,12 @@ def process_show(wp, client, config, show):
     step_status = episode.get("meta", {}).get("ng_step_status", {}) or {}
     current_status = step_status.get("script_generated", {}).get("status", "pending")
 
-    if current_status in ("done", "degraded"):
+    # A pending action's force=True (set only by an explicit "Regenerate" click on
+    # an already-completed step, Section 8.2) is the one thing allowed to bypass
+    # the ordinary idempotent skip - see Phase 4's plan for why this is needed.
+    forced = any(action.get("force") for action in pending_actions)
+
+    if current_status in ("done", "degraded") and not forced:
         for action in pending_actions:
             wp.update_action(show["id"], action["id"], "done")
         logger.info("Script already generated for %s on %s - skipping.", show["name"], episode_date)
