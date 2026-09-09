@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.5.2
+ * Version:           0.5.4
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -27,7 +27,7 @@ if ( ! isset( $_SERVER['HTTP_AUTHORIZATION'] ) && isset( $_SERVER['REDIRECT_HTTP
 	$_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
 }
 
-define( 'NET_GAIN_VERSION', '0.5.2' );
+define( 'NET_GAIN_VERSION', '0.5.4' );
 define( 'NET_GAIN_PLUGIN_FILE', __FILE__ );
 define( 'NET_GAIN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -47,7 +47,6 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-show-talent.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-episode-steps.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-secrets.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-website-publish.php';
-require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-debug-auth.php'; // TEMPORARY - remove once auth issue resolved.
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-website-rewrite.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-aioseo-integration.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-schema-output.php';
@@ -85,7 +84,6 @@ add_action(
 		( new Net_Gain_REST_Episode_Steps() )->register_routes();
 		( new Net_Gain_REST_Secrets() )->register_routes();
 		( new Net_Gain_REST_Website_Publish() )->register_routes();
-		( new Net_Gain_REST_Debug_Auth() )->register_routes(); // TEMPORARY.
 	}
 );
 

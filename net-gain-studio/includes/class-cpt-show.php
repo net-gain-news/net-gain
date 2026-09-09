@@ -23,7 +23,14 @@ class Net_Gain_CPT_Show {
 				'show_in_menu'    => false,
 				'show_in_rest'    => true,
 				'rest_base'       => self::POST_TYPE,
-				'supports'        => array( 'title' ),
+				// 'custom-fields' is required for WP_REST_Posts_Controller to expose
+				// or accept the 'meta' field at all - without it, register_post_meta's
+				// show_in_rest schema is registered but never wired into the actual
+				// REST request/response handling, so every meta read/write via the
+				// generic wp/v2/ng_show route silently no-ops. No UI side effect here:
+				// show_ui is false, so there's no post-edit screen for a Custom Fields
+				// metabox to appear on.
+				'supports'        => array( 'title', 'custom-fields' ),
 				'capability_type' => array( 'ng_show', 'ng_shows' ),
 				'map_meta_cap'    => true,
 				'hierarchical'    => false,

@@ -98,6 +98,12 @@ def generate(client, system, user_content, tools=None, response_schema=None):
             messages.append({"role": "assistant", "content": response.content})
             continue
 
-        return "".join(block.text for block in response.content if block.type == "text")
+        text = "".join(block.text for block in response.content if block.type == "text")
+        if not text.strip():
+            raise GenerationError(
+                f"Generation finished (stop_reason={response.stop_reason}) but produced no "
+                "text content - refusing to treat an empty result as a real script."
+            )
+        return text
 
     raise GenerationError(f"Still paused after {MAX_PAUSE_RESUMES} resumes - giving up.")
