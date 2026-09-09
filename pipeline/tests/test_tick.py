@@ -6,12 +6,16 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from unittest.mock import patch
+
 from tick import (
     captivate_publish_due,
     check_finalizations,
     compute_target_publish_moment,
     finalization_elapsed,
     script_generation_due,
+    verify_website_publish,
+    website_publish_due,
 )
 
 
@@ -211,6 +215,62 @@ class CaptivatePublishDueTests(unittest.TestCase):
         }
         episode = self._episode(finalized_seconds_ago=1)
         self.assertFalse(captivate_publish_due(show, episode))
+
+
+class WebsitePublishDueTests(unittest.TestCase):
+    def _episode(self, state="finalized", website_status="pending", finalized_seconds_ago=3600):
+        finalized_at = _gmt_mysql(datetime.now(timezone.utc) - timedelta(seconds=finalized_seconds_ago))
+        return {
+            "id": 42,
+            "finalization": {"state": state, "finalized_at": finalized_at},
+            "step_status": {"website_published": {"status": website_status}},
+        }
+
+    def test_not_due_when_not_finalized(self):
+        show = {"publish_mode": "immediate"}
+        episode = self._episode(state="counting_down")
+        self.assertFalse(website_publish_due(show, episode))
+
+    def test_due_when_finalized_and_immediate_mode(self):
+        show = {"publish_mode": "immediate"}
+        episode = self._episode()
+        self.assertTrue(website_publish_due(show, episode))
+
+    def test_not_due_again_once_already_published(self):
+        show = {"publish_mode": "immediate"}
+        episode = self._episode(website_status="done")
+        self.assertFalse(website_publish_due(show, episode))
+
+    def test_not_due_when_scheduled_target_is_in_the_future(self):
+        future = datetime.now(timezone.utc) + timedelta(hours=2)
+        show = {"publish_mode": "scheduled", "publish_timezone": "UTC", "publish_time": future.strftime("%H:%M")}
+        episode = self._episode(finalized_seconds_ago=1)
+        self.assertFalse(website_publish_due(show, episode))
+
+
+class VerifyWebsitePublishTests(unittest.TestCase):
+    def test_raises_when_no_permalink_returned(self):
+        with self.assertRaises(RuntimeError):
+            verify_website_publish(None, {})
+
+    @patch("tick.requests.get")
+    def test_raises_on_non_200(self, mock_get):
+        mock_get.return_value.status_code = 404
+        with self.assertRaises(RuntimeError):
+            verify_website_publish("https://example.com/shows/x/y/", {})
+
+    @patch("tick.requests.get")
+    def test_raises_when_title_missing_from_page(self, mock_get):
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.text = "<html><body>something else</body></html>"
+        with self.assertRaises(RuntimeError):
+            verify_website_publish("https://example.com/shows/x/y/", {"ng_meta_aioseo_title": "Expected Title"})
+
+    @patch("tick.requests.get")
+    def test_passes_when_title_present(self, mock_get):
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.text = "<html><body>Expected Title</body></html>"
+        verify_website_publish("https://example.com/shows/x/y/", {"ng_meta_aioseo_title": "Expected Title"})  # no raise
 
 
 if __name__ == "__main__":

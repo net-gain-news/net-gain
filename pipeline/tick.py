@@ -2,20 +2,22 @@
 Cron entry point (SPEC.md Section 3.1): invoked directly as a CLI process by
 a single Canspace cron entry, frequently. Each pass checks every Active show
 for anything due. Phase 3 added script generation; Phase 4 added detecting
-an elapsed finalization countdown (Section 8.1); Phase 5 adds metadata
-generation and Captivate publishing (Section 6.1), both deliberately
-triggered at the same moment - the closest point to actual publication, per
-the Phase 4 amendment deferring generation work to avoid wasting it on
-episodes later aborted and replaced. Later phases extend the same loop
-further, per CLAUDE.md's architecture note that manual and scheduled
-triggers must share one code path.
+an elapsed finalization countdown (Section 8.1); Phase 5 added metadata
+generation and Captivate publishing (Section 6.1); Phase 6 adds website
+publishing (Section 6.2). Metadata generation, Captivate, and website
+publishing are all deliberately triggered at the same moment - the closest
+point to actual publication, per the Phase 4 amendment deferring generation
+work to avoid wasting it on episodes later aborted and replaced. Later
+phases extend the same loop further, per CLAUDE.md's architecture note that
+manual and scheduled triggers must share one code path.
 
 Each show is processed in complete isolation (Section 3.1: "each show's
 processing must run as a fully independent, isolated process with no shared
 lock or queue across shows") - one show's failure is logged and alerted on,
-never allowed to stop the loop for the rest. Within one show, Captivate
-publishing is likewise isolated from script generation (Section 9:
-publish-target independence) - a failure in one must not prevent the other.
+never allowed to stop the loop for the rest. Within one show, Captivate and
+website publishing are likewise isolated from each other and from script
+generation (Section 9: publish-target independence) - a failure in one must
+never prevent attempts at the other two.
 """
 
 import logging
@@ -24,6 +26,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import anthropic
+import requests
 
 from anthropic_client import generate as anthropic_generate
 from captivate_client import CaptivateClient
@@ -254,6 +257,62 @@ def process_captivate_publishes(wp, client, captivate, config, show):
             notify_failure(config, show["name"], "captivate_published", str(exc))
 
 
+def website_publish_due(show, episode):
+    # No pending-action/force handling here, unlike Captivate - Section 8.3 only
+    # names script generation, image generation, and Captivate publish as needing
+    # a manual trigger; website publishing isn't in that list.
+    finalization = episode.get("finalization") or {}
+    if finalization.get("state") != "finalized":
+        return False
+
+    step_status = episode.get("step_status") or {}
+    current = step_status.get("website_published", {}).get("status", "pending")
+    if current in ("done", "degraded"):
+        return False
+
+    return datetime.now(timezone.utc) >= compute_target_publish_moment(show, finalization)
+
+
+def verify_website_publish(permalink, episode_meta):
+    """Full end-to-end verification (Section 6.2): re-fetch the live page and confirm
+    it both returns and actually contains the expected content - never trust the
+    creation call's own response alone."""
+    if not permalink:
+        raise RuntimeError("publish-website did not return a permalink.")
+
+    response = requests.get(permalink, timeout=30)
+    if response.status_code != 200:
+        raise RuntimeError(f"Re-fetching the published page returned {response.status_code}: {permalink}")
+
+    title = episode_meta.get("ng_meta_aioseo_title") or ""
+    if title and title not in response.text:
+        raise RuntimeError(f"Published page did not contain the expected title {title!r}: {permalink}")
+
+
+def process_website_publishes(wp, client, config, show):
+    for episode in show.get("in_flight_episodes", []) or []:
+        if not website_publish_due(show, episode):
+            continue
+
+        episode_id = episode["id"]
+        step_status = episode.get("step_status") or {}
+        metadata_status = step_status.get("metadata_generated", {}).get("status", "pending")
+
+        try:
+            if metadata_status not in ("done", "degraded"):
+                generate_metadata(wp, client, show, episode_id)
+
+            wp.update_step(episode_id, "website_published", "in_progress")
+            result = wp.publish_website(episode_id)
+            verify_website_publish(result.get("permalink"), wp.get_episode(episode_id).get("meta", {}))
+            wp.update_step(episode_id, "website_published", "done")
+            logger.info("Published episode %s to the website for %s.", episode_id, show["name"])
+        except Exception as exc:
+            logger.exception("Website publish failed for episode %s (%s)", episode_id, show["name"])
+            wp.update_step(episode_id, "website_published", "failed", note=str(exc)[:500])
+            notify_failure(config, show["name"], "website_published", str(exc))
+
+
 def process_show(wp, client, captivate, config, show):
     try:
         check_finalizations(wp, show)
@@ -264,6 +323,11 @@ def process_show(wp, client, captivate, config, show):
         process_captivate_publishes(wp, client, captivate, config, show)
     except Exception:
         logger.exception("Error processing Captivate publishes for %s", show["name"])
+
+    try:
+        process_website_publishes(wp, client, config, show)
+    except Exception:
+        logger.exception("Error processing website publishes for %s", show["name"])
 
     tz_name = show.get("recording_timezone") or "UTC"
     now_local = datetime.now(ZoneInfo(tz_name))

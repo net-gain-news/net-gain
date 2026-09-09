@@ -53,6 +53,19 @@ class Net_Gain_Roles {
 				}
 			}
 		}
+
+		// Phase 6 (website publishing): the publish-website REST route creates real
+		// WordPress Posts (Seriously Simple Podcasting's "podcast" CPT, which uses
+		// the standard 'post' capability_type like any ordinary plugin CPT), Pages
+		// (the show hub pages), and "series" taxonomy terms - none of which are
+		// covered by our own ng_show/ng_episode capability_type above. Administrator
+		// already has all of these by default; the service account needs them
+		// granted explicitly, still short of full delete/admin capabilities.
+		if ( $service ) {
+			foreach ( array( 'edit_posts', 'edit_others_posts', 'publish_posts', 'edit_pages', 'edit_others_pages', 'publish_pages', 'manage_categories' ) as $cap ) {
+				$service->add_cap( $cap );
+			}
+		}
 	}
 
 	private static function full_capability_list( $plural ) {

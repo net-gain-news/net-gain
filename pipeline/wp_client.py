@@ -158,6 +158,9 @@ class WPClient:
             json={"status": status, "note": note},
         )
 
+    def publish_website(self, episode_id):
+        return self._request("POST", f"/wp-json/net-gain/v1/episodes/{episode_id}/publish-website")
+
     # --- manual-trigger actions ------------------------------------------------
 
     def update_action(self, show_id, action_id, status):
