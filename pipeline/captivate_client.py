@@ -37,6 +37,10 @@ class CaptivateClient:
         self.api_token = api_token
         self.timeout = timeout
         self.session = requests.Session()
+        # See wp_client.py - the account's own WAF blocks requests' default
+        # User-Agent outright; using the same honest custom one everywhere calls
+        # go out from this pipeline, not just where it was first discovered.
+        self.session.headers["User-Agent"] = "NetGainStudio-Pipeline/1.0 (+https://netgain.news)"
 
     def ensure_authenticated(self):
         """Authenticates once per process (per tick pass), reused across every show that needs it."""

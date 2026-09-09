@@ -33,6 +33,11 @@ class WPClient:
         self.timeout = timeout
         self.session = requests.Session()
         self.session.auth = (username, app_password)
+        # Confirmed on the real Canspace account (2026-09-09): requests' default
+        # "python-requests/x.y.z" User-Agent gets its connection reset outright by
+        # the account's own WAF (Imunify360), before WordPress ever sees the
+        # request - even identical requests succeed with any other User-Agent.
+        self.session.headers["User-Agent"] = "NetGainStudio-Pipeline/1.0 (+https://netgain.news)"
 
     def _request(self, method, path, **kwargs):
         url = f"{self.base_url}{path}"
