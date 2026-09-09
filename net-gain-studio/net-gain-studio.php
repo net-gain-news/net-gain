@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.5.0
+ * Version:           0.5.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -13,7 +13,21 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'NET_GAIN_VERSION', '0.5.0' );
+/**
+ * Confirmed live on the real Canspace account (2026-09-09): Application
+ * Password Basic Auth requests were failing with rest_forbidden even with
+ * correct, non-revoked credentials and a verified-present Authorization
+ * header on the wire (confirmed via curl -v) - consistent with the
+ * well-known cPanel nginx-in-front-of-Apache gotcha where the Authorization
+ * header is stripped before reaching PHP, but often survives renamed as
+ * REDIRECT_HTTP_AUTHORIZATION. This restores it early, before any
+ * authentication logic runs. A no-op on hosts that don't have this problem.
+ */
+if ( ! isset( $_SERVER['HTTP_AUTHORIZATION'] ) && isset( $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ) ) {
+	$_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
+}
+
+define( 'NET_GAIN_VERSION', '0.5.1' );
 define( 'NET_GAIN_PLUGIN_FILE', __FILE__ );
 define( 'NET_GAIN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
