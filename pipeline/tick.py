@@ -41,6 +41,13 @@ logger = logging.getLogger("net_gain.tick")
 
 WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
+# Deliberately not per-show-configured and set well below any plausible real
+# script (a spoken daily newscast segment, even a short one, runs well past
+# this) rather than tuned to any one show's target length - a general floor
+# that a garbage non-script response (an apology, a truncation) would fail,
+# not a substitute for the human review script_reviewed already provides.
+MIN_SCRIPT_WORDS = 150
+
 
 def _gmt_mysql(dt):
     return dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -369,10 +376,30 @@ def process_show(wp, client, captivate, config, show):
             recent_episodes,
         )
         wp.update_episode_meta(episode["id"], {"ng_script_draft": draft})
-        wp.update_step(episode["id"], "script_generated", "done")
+        word_count = len(draft.split())
+        if word_count < MIN_SCRIPT_WORDS:
+            # A live incident (2026-09-10) produced non-empty text that wasn't a
+            # script at all - Claude explaining it had exhausted its web-search
+            # budget and asking to be re-prompted. That's now fixed at the
+            # source (anthropic_client.py), but this is a cheap, general
+            # backstop against the *shape* of that failure recurring in some
+            # other form: no real spoken newscast segment is this short,
+            # regardless of show, so flag rather than silently trust it.
+            wp.update_step(
+                episode["id"],
+                "script_generated",
+                "degraded",
+                note=f"Draft is only {word_count} words - suspiciously short for a real script.",
+            )
+            logger.warning(
+                "Script for %s (%s) is only %d words - flagged degraded, not done.",
+                show["name"], episode_date, word_count,
+            )
+        else:
+            wp.update_step(episode["id"], "script_generated", "done")
+            logger.info("Generated script for %s (%s).", show["name"], episode_date)
         for action in pending_actions:
             wp.update_action(show["id"], action["id"], "done")
-        logger.info("Generated script for %s (%s).", show["name"], episode_date)
     except Exception as exc:
         logger.exception("Script generation failed for %s (%s)", show["name"], episode_date)
         wp.update_step(episode["id"], "script_generated", "failed", note=str(exc)[:500])

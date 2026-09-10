@@ -85,6 +85,7 @@ class Net_Gain_Dashboard_Status {
 
 	private static function degraded_tooltip( $step_key, $note ) {
 		$guidance = array(
+			'script_generated' => 'The generated draft was suspiciously short for a real script - worth confirming it\'s not a truncated or non-script response (e.g. the model running out of its search budget) before reviewing. Not blocking.',
 			'script_reviewed' => 'The saved final script was suspiciously close to the AI draft - worth a second look to confirm this wasn\'t an accidental save without real edits. Not blocking.',
 			'images_rendered'  => 'AI image generation failed, so this show\'s pre-rendered default branded image was used instead - publishing was not blocked.',
 		);
