@@ -46,7 +46,12 @@ WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 # this) rather than tuned to any one show's target length - a general floor
 # that a garbage non-script response (an apology, a truncation) would fail,
 # not a substitute for the human review script_reviewed already provides.
-MIN_SCRIPT_WORDS = 150
+# Raised from 150 (2026-09-10): a live failure - Claude narrating an extended
+# web_search server-tool-limit troubleshooting attempt before giving up - was
+# verbose enough to clear 150 words and was wrongly marked done, not degraded.
+# 250 is still far below an actual newscast script's length, so this remains
+# a floor against non-scripts, not a proxy for real editorial quality.
+MIN_SCRIPT_WORDS = 250
 
 
 def _gmt_mysql(dt):
