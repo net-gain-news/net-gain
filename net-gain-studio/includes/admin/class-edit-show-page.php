@@ -273,13 +273,23 @@ class Net_Gain_Edit_Show_Page {
 											<option value="duotone" <?php selected( 'duotone', $image_style ); ?>>Duotone</option>
 										</select>
 									</p>
+									<?php
+									$duotone_colors = array(
+										'ng_duotone_shadow_color'    => array( 'Shadow colour', '#000000' ),
+										'ng_duotone_highlight_color' => array( 'Highlight colour', '#ffffff' ),
+									);
+									?>
 									<p>
-										<label for="ng_duotone_shadow_color"><strong>Shadow colour</strong></label>
-										<input type="color" id="ng_duotone_shadow_color" name="ng_duotone_shadow_color" value="<?php echo esc_attr( $get( 'ng_duotone_shadow_color', '#000000' ) ); ?>">
-										&nbsp;&nbsp;
-										<label for="ng_duotone_highlight_color"><strong>Highlight colour</strong></label>
-										<input type="color" id="ng_duotone_highlight_color" name="ng_duotone_highlight_color" value="<?php echo esc_attr( $get( 'ng_duotone_highlight_color', '#ffffff' ) ); ?>">
+										<?php foreach ( $duotone_colors as $meta_key => $field ) : ?>
+											<?php list( $label, $default ) = $field; ?>
+											<label for="<?php echo esc_attr( $meta_key ); ?>"><strong><?php echo esc_html( $label ); ?></strong></label>
+											<input type="color" class="ng-duotone-picker" value="<?php echo esc_attr( $get( $meta_key, $default ) ); ?>">
+											<input type="text" id="<?php echo esc_attr( $meta_key ); ?>" name="<?php echo esc_attr( $meta_key ); ?>" class="ng-duotone-hex" style="width:90px;"
+												value="<?php echo esc_attr( $get( $meta_key, $default ) ); ?>" placeholder="<?php echo esc_attr( $default ); ?>">
+											&nbsp;&nbsp;
+										<?php endforeach; ?>
 									</p>
+									<p class="description">Type a hex value directly, or use the swatch next to it as a visual picker — not every browser's built-in colour picker shows a hex field on its own.</p>
 									<p class="description">Applied to the AI-generated base image before frame compositing: greyscale, then a shadow-colour multiply blend and a highlight-colour screen blend (fixed contrast/brightness/opacity values — only the two colours vary per show). Only used when "Duotone" is selected above.</p>
 								</div>
 							</details>

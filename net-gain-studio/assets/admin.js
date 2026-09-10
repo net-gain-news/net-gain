@@ -33,6 +33,21 @@
 			$( '.ng-publish-schedule-row' ).toggle( scheduled );
 		} );
 
+		// Duotone colour fields: the native <input type="color"> swatch is a visual
+		// helper only (not submitted - no name attribute) since not every browser's
+		// built-in picker surfaces a hex field (Safari/macOS notably doesn't). The
+		// adjacent plain text input is what actually gets saved; each keeps the
+		// other in sync.
+		$( document ).on( 'input', '.ng-duotone-picker', function () {
+			$( this ).next( '.ng-duotone-hex' ).val( $( this ).val() );
+		} );
+		$( document ).on( 'input', '.ng-duotone-hex', function () {
+			var value = $( this ).val();
+			if ( /^#[0-9a-fA-F]{6}$/.test( value ) ) {
+				$( this ).prev( '.ng-duotone-picker' ).val( value );
+			}
+		} );
+
 		// --- My Show page: audio upload, finalization countdown, abort/publish-now ---
 
 		function ngRestPost( path, data ) {
