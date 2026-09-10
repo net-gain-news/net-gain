@@ -39,7 +39,7 @@ class Net_Gain_Dashboard_Page {
 			<h1><?php echo esc_html( gmdate( 'l, F j, Y', self::to_timestamp( $date ) ) ); ?></h1>
 			<p>
 				<a class="button" href="<?php echo esc_url( self::date_url( self::shift_date( $date, -1 ) ) ); ?>">&larr; Previous day</a>
-				<a class="button" href="<?php echo esc_url( self::date_url( gmdate( 'Y-m-d' ) ) ); ?>">Today</a>
+				<a class="button" href="<?php echo esc_url( self::date_url( self::default_today() ) ); ?>">Today</a>
 				<a class="button" href="<?php echo esc_url( self::date_url( self::shift_date( $date, 1 ) ) ); ?>">Next day &rarr;</a>
 			</p>
 
@@ -214,7 +214,63 @@ class Net_Gain_Dashboard_Page {
 				return $date;
 			}
 		}
-		return current_time( 'Y-m-d' );
+		return self::default_today();
+	}
+
+	/**
+	 * "Today" has no single correct answer once shows can have different
+	 * ng_recording_timezone values (Section 4) - the site's own configured
+	 * timezone (what current_time() would use) has no necessary relationship
+	 * to any show's. Confirmed live (2026-09-10): the site's timezone was UTC
+	 * while a show's recording_timezone was America/Vancouver, and defaulting
+	 * to the site's "today" landed a day ahead of the show's actual recording
+	 * day, so a freshly generated episode's row appeared to not exist at all.
+	 *
+	 * Defaults to the EARLIEST local date across all active shows' recording
+	 * timezones - the show that has least recently rolled over to a new day -
+	 * so a freshly generated episode is never skipped past by a more easterly
+	 * show having already turned its calendar page. The tradeoff: a more
+	 * easterly show's row may show one day "ahead" of its own local date
+	 * until you page forward - acceptable, since Previous/Next day navigation
+	 * is right there, and understating how far a day has progressed is safer
+	 * than skipping a day's episode entirely.
+	 */
+	private static function default_today() {
+		$today_dates = array();
+		foreach ( self::active_show_timezones() as $tz_name ) {
+			try {
+				$tz = new DateTimeZone( $tz_name ?: 'UTC' );
+			} catch ( Exception $e ) {
+				$tz = new DateTimeZone( 'UTC' );
+			}
+			$today_dates[] = ( new DateTime( 'now', $tz ) )->format( 'Y-m-d' );
+		}
+
+		if ( empty( $today_dates ) ) {
+			return current_time( 'Y-m-d' );
+		}
+
+		sort( $today_dates );
+		return $today_dates[0];
+	}
+
+	private static function active_show_timezones() {
+		$show_ids = get_posts(
+			array(
+				'post_type'      => Net_Gain_CPT_Show::POST_TYPE,
+				'posts_per_page' => -1,
+				'meta_key'       => 'ng_status',
+				'meta_value'     => 'active',
+				'fields'         => 'ids',
+			)
+		);
+
+		return array_map(
+			function ( $show_id ) {
+				return get_post_meta( $show_id, 'ng_recording_timezone', true );
+			},
+			$show_ids
+		);
 	}
 
 	private static function shift_date( $date, $days ) {
