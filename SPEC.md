@@ -123,19 +123,22 @@ Treated as its **own distinct build phase** — a third full publishing platform
 
 ## 7. Image Pipeline
 
-Three output images per episode, each with its **own distinct, purpose-built compositing frame** (not derived/cropped from one another):
+Three output images per episode, each with its **own distinct, purpose-built compositing frame** — the *frames* are not derived from one another (each is its own template, sized and branded for its own platform's convention: 3000×3000 is the universal podcast-cover-art square, 16:9 is YouTube's own thumbnail convention, 1200×630 is the established Open Graph/social-link-preview convention — three genuinely different platform standards, not an arbitrary split):
 
 | Output | Dimensions | Format | Size cap | Purpose |
 |---|---|---|---|---|
 | Podcast art | 3000×3000 | JPEG | ≤500KB | Captivate |
-| YouTube art | 16:9 | JPEG | ≤1MB | YouTube thumbnail/video |
-| Website art | 1200×630 | WebP | — | Open Graph / website |
+| YouTube art | 16:9 (1280×720) | JPEG | ≤1MB | YouTube thumbnail/video |
+| Website art | 1200×630 | WebP | — (soft-optimized toward a small filesize regardless, for page-load performance/SEO) | Open Graph / website |
 
+- **One base image per episode, not three.** A single AI-generated base image — not three independently generated images — is cropped to fit each of the three output ratios. Generating three separate images per episode risked the same episode looking like three unrelated pieces of art across Captivate/YouTube/website, which would be confusing to a listener following the show across platforms; one shared base image, cropped, keeps the episode visually recognizable everywhere it appears. The base image is generated at the **widest of the three target ratios** (currently 1200×630's ≈1.91:1) so the other two, narrower outputs are obtainable by a pure inward crop, never by padding or fabricating content at the edges.
 - **Frame/template assets**: PNG (needs alpha transparency for the compositing cutout), stored per-show, with a dedicated UI section for uploading/replacing all three independently. (This was initially missing from the show setup mockup and has been added as a required field group.)
 - **Base art**: AI-generated per episode, informed by that day's actual stories (same context-aware approach as the metadata generation), then composited into the show's fixed frame. Recommended provider: **Google Imagen via Vertex AI**, using the GCP project/billing relationship already established for this project — no genuinely free production-grade image generation API exists, but real per-image cost at this project's scale is negligible.
+- **Optional per-show style treatment**, applied to the base image before cropping or frame compositing: a show may specify a duotone treatment (grayscale conversion, contrast/brightness adjustment, then two brand-color blend layers — shadow tone via multiply blend, highlight tone via screen blend) using that show's own two chosen colors. The technique's parameters (contrast/brightness/blend opacities) are fixed; only the two colors are per-show. Default is no treatment. (First real-world case: Net Gain Edtech's green duotone treatment, specified in a production design reference document with exact colors and blend values.)
 - **Compositing implementation**: Python's Pillow library, run as a step in the existing pipeline (not a new platform or language).
 - **Graceful fallback (required)**: if AI image generation fails for any reason, each show has a pre-rendered static default branded image (already run through all three frames/formats) that is used automatically instead. **Publishing must never be blocked by an image failure.** This state shows as the Amber/"completed, degraded" dashboard status, not a failure.
-- Frame changes apply prospectively only (see Section 4.1).
+- **Human review step**, mirroring Section 5.2's script review: the rendered images are surfaced for a human to look at close to when they're generated (shortly after audio upload, since image generation is not deferred to publish time — see Section 8.3) — both to the admin and to the talent assigned to that show — with a manual regenerate control available if the result doesn't look right. Images render as soon as audio is received; a human can review and, if needed, regenerate before publish time, rather than only discovering a bad result after the fact.
+- Frame and style-treatment changes apply prospectively only (see Section 4.1).
 
 ## 8. Episode Queue, Manual Triggers & Publish Timing
 

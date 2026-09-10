@@ -65,7 +65,29 @@ class Net_Gain_Roles {
 			foreach ( array( 'edit_posts', 'edit_others_posts', 'publish_posts', 'edit_pages', 'edit_others_pages', 'publish_pages', 'manage_categories' ) as $cap ) {
 				$service->add_cap( $cap );
 			}
+
+			// Phase 8 (image pipeline): uploading rendered episode art to the media
+			// library via POST /wp/v2/media requires upload_files, which nothing had
+			// granted the service account until now (only the Talent role had it).
+			$service->add_cap( 'upload_files' );
 		}
+	}
+
+	/**
+	 * grant_capabilities() only ever ran from Net_Gain_Activator::activate() -
+	 * fine for a fresh install, but it means a capability added to the code
+	 * (like upload_files above) silently does nothing on an already-installed
+	 * live site until something re-triggers it. This re-runs role/capability
+	 * setup once per version bump, generically, rather than requiring a manual
+	 * deactivate/reactivate every time a phase needs a new capability.
+	 */
+	public static function maybe_upgrade() {
+		if ( get_option( 'ng_db_version' ) === NET_GAIN_VERSION ) {
+			return;
+		}
+		self::register_roles();
+		self::grant_capabilities();
+		update_option( 'ng_db_version', NET_GAIN_VERSION );
 	}
 
 	private static function full_capability_list( $plural ) {

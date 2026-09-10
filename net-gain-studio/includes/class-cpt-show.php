@@ -87,6 +87,19 @@ class Net_Gain_CPT_Show {
 			'ng_frame_square_id'     => array( 'type' => 'integer', 'default' => 0 ),
 			'ng_frame_16x9_id'       => array( 'type' => 'integer', 'default' => 0 ),
 			'ng_frame_1200x630_id'   => array( 'type' => 'integer', 'default' => 0 ),
+			// Pre-rendered, finished images (already run through all three frames/formats) -
+			// used automatically if AI image generation fails (Spec Section 7's required
+			// graceful fallback). Not re-composited at fallback time, just copied as-is.
+			'ng_fallback_square_id'    => array( 'type' => 'integer', 'default' => 0 ),
+			'ng_fallback_16x9_id'      => array( 'type' => 'integer', 'default' => 0 ),
+			'ng_fallback_1200x630_id'  => array( 'type' => 'integer', 'default' => 0 ),
+			// Optional per-show duotone treatment (Spec Section 7) - applied to the AI base
+			// image before per-format cropping/frame compositing. Only the two colors vary
+			// per show; the blend algorithm itself (contrast/brightness/opacities) is fixed
+			// in pipeline/image_compositing.py, not configurable here.
+			'ng_image_style'             => array( 'type' => 'string', 'default' => 'none' ), // none|duotone
+			'ng_duotone_shadow_color'    => array( 'type' => 'string', 'default' => '' ),
+			'ng_duotone_highlight_color' => array( 'type' => 'string', 'default' => '' ),
 			'ng_status'              => array( 'type' => 'string', 'default' => 'active' ), // active|paused|concluded - never "archived", see Spec 4.2.
 			'ng_is_test'             => array( 'type' => 'boolean', 'default' => false ), // Spec Section 13 - hidden from the dashboard by default.
 			'ng_captivate_show_id'   => array( 'type' => 'string', 'default' => '' ),

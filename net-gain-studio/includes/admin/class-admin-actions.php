@@ -97,6 +97,15 @@ class Net_Gain_Admin_Actions {
 			update_post_meta( $show_id, $frame_key, (int) ( $_POST[ $frame_key ] ?? 0 ) );
 		}
 
+		foreach ( array( 'ng_fallback_square_id', 'ng_fallback_16x9_id', 'ng_fallback_1200x630_id' ) as $fallback_key ) {
+			update_post_meta( $show_id, $fallback_key, (int) ( $_POST[ $fallback_key ] ?? 0 ) );
+		}
+
+		$image_style = ( 'duotone' === ( $_POST['ng_image_style'] ?? '' ) ) ? 'duotone' : 'none';
+		update_post_meta( $show_id, 'ng_image_style', $image_style );
+		update_post_meta( $show_id, 'ng_duotone_shadow_color', sanitize_hex_color( wp_unslash( $_POST['ng_duotone_shadow_color'] ?? '' ) ) ?: '' );
+		update_post_meta( $show_id, 'ng_duotone_highlight_color', sanitize_hex_color( wp_unslash( $_POST['ng_duotone_highlight_color'] ?? '' ) ) ?: '' );
+
 		$status = sanitize_key( $_POST['ng_status'] ?? 'active' );
 		if ( ! in_array( $status, array( 'active', 'paused', 'concluded' ), true ) ) {
 			$status = 'active';

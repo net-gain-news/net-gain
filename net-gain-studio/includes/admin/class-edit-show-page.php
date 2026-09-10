@@ -233,6 +233,60 @@ class Net_Gain_Edit_Show_Page {
 					</tr>
 
 					<tr>
+						<th>Default fallback images</th>
+						<td>
+							<?php
+							$fallbacks = array(
+								'ng_fallback_square_id'   => 'Podcast art fallback (square, 3000×3000, JPEG)',
+								'ng_fallback_16x9_id'     => 'YouTube art fallback (1280×720, JPEG)',
+								'ng_fallback_1200x630_id' => 'Website art fallback (1200×630, WebP)',
+							);
+							foreach ( $fallbacks as $meta_key => $label ) :
+								$attachment_id = (int) $get( $meta_key, 0 );
+								?>
+								<div class="ng-frame-picker" style="margin-bottom:16px;">
+									<p><strong><?php echo esc_html( $label ); ?></strong></p>
+									<div class="ng-frame-preview" style="margin-bottom:6px;">
+										<?php if ( $attachment_id ) : ?>
+											<?php echo wp_get_attachment_image( $attachment_id, array( 100, 100 ) ); ?>
+										<?php endif; ?>
+									</div>
+									<input type="hidden" class="ng-frame-input" name="<?php echo esc_attr( $meta_key ); ?>" value="<?php echo esc_attr( $attachment_id ); ?>">
+									<button type="button" class="button ng-frame-select">Select Image</button>
+									<p class="description">A pre-rendered, finished image at this exact spec — used automatically if AI image generation fails for this show. Upload the actual finished JPEG/WebP here, not a frame template.</p>
+								</div>
+							<?php endforeach; ?>
+						</td>
+					</tr>
+
+					<tr>
+						<th>Image style</th>
+						<td>
+							<details<?php echo 'duotone' === $get( 'ng_image_style', 'none' ) ? ' open' : ''; ?>>
+								<summary style="cursor:pointer;">Image style (optional — default: none)</summary>
+								<div style="margin-top:12px;">
+									<p>
+										<label for="ng_image_style"><strong>Style treatment</strong></label><br>
+										<?php $image_style = $get( 'ng_image_style', 'none' ); ?>
+										<select id="ng_image_style" name="ng_image_style">
+											<option value="none" <?php selected( 'none', $image_style ); ?>>None</option>
+											<option value="duotone" <?php selected( 'duotone', $image_style ); ?>>Duotone</option>
+										</select>
+									</p>
+									<p>
+										<label for="ng_duotone_shadow_color"><strong>Shadow colour</strong></label>
+										<input type="color" id="ng_duotone_shadow_color" name="ng_duotone_shadow_color" value="<?php echo esc_attr( $get( 'ng_duotone_shadow_color', '#000000' ) ); ?>">
+										&nbsp;&nbsp;
+										<label for="ng_duotone_highlight_color"><strong>Highlight colour</strong></label>
+										<input type="color" id="ng_duotone_highlight_color" name="ng_duotone_highlight_color" value="<?php echo esc_attr( $get( 'ng_duotone_highlight_color', '#ffffff' ) ); ?>">
+									</p>
+									<p class="description">Applied to the AI-generated base image before frame compositing: greyscale, then a shadow-colour multiply blend and a highlight-colour screen blend (fixed contrast/brightness/opacity values — only the two colours vary per show). Only used when "Duotone" is selected above.</p>
+								</div>
+							</details>
+						</td>
+					</tr>
+
+					<tr>
 						<th><label for="ng_status">Show status</label></th>
 						<td>
 							<?php $status = $get( 'ng_status', 'active' ); ?>
