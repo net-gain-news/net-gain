@@ -104,6 +104,26 @@ class WPClient:
             raise WPClientError(f"GET {url} failed ({response.status_code})")
         return response.content
 
+    def upload_media(self, file_bytes, filename, mime_type):
+        """
+        Uploads a new file to the WP media library (Phase 8's rendered episode
+        art). Sent as a raw binary body with Content-Disposition, per the WP
+        REST API Handbook's documented media-upload shape - not a multipart
+        form file like captivate_client.py's upload_media, which is a
+        different API with its own documented shape. Worth confirming this is
+        still accurate against a live response before first real use, per
+        this project's own stated discipline (SPEC.md Section 1).
+        """
+        headers = {
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Type": mime_type,
+        }
+        response = self._request("POST", "/wp-json/wp/v2/media", data=file_bytes, headers=headers)
+        attachment_id = response.get("id")
+        if not attachment_id:
+            raise WPClientError(f"POST /wp-json/wp/v2/media did not return an id: {response}")
+        return attachment_id
+
     # --- episodes ------------------------------------------------------------
 
     def list_episodes_for_show(self, show_id, per_page=100):

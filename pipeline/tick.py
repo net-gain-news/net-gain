@@ -31,6 +31,7 @@ import requests
 from anthropic_client import generate as anthropic_generate
 from captivate_client import CaptivateClient
 from config import ConfigError, load_config
+from image_generation import FALLBACK_META_KEYS, IMAGE_META_KEYS, build_vertex_client, render_images_for_episode
 from metadata_generation import generate_metadata_for_episode
 from notify import notify_failure
 from script_generation import generate_script_for_show
@@ -133,6 +134,62 @@ def compute_target_publish_moment(show, finalization):
         target_local += timedelta(days=1)
 
     return target_local.astimezone(timezone.utc)
+
+
+def images_due(show, episode):
+    """
+    Unlike metadata_generated/Captivate/website publishing, images have no
+    publish-timing gate - Section 8.3's amendment requires image generation
+    to remain triggerable as soon as audio is received, not deferred to
+    publish time. Returns (due, pending_actions).
+    """
+    step_status = episode.get("step_status") or {}
+    if step_status.get("audio_received", {}).get("status", "pending") not in ("done", "degraded"):
+        return False, []
+
+    current = step_status.get("images_rendered", {}).get("status", "pending")
+    pending = [
+        a for a in show.get("pending_actions", []) or []
+        if a.get("action") == "generate_images" and a.get("status") == "pending"
+    ]
+    if current in ("done", "degraded") and not any(a.get("force") for a in pending):
+        return False, pending
+    return True, pending
+
+
+def process_image_rendering(wp, client, vertex_client, config, show):
+    for episode in show.get("in_flight_episodes", []) or []:
+        due, pending = images_due(show, episode)
+        if not due:
+            continue
+
+        episode_id = episode["id"]
+        try:
+            wp.update_step(episode_id, "images_rendered", "in_progress")
+            render_images_for_episode(
+                wp, vertex_client, lambda **kwargs: anthropic_generate(client, **kwargs), show, episode_id
+            )
+            wp.update_step(episode_id, "images_rendered", "done")
+            for action in pending:
+                wp.update_action(show["id"], action["id"], "done")
+            logger.info("Rendered images for episode %s (%s).", episode_id, show["name"])
+        except Exception as exc:
+            logger.exception("Image rendering failed for episode %s (%s)", episode_id, show["name"])
+            show_details = wp.get_show(show["id"])
+            show_meta = show_details.get("meta", {})
+            fallback_ids = {spec: show_meta.get(key, 0) for spec, key in FALLBACK_META_KEYS.items()}
+            if all(fallback_ids.values()):
+                wp.update_episode_meta(
+                    episode_id, {IMAGE_META_KEYS[spec]: fid for spec, fid in fallback_ids.items()}
+                )
+                wp.update_step(episode_id, "images_rendered", "degraded", note=str(exc)[:500])
+                for action in pending:
+                    wp.update_action(show["id"], action["id"], "done")
+            else:
+                wp.update_step(episode_id, "images_rendered", "failed", note=str(exc)[:500])
+                for action in pending:
+                    wp.update_action(show["id"], action["id"], "failed")
+                notify_failure(config, show["name"], "images_rendered", str(exc))
 
 
 def captivate_publish_due(show, episode):
@@ -325,11 +382,16 @@ def process_website_publishes(wp, client, config, show):
             notify_failure(config, show["name"], "website_published", str(exc))
 
 
-def process_show(wp, client, captivate, config, show):
+def process_show(wp, client, captivate, vertex_client, config, show):
     try:
         check_finalizations(wp, show)
     except Exception:
         logger.exception("Error checking finalizations for %s", show["name"])
+
+    try:
+        process_image_rendering(wp, client, vertex_client, config, show)
+    except Exception:
+        logger.exception("Error processing image rendering for %s", show["name"])
 
     try:
         process_captivate_publishes(wp, client, captivate, config, show)
@@ -423,13 +485,14 @@ def main():
     wp = WPClient(config["WP_BASE_URL"], config["WP_SERVICE_USERNAME"], config["WP_SERVICE_APP_PASSWORD"])
     client = anthropic.Anthropic(api_key=config["ANTHROPIC_API_KEY"])
     captivate = CaptivateClient(config["CAPTIVATE_USER_ID"], config["CAPTIVATE_API_TOKEN"])
+    vertex_client = build_vertex_client(config)
 
     shows = wp.get_tick_context()
     logger.info("Tick: %d active show(s).", len(shows))
 
     for show in shows:
         try:
-            process_show(wp, client, captivate, config, show)
+            process_show(wp, client, captivate, vertex_client, config, show)
         except Exception:
             # A failure in due-checking/episode lookup itself (before we even reach
             # process_show's own try/except) must still not stop the other shows.

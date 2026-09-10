@@ -21,6 +21,8 @@ REQUIRED_VARS = [
     "WP_SERVICE_APP_PASSWORD",
     "CAPTIVATE_USER_ID",
     "CAPTIVATE_API_TOKEN",
+    "GOOGLE_SERVICE_ACCOUNT_JSON",
+    "GOOGLE_CLOUD_PROJECT",
 ]
 
 
@@ -44,6 +46,9 @@ def load_config():
         "WP_SERVICE_APP_PASSWORD": os.environ["WP_SERVICE_APP_PASSWORD"],
         "CAPTIVATE_USER_ID": os.environ["CAPTIVATE_USER_ID"],
         "CAPTIVATE_API_TOKEN": os.environ["CAPTIVATE_API_TOKEN"],
+        "GOOGLE_SERVICE_ACCOUNT_JSON": os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"],
+        "GOOGLE_CLOUD_PROJECT": os.environ["GOOGLE_CLOUD_PROJECT"],
+        "GOOGLE_CLOUD_LOCATION": os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
         "SMTP_HOST": os.environ.get("SMTP_HOST", ""),
         "SMTP_PORT": int(os.environ.get("SMTP_PORT", "587")),
         "SMTP_USERNAME": os.environ.get("SMTP_USERNAME", ""),
