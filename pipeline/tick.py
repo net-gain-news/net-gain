@@ -483,7 +483,14 @@ def main():
         sys.exit(1)
 
     wp = WPClient(config["WP_BASE_URL"], config["WP_SERVICE_USERNAME"], config["WP_SERVICE_APP_PASSWORD"])
-    client = anthropic.Anthropic(api_key=config["ANTHROPIC_API_KEY"])
+    # Explicit bound, not left to the SDK's own default - live incident
+    # (2026-09-11) caught a request truly stalled in a raw socket read with no
+    # data arriving, for 20+ minutes with no error and no way to tell it apart
+    # from a legitimate long search-heavy call from the outside. 600s is
+    # generous enough to not cut off a real call (the longest observed
+    # successful single call ran ~7 minutes) while still being a real bound
+    # rather than an indefinite hang.
+    client = anthropic.Anthropic(api_key=config["ANTHROPIC_API_KEY"], timeout=600.0)
     captivate = CaptivateClient(config["CAPTIVATE_USER_ID"], config["CAPTIVATE_API_TOKEN"])
     vertex_client = build_vertex_client(config)
 

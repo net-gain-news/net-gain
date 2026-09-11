@@ -27,6 +27,10 @@ MAX_CONTINUATIONS = 5
 
 RETRYABLE_EXCEPTIONS = (
     anthropic.RateLimitError,
+    # anthropic.APITimeoutError is a subclass of APIConnectionError (confirmed
+    # via the SDK's own class MRO, 2026-09-11) - a timeout on the explicit
+    # client-level timeout set in tick.py already retries through this entry,
+    # no separate one needed.
     anthropic.APIConnectionError,
     anthropic.InternalServerError,
 )
