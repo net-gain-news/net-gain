@@ -3,13 +3,21 @@ Image rendering orchestration (SPEC.md Section 7): one AI-generated base
 image per episode, an optional per-show duotone treatment, then cropped and
 composited into each of the show's three frames and uploaded.
 
+Provider: Gemini 2.5 Flash Image ("Nano Banana"), not Imagen - changed
+2026-09-10 after live discovery that Imagen requires a Google-approved
+allowlist request with no confirmed timeline, while this model resolved
+immediately with no such gate, on the same Vertex AI project/billing
+relationship. Still a first-party Google model, still a plain serverless API
+call - the spec's original intent, just a different specific model.
+
 The Vertex AI call shape (build_vertex_client / generate_base_image) is
-isolated in its own small pair of functions deliberately - as of this
-build's research, Google's current recommended unified SDK is `google-genai`
-used against the Vertex AI backend, but this surface should be verified
-against live, current documentation before first real use (SPEC.md Section
-1's carried-forward lesson: API surfaces shift, don't build on recall alone).
-A corrected call shape only needs to touch this one place.
+isolated in its own small pair of functions deliberately - this is a
+multimodal generateContent call (Gemini's own chat-style interface returning
+content parts, one of which may hold inline image bytes), not a dedicated
+image-generation endpoint like Imagen's, so it should be verified against a
+real response the first time it actually runs (SPEC.md Section 1's
+carried-forward lesson: API surfaces shift, don't build on recall alone). A
+corrected call shape only needs to touch this one place.
 """
 
 import json
@@ -24,11 +32,12 @@ from retry import call_with_retries
 
 logger = logging.getLogger("net_gain.image_generation")
 
-# Imagen's own aspect-ratio presets don't include an exact match for
-# website art's 1200x630 (~1.91:1) - "16:9" is the widest available preset,
-# so the base image is generated at that ratio (minimizing how much gets
-# cropped away for every output) and cover_resize handles the exact final
-# pixel dimensions per spec regardless of the small remaining mismatch.
+# Google's generative image models' aspect-ratio presets don't include an
+# exact match for website art's 1200x630 (~1.91:1) - "16:9" is the widest
+# preset generally offered, so the base image is generated at that ratio
+# (minimizing how much gets cropped away for every output) and cover_resize
+# handles the exact final pixel dimensions per spec regardless of the small
+# remaining mismatch.
 BASE_IMAGE_ASPECT_RATIO = "16:9"
 
 OUTPUT_SPECS = {
@@ -72,24 +81,38 @@ def build_vertex_client(config):
 
 def generate_base_image(client, prompt):
     """
-    One Imagen call -> raw base image bytes. VERIFY AGAINST LIVE DOCUMENTATION
-    AT BUILD TIME - model id and config field names are this build's best
-    understanding, not a confirmed-live call shape.
+    One Gemini 2.5 Flash Image ("Nano Banana") call -> raw base image bytes.
+    VERIFY AGAINST A LIVE RESPONSE THE FIRST TIME THIS ACTUALLY RUNS - the
+    model id, the image_config field name/shape, and exactly where inline
+    image bytes land in the response are this build's best understanding
+    from the model's Vertex AI Model Garden card, not a confirmed-live call.
+    Unlike a dedicated image-generation endpoint, generateContent returns a
+    list of content parts (text and/or image) - the image is whichever part
+    carries inline_data.
     """
     from google.genai import types
 
     def do_request():
-        return client.models.generate_images(
-            model="imagen-4.0-generate-001",
-            prompt=prompt,
-            config=types.GenerateImagesConfig(aspect_ratio=BASE_IMAGE_ASPECT_RATIO, number_of_images=1),
+        return client.models.generate_content(
+            model="gemini-2.5-flash-image",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+                image_config=types.ImageConfig(aspect_ratio=BASE_IMAGE_ASPECT_RATIO),
+            ),
         )
 
     response = call_with_retries(do_request, RETRYABLE_EXCEPTIONS) if RETRYABLE_EXCEPTIONS else do_request()
-    images = getattr(response, "generated_images", None)
-    if not images:
-        raise RuntimeError(f"Imagen returned no generated images: {response}")
-    return images[0].image.image_bytes
+    candidates = getattr(response, "candidates", None)
+    if not candidates:
+        raise RuntimeError(f"Gemini returned no candidates: {response}")
+
+    for part in candidates[0].content.parts:
+        inline_data = getattr(part, "inline_data", None)
+        if inline_data and inline_data.data:
+            return inline_data.data
+
+    raise RuntimeError(f"Gemini response contained no image data: {response}")
 
 
 def render_images_for_episode(wp, vertex_client, anthropic_generate, show, episode_id):
