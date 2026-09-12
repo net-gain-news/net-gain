@@ -36,7 +36,15 @@ RETRYABLE_EXCEPTIONS = (
 )
 
 WEB_SEARCH_TOOL = {
-    "type": "web_search_20260209",
+    # Reverted from "web_search_20260209" (2026-09-12): that was Phase 3's
+    # unverified guess from documentation, never actually confirmed against a
+    # live response. Every real run using it failed to get search results
+    # starting from the very first search attempt in the turn ("No results
+    # returned"), which the model then misread as its own search budget being
+    # exhausted - a guess on its part, not a real diagnosis. This value is the
+    # prototype's proven one (generate_script.py), confirmed across real,
+    # successful production runs, not a guess.
+    "type": "web_search_20250305",
     "name": "web_search",
     # Matches the prototype's proven value (generate_script.py) - not a guess.
     "max_uses": 8,
