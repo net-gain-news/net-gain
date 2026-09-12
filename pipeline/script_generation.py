@@ -95,4 +95,7 @@ def generate_script_for_show(wp, anthropic_generate, show, episode_date, recent_
     system_prompt = build_system_prompt(guidelines_text, show["name"])
     user_message = build_user_message(episode_date, recent_scripts)
 
-    return anthropic_generate(system=system_prompt, user_content=user_message)
+    # High effort, not the default "low" - explicit human-operator request
+    # (2026-09-12) for genuine research/writing quality on the actual
+    # newscast content, not just the fastest passable answer.
+    return anthropic_generate(system=system_prompt, user_content=user_message, effort="high")

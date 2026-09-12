@@ -66,7 +66,7 @@ def _without_trailing_thinking(content):
     return content
 
 
-def generate(client, system, user_content, tools=None, response_schema=None):
+def generate(client, system, user_content, tools=None, response_schema=None, effort="low"):
     """
     Runs one generation call to completion, transparently resuming through
     any pause_turn or max_tokens stop by appending the paused assistant turn
@@ -85,11 +85,18 @@ def generate(client, system, user_content, tools=None, response_schema=None):
     output_config.format (structured outputs) - the returned text is then
     guaranteed valid JSON matching it, rather than relying on a prompt
     instruction alone.
+
+    effort separately controls how much overall effort the model puts into
+    the response (distinct from `thinking`, which is fully disabled below
+    regardless) - defaults to "low" for the repackaging-style calls
+    (metadata, image prompts), overridden to "high" for script generation
+    itself per an explicit human-operator request (2026-09-12) for genuine
+    research/writing quality, not just the fastest passable answer.
     """
     tools = tools if tools is not None else [WEB_SEARCH_TOOL]
     messages = [{"role": "user", "content": user_content}]
 
-    output_config = {"effort": "low"}
+    output_config = {"effort": effort}
     if response_schema is not None:
         output_config["format"] = {"type": "json_schema", "schema": response_schema}
 
