@@ -265,6 +265,7 @@ def publish_to_captivate(wp, captivate, show, episode_id, finalization):
     date_field = target_moment.astimezone(ZoneInfo(captivate_timezone)).strftime("%Y-%m-%d %H:%M:%S")
 
     title = meta.get("ng_meta_captivate_title") or episode.get("title", {}).get("rendered", "")
+    episode_number = captivate.get_next_episode_number(captivate_show_id)
     payload = {
         "shows_id": captivate_show_id,
         "title": title,
@@ -272,6 +273,7 @@ def publish_to_captivate(wp, captivate, show, episode_id, finalization):
         "media_id": media_id,
         "date": date_field,
         "status": "Published",
+        "episode_number": episode_number,
     }
     image_id = meta.get("ng_image_square_id")
     if image_id:
@@ -294,6 +296,7 @@ def publish_to_captivate(wp, captivate, show, episode_id, finalization):
 
     public_url = verification.get("link") or (verification.get("episode") or {}).get("link") or ""
     wp.update_episode_meta(episode_id, {"ng_url_captivate": public_url})
+    return episode_number
 
 
 def process_captivate_publishes(wp, client, captivate, config, show):
@@ -310,13 +313,16 @@ def process_captivate_publishes(wp, client, captivate, config, show):
                 generate_metadata(wp, client, show, episode_id)
 
             wp.update_step(episode_id, "captivate_published", "in_progress")
-            publish_to_captivate(wp, captivate, show, episode_id, episode.get("finalization") or {})
+            episode_number = publish_to_captivate(wp, captivate, show, episode_id, episode.get("finalization") or {})
             wp.update_step(episode_id, "captivate_published", "done")
 
             for action in show.get("pending_actions", []) or []:
                 if action.get("action") == "publish_captivate" and action.get("status") == "pending":
                     wp.update_action(show["id"], action["id"], "done")
-            logger.info("Published episode %s to Captivate for %s.", episode_id, show["name"])
+            logger.info(
+                "Published episode %s to Captivate as episode number %s for %s.",
+                episode_id, episode_number, show["name"],
+            )
         except Exception as exc:
             logger.exception("Captivate publish failed for episode %s (%s)", episode_id, show["name"])
             wp.update_step(episode_id, "captivate_published", "failed", note=str(exc)[:500])

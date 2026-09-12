@@ -75,6 +75,59 @@ class CaptivateClient:
             raise CaptivateError(f"Could not find a media id in the upload response: {response}")
         return media_id
 
+    def get_next_episode_number(self, captivate_show_id):
+        """
+        Live-polled at publish time, not tracked separately - Captivate's own
+        current episode list is always the source of truth, so deleting all of
+        a show's episodes there and republishing naturally restarts numbering
+        at 1 with no separate reset step needed anywhere. Ported from the
+        prior single-show prototype's publish_episode.py, with one deliberate
+        change: that version defaulted to 1 on ANY lookup problem, including
+        an unrecognized response shape. Here, only a genuinely empty episode
+        list returns 1 - if episodes exist but none expose a recognized number
+        field, this raises rather than silently mislabeling every future
+        episode "1" (Section 1's "fail loudly, don't guess quietly" applies
+        directly to numbering a live public feed).
+        """
+        response = self._request("GET", f"/shows/{captivate_show_id}/episodes")
+
+        episodes = None
+        for path in (("episodes",), ("data",)):
+            value = response
+            try:
+                for key in path:
+                    value = value[key]
+                episodes = value
+                break
+            except (KeyError, TypeError):
+                continue
+        if episodes is None and isinstance(response, list):
+            episodes = response
+
+        if not episodes:
+            return 1
+
+        numbers = []
+        for ep in episodes:
+            if not isinstance(ep, dict):
+                continue
+            for field in ("episode_number", "number", "episode"):
+                if field in ep:
+                    try:
+                        numbers.append(int(ep[field]))
+                    except (TypeError, ValueError):
+                        pass
+                    break
+
+        if not numbers:
+            raise CaptivateError(
+                f"Show has {len(episodes)} existing episode(s) but none exposed a "
+                "recognized episode-number field (tried episode_number/number/episode) "
+                f"- refusing to guess 1 and risk mislabeling every future episode. "
+                f"Raw response: {response}"
+            )
+        return max(numbers) + 1
+
     def create_episode(self, payload):
         # Sent form-encoded, not JSON - Captivate's confirmed auth endpoint uses
         # FormData, and the one documented episode-create example found uses the
