@@ -307,6 +307,19 @@ class VerifyWebsitePublishTests(unittest.TestCase):
         mock_get.return_value.text = "<html><body>Expected Title</body></html>"
         verify_website_publish("https://example.com/shows/x/y/", {"ng_meta_aioseo_title": "Expected Title"})  # no raise
 
+    @patch("tick.requests.get")
+    def test_sends_custom_user_agent(self, mock_get):
+        """Live incident (2026-09-12): the account's own WAF resets connections
+        outright on requests' default User-Agent, with no HTTP response at all
+        - confirmed live on this exact call. Every outbound call in this
+        pipeline must use the custom UA, not just the two API clients' own
+        sessions."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.text = "<html></html>"
+        verify_website_publish("https://example.com/shows/x/y/", {})
+        _, kwargs = mock_get.call_args
+        self.assertIn("NetGainStudio-Pipeline", kwargs.get("headers", {}).get("User-Agent", ""))
+
 
 if __name__ == "__main__":
     unittest.main()

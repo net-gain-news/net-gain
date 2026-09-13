@@ -376,7 +376,14 @@ def verify_website_publish(permalink, episode_meta):
     if not permalink:
         raise RuntimeError("publish-website did not return a permalink.")
 
-    response = requests.get(permalink, timeout=30)
+    # Custom User-Agent required - the account's own WAF (Imunify360) resets
+    # the connection outright on requests' default UA before any response is
+    # sent (RemoteDisconnected/"Connection aborted"), confirmed live
+    # 2026-09-12 hitting this exact bare-requests.get() call. Same fix already
+    # applied in wp_client.py/captivate_client.py's sessions, missed here
+    # since this is the one plain requests.get() call outside either client.
+    headers = {"User-Agent": "NetGainStudio-Pipeline/1.0 (+https://netgain.news)"}
+    response = requests.get(permalink, timeout=30, headers=headers)
     if response.status_code != 200:
         raise RuntimeError(f"Re-fetching the published page returned {response.status_code}: {permalink}")
 
