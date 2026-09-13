@@ -172,13 +172,33 @@ class ComputeTargetPublishMomentTests(unittest.TestCase):
 
 
 class CaptivatePublishDueTests(unittest.TestCase):
-    def _episode(self, state="finalized", captivate_status="pending", finalized_seconds_ago=3600):
+    def _episode(
+        self, state="finalized", captivate_status="pending", finalized_seconds_ago=3600, images_status="done"
+    ):
         finalized_at = _gmt_mysql(datetime.now(timezone.utc) - timedelta(seconds=finalized_seconds_ago))
         return {
             "id": 42,
             "finalization": {"state": state, "finalized_at": finalized_at},
-            "step_status": {"captivate_published": {"status": captivate_status}},
+            "step_status": {
+                "captivate_published": {"status": captivate_status},
+                "images_rendered": {"status": images_status},
+            },
         }
+
+    def test_not_due_when_images_not_yet_rendered(self):
+        """Explicit human-operator requirement (2026-09-12): never publish
+        before images are ready, checked here rather than left to fail
+        confusingly against WordPress's own prerequisite enforcement."""
+        show = {"publish_mode": "immediate", "pending_actions": []}
+        episode = self._episode(images_status="pending")
+        self.assertFalse(captivate_publish_due(show, episode))
+
+    def test_due_when_images_degraded_not_just_done(self):
+        """degraded (fallback image used) still counts as ready - Section 7's
+        graceful fallback must never block publishing."""
+        show = {"publish_mode": "immediate", "pending_actions": []}
+        episode = self._episode(images_status="degraded")
+        self.assertTrue(captivate_publish_due(show, episode))
 
     def test_not_due_when_not_finalized(self):
         show = {"publish_mode": "immediate", "pending_actions": []}
@@ -218,18 +238,33 @@ class CaptivatePublishDueTests(unittest.TestCase):
 
 
 class WebsitePublishDueTests(unittest.TestCase):
-    def _episode(self, state="finalized", website_status="pending", finalized_seconds_ago=3600):
+    def _episode(
+        self, state="finalized", website_status="pending", finalized_seconds_ago=3600, images_status="done"
+    ):
         finalized_at = _gmt_mysql(datetime.now(timezone.utc) - timedelta(seconds=finalized_seconds_ago))
         return {
             "id": 42,
             "finalization": {"state": state, "finalized_at": finalized_at},
-            "step_status": {"website_published": {"status": website_status}},
+            "step_status": {
+                "website_published": {"status": website_status},
+                "images_rendered": {"status": images_status},
+            },
         }
 
     def test_not_due_when_not_finalized(self):
         show = {"publish_mode": "immediate"}
         episode = self._episode(state="counting_down")
         self.assertFalse(website_publish_due(show, episode))
+
+    def test_not_due_when_images_not_yet_rendered(self):
+        show = {"publish_mode": "immediate"}
+        episode = self._episode(images_status="pending")
+        self.assertFalse(website_publish_due(show, episode))
+
+    def test_due_when_images_degraded_not_just_done(self):
+        show = {"publish_mode": "immediate"}
+        episode = self._episode(images_status="degraded")
+        self.assertTrue(website_publish_due(show, episode))
 
     def test_due_when_finalized_and_immediate_mode(self):
         show = {"publish_mode": "immediate"}

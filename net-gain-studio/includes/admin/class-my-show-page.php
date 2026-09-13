@@ -47,11 +47,12 @@ class Net_Gain_My_Show_Page {
 		$episode = self::current_episode_for_show( $show_id );
 
 		if ( $episode ) {
-			$step_status  = get_post_meta( $episode->ID, 'ng_step_status', true ) ?: array();
-			$reviewed     = $step_status['script_reviewed']['status'] ?? 'pending';
-			$finalization = get_post_meta( $episode->ID, 'ng_finalization', true );
-			$finalization = is_array( $finalization ) ? $finalization : array();
-			$state        = $finalization['state'] ?? 'pending';
+			$step_status    = get_post_meta( $episode->ID, 'ng_step_status', true ) ?: array();
+			$reviewed       = $step_status['script_reviewed']['status'] ?? 'pending';
+			$finalization   = get_post_meta( $episode->ID, 'ng_finalization', true );
+			$finalization   = is_array( $finalization ) ? $finalization : array();
+			$state          = $finalization['state'] ?? 'pending';
+			$images_status  = $step_status['images_rendered']['status'] ?? 'pending';
 		}
 		?>
 		<div class="card" style="max-width:640px; padding:20px; margin-bottom:20px;">
@@ -82,6 +83,34 @@ class Net_Gain_My_Show_Page {
 					<p>Script reviewed. Upload today's recording to finalize.</p>
 				<?php endif; ?>
 				<button type="button" class="button button-primary ng-upload-audio" data-episode-id="<?php echo esc_attr( $episode->ID ); ?>">Upload Audio</button>
+			<?php endif; ?>
+
+			<?php if ( $episode && in_array( $images_status, array( 'done', 'degraded' ), true ) ) : ?>
+				<?php
+				// Shown whenever images are ready, regardless of finalization state -
+				// images render as soon as audio is received (Section 8.3), well
+				// before publish time, specifically so a human can review them close
+				// to when they're generated (Section 7's human review step), the same
+				// reasoning as script review.
+				$image_ids = array(
+					'Podcast art' => (int) get_post_meta( $episode->ID, 'ng_image_square_id', true ),
+					'YouTube art' => (int) get_post_meta( $episode->ID, 'ng_image_16x9_id', true ),
+					'Website art' => (int) get_post_meta( $episode->ID, 'ng_image_1200x630_id', true ),
+				);
+				?>
+				<hr>
+				<p><strong>Episode images</strong><?php echo 'degraded' === $images_status ? ' (fallback used — AI generation didn\'t succeed this time)' : ''; ?></p>
+				<div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
+					<?php foreach ( $image_ids as $label => $attachment_id ) : ?>
+						<?php if ( $attachment_id ) : ?>
+							<div>
+								<?php echo wp_get_attachment_image( $attachment_id, array( 120, 120 ), false, array( 'style' => 'display:block;object-fit:cover;' ) ); ?>
+								<p class="description" style="margin:4px 0 0;"><?php echo esc_html( $label ); ?></p>
+							</div>
+						<?php endif; ?>
+					<?php endforeach; ?>
+				</div>
+				<button type="button" class="button ng-regenerate-images" data-episode-id="<?php echo esc_attr( $episode->ID ); ?>" data-show-id="<?php echo esc_attr( $show_id ); ?>">Regenerate Images</button>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -114,9 +143,10 @@ class Net_Gain_My_Show_Page {
 	private static function render_notices() {
 		if ( isset( $_GET['ng_notice'] ) ) {
 			$messages = array(
-				'audio_uploaded' => 'Audio received — finalization countdown started.',
-				'aborted'        => 'Aborted. Upload a replacement whenever you\'re ready.',
-				'published_now'  => 'Finalized immediately.',
+				'audio_uploaded'           => 'Audio received — finalization countdown started.',
+				'aborted'                  => 'Aborted. Upload a replacement whenever you\'re ready.',
+				'published_now'            => 'Finalized immediately.',
+				'images_regenerate_queued' => 'Regeneration queued — the tick loop will pick this up on its next pass.',
 			);
 			$notice = sanitize_key( wp_unslash( $_GET['ng_notice'] ) );
 			if ( isset( $messages[ $notice ] ) ) {

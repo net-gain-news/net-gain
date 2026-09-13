@@ -29,6 +29,11 @@ class Net_Gain_Episode_Detail_Page {
 		$episode_date = get_post_meta( $episode_id, 'ng_episode_date', true );
 		$step_status = get_post_meta( $episode_id, 'ng_step_status', true ) ?: Net_Gain_Step_Status::default_status();
 		$audio_id    = (int) get_post_meta( $episode_id, 'ng_audio_attachment_id', true );
+		$image_ids   = array(
+			'Podcast art'  => (int) get_post_meta( $episode_id, 'ng_image_square_id', true ),
+			'YouTube art'  => (int) get_post_meta( $episode_id, 'ng_image_16x9_id', true ),
+			'Website art'  => (int) get_post_meta( $episode_id, 'ng_image_1200x630_id', true ),
+		);
 
 		self::render_notices();
 		?>
@@ -54,6 +59,18 @@ class Net_Gain_Episode_Detail_Page {
 
 			<h2>Images</h2>
 			<p>Status: <strong><?php echo esc_html( $step_status['images_rendered']['status'] ?? 'pending' ); ?></strong></p>
+			<?php if ( array_filter( $image_ids ) ) : ?>
+				<div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
+					<?php foreach ( $image_ids as $label => $attachment_id ) : ?>
+						<?php if ( $attachment_id ) : ?>
+							<div>
+								<?php echo wp_get_attachment_image( $attachment_id, array( 150, 150 ), false, array( 'style' => 'display:block;object-fit:cover;' ) ); ?>
+								<p class="description" style="margin:4px 0 0;"><?php echo esc_html( $label ); ?></p>
+							</div>
+						<?php endif; ?>
+					<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
 			<p><?php self::render_trigger_button( $show_id, $episode_date, 'generate_images', 'images_rendered', $step_status, 'Generate Images', 'Regenerate Images' ); ?></p>
 
 			<h2>Publishing</h2>

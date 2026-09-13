@@ -198,6 +198,20 @@ def captivate_publish_due(show, episode):
         return False
 
     step_status = episode.get("step_status") or {}
+
+    # Explicit human-operator requirement (2026-09-12): never publish before
+    # images are ready. This mirrors a prerequisite WordPress already enforces
+    # server-side (captivate_published requires images_rendered) - but without
+    # checking it here too, a premature attempt would hit a confusing double
+    # failure (the attempt itself rejected, then the except block's own try to
+    # record "failed" rejected too, since that transition is equally blocked -
+    # leaving the step silently stuck at "pending" with no alert ever firing).
+    # metadata_generated isn't checked here because it's generated just-in-time
+    # a few lines below, in the same pass, when needed - only images_rendered
+    # has no such synchronous trigger from this code path.
+    if step_status.get("images_rendered", {}).get("status", "pending") not in ("done", "degraded"):
+        return False
+
     current = step_status.get("captivate_published", {}).get("status", "pending")
     pending = [
         a
@@ -341,6 +355,13 @@ def website_publish_due(show, episode):
         return False
 
     step_status = episode.get("step_status") or {}
+
+    # Same reasoning as captivate_publish_due(): images_rendered has no
+    # synchronous just-in-time trigger from this code path, so it must be
+    # checked here rather than attempted and left to fail confusingly.
+    if step_status.get("images_rendered", {}).get("status", "pending") not in ("done", "degraded"):
+        return False
+
     current = step_status.get("website_published", {}).get("status", "pending")
     if current in ("done", "degraded"):
         return False

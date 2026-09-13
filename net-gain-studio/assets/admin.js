@@ -105,6 +105,19 @@
 				.fail( ngShowError );
 		} );
 
+		// Talent can regenerate their own episode's images (can_act_for_show,
+		// per an explicit permission carve-out - see class-rest-show-actions.php)
+		// unlike generate_script/publish_captivate, which stay admin-only.
+		// force:true since this is always a deliberate re-trigger from a
+		// human looking at an already-rendered result, not a routine first run.
+		$( document ).on( 'click', '.ng-regenerate-images', function () {
+			var showId = $( this ).data( 'show-id' );
+
+			ngRestPost( '/shows/' + showId + '/actions', { action: 'generate_images', force: true } )
+				.done( function () { ngReloadWithNotice( 'images_regenerate_queued' ); } )
+				.fail( ngShowError );
+		} );
+
 		// The countdown reflects server state, it isn't the source of truth for it -
 		// once one reaches zero, poll that episode until the tick loop has actually
 		// finalized it (the visible timer can hit zero before the next tick pass

@@ -17,12 +17,17 @@ class Net_Gain_Dashboard_Page {
 
 	const SLUG = 'net-gain-studio';
 
+	// Order matches actual processing order (Phase 8): images render
+	// immediately once audio is received, independent of publish timing
+	// (Section 8.3) - metadata is deliberately deferred until publish time,
+	// alongside the three publish steps that depend on it. Images-before-
+	// metadata reflects that, not an arbitrary preference (2026-09-12).
 	const COLUMNS = array(
 		'script_generated'    => 'Script',
 		'script_reviewed'     => 'Reviewed',
 		'audio_received'      => 'Audio',
-		'metadata_generated'  => 'Metadata',
 		'images_rendered'     => 'Images',
+		'metadata_generated'  => 'Metadata',
 		'captivate_published' => 'Captivate',
 		'website_published'   => 'Website',
 		'youtube_published'   => 'YouTube',

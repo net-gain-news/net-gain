@@ -30,8 +30,18 @@ class Net_Gain_REST_Show_Actions {
 				array(
 					'methods'             => 'POST',
 					'callback'            => array( $this, 'enqueue_action' ),
+					// Branched per action, not a single blanket check: generate_images
+					// is safe to let the assigned talent self-trigger (can_act_for_show,
+					// the same relationship-based check already used for audio upload/
+					// abort/publish-now) since they're the one reviewing the result on
+					// the My Show screen - generate_script and publish_captivate stay
+					// admin/service-only.
 					'permission_callback' => function ( WP_REST_Request $request ) {
-						return Net_Gain_REST_Permissions::can_manage_show( (int) $request['id'] );
+						$show_id = (int) $request['id'];
+						if ( 'generate_images' === $request->get_param( 'action' ) ) {
+							return Net_Gain_REST_Permissions::can_act_for_show( $show_id );
+						}
+						return Net_Gain_REST_Permissions::can_manage_show( $show_id );
 					},
 					'args'                => array(
 						'action'       => array( 'required' => true, 'type' => 'string' ),
