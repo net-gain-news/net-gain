@@ -54,6 +54,23 @@ WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 # a floor against non-scripts, not a proxy for real editorial quality.
 MIN_SCRIPT_WORDS = 250
 
+# Captivate's "date" field is interpreted in this account's own confirmed
+# timezone (Pacific), not a per-show value fetched from the API - ported
+# directly from the prior single-show prototype's publish_episode.py, which
+# empirically confirmed this against Captivate's real behavior. Live incident
+# (2026-09-12): this build previously fetched captivate.get_show()'s
+# "time_zone" field dynamically instead, a field this codebase never verified
+# against a live response (unlike the auth token/media-id extraction in the
+# same file, which explicitly checks multiple plausible shapes) - it silently
+# fell back to UTC, and formatting a UTC moment "as UTC" is a no-op, so a
+# genuinely-past UTC moment got sent as UTC clock digits into a field
+# Captivate reads as Pacific - shifting the effective time forward by the
+# UTC-Pacific offset (~7 hours in September) and scheduling instead of
+# publishing immediately. Since this is the same shared Captivate account as
+# the prototype (CLAUDE.md), Pacific is the proven, correct value here too,
+# not a per-show guess.
+CAPTIVATE_ACCOUNT_TIMEZONE = ZoneInfo("America/Los_Angeles")
+
 
 def _gmt_mysql(dt):
     return dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -250,14 +267,30 @@ def generate_metadata(wp, client, show, episode_id):
     wp.update_step(episode_id, "metadata_generated", "done")
 
 
+def compute_captivate_date_field(show, finalization):
+    """
+    Isolated from publish_to_captivate() purely so this can be unit-tested
+    without a live wp/captivate client - the timezone bug this fixes (2026-
+    09-12) was subtle enough in its symptom (a several-hour-future
+    misinterpretation, not an outright error) to warrant a real regression
+    test, not just a code comment.
+    """
+    target_moment = compute_target_publish_moment(show, finalization)
+    if (show.get("publish_mode") or "immediate") != "scheduled":
+        # 2-minute buffer, matching the prototype's proven value exactly - avoids
+        # any ambiguity from clock skew between this script and Captivate's
+        # server landing exactly on "now" (SPEC Section 6.1: "a past value
+        # publishes immediately").
+        target_moment = datetime.now(timezone.utc) - timedelta(minutes=2)
+    return target_moment.astimezone(CAPTIVATE_ACCOUNT_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
+
+
 def publish_to_captivate(wp, captivate, show, episode_id, finalization):
     captivate_show_id = show.get("captivate_show_id")
     if not captivate_show_id:
         raise RuntimeError(f"Show '{show['name']}' has no Captivate show connected yet.")
 
     captivate.ensure_authenticated()
-    captivate_show = captivate.get_show(captivate_show_id)
-    captivate_timezone = captivate_show.get("time_zone") or "UTC"
 
     episode = wp.get_episode(episode_id)
     meta = episode.get("meta", {})
@@ -270,13 +303,7 @@ def publish_to_captivate(wp, captivate, show, episode_id, finalization):
     filename = audio_url.rsplit("/", 1)[-1] or "episode.mp3"
     media_id = captivate.upload_media(captivate_show_id, audio_bytes, filename)
 
-    target_moment = compute_target_publish_moment(show, finalization)
-    if (show.get("publish_mode") or "immediate") != "scheduled":
-        # A small buffer in the past, not "now" exactly, so this is unambiguously
-        # in the past relative to Captivate's own clock (SPEC Section 6.1: "a past
-        # value publishes immediately").
-        target_moment = datetime.now(timezone.utc) - timedelta(minutes=1)
-    date_field = target_moment.astimezone(ZoneInfo(captivate_timezone)).strftime("%Y-%m-%d %H:%M:%S")
+    date_field = compute_captivate_date_field(show, finalization)
 
     title = meta.get("ng_meta_captivate_title") or episode.get("title", {}).get("rendered", "")
     episode_number = captivate.get_next_episode_number(captivate_show_id)

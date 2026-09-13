@@ -9,8 +9,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from unittest.mock import patch
 
 from tick import (
+    CAPTIVATE_ACCOUNT_TIMEZONE,
     captivate_publish_due,
     check_finalizations,
+    compute_captivate_date_field,
     compute_target_publish_moment,
     finalization_elapsed,
     script_generation_due,
@@ -169,6 +171,49 @@ class ComputeTargetPublishMomentTests(unittest.TestCase):
 
         expected = datetime(2026, 9, 8, 7, 0, tzinfo=ZoneInfo("America/New_York"))
         self.assertEqual(target.astimezone(timezone.utc), expected.astimezone(timezone.utc))
+
+
+class ComputeCaptivateDateFieldTests(unittest.TestCase):
+    """Regression coverage for a live bug (2026-09-12): Captivate's "date"
+    field must be genuine Pacific wall-clock digits (this account's
+    confirmed interpretation zone, per the prior single-show prototype's
+    proven publish_episode.py), not UTC digits mislabeled. Sending UTC
+    digits into a field Captivate reads as Pacific shifted the effective
+    time forward by the UTC-Pacific offset (~7 hours in September), turning
+    an intended immediate publish into a several-hours-future schedule -
+    a live episode came back from Captivate as "scheduled" for the next day
+    when it should have gone live immediately."""
+
+    def test_immediate_mode_produces_pacific_wall_clock_close_to_now(self):
+        show = {"publish_mode": "immediate"}
+        finalization = {}
+
+        date_field = compute_captivate_date_field(show, finalization)
+
+        parsed_as_pacific = datetime.strptime(date_field, "%Y-%m-%d %H:%M:%S").replace(
+            tzinfo=CAPTIVATE_ACCOUNT_TIMEZONE
+        )
+        delta = datetime.now(timezone.utc) - parsed_as_pacific.astimezone(timezone.utc)
+        # Should read as ~2 minutes in the past (the confirmed buffer) when
+        # interpreted as Pacific time - a wide but decisive tolerance window
+        # that would fail hard if the field were mislabeled as UTC instead
+        # (which would show as ~7 hours in the future, a negative delta here).
+        self.assertTrue(
+            timedelta(minutes=0) < delta < timedelta(minutes=10),
+            f"Expected ~2 minutes in the past when read as Pacific time, got a "
+            f"delta of {delta} - the field is likely mislabeled as the wrong timezone.",
+        )
+
+    def test_scheduled_mode_formats_the_target_moment_in_pacific(self):
+        # 08:00 UTC on 2026-09-07 = 04:00 EDT (America/New_York, UTC-4 in September).
+        finalized_at = datetime(2026, 9, 7, 8, 0, tzinfo=timezone.utc)
+        show = {"publish_mode": "scheduled", "publish_timezone": "America/New_York", "publish_time": "07:00"}
+        finalization = {"finalized_at": _gmt_mysql(finalized_at)}
+
+        date_field = compute_captivate_date_field(show, finalization)
+
+        # Target: 07:00 EDT same day (finalized before it) = 11:00 UTC = 04:00 PDT.
+        self.assertEqual(date_field, "2026-09-07 04:00:00")
 
 
 class CaptivatePublishDueTests(unittest.TestCase):
