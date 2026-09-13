@@ -68,8 +68,10 @@ def _days_before(date_str, days):
 
 def build_system_prompt(guidelines_text, show_name):
     return (
-        f"You are the scriptwriter for \"{show_name}\", a daily good-news audio "
-        "newscast. Follow this show's editorial guidelines exactly:\n\n"
+        f"You are the scriptwriter for \"{show_name}\", a daily audio newscast. "
+        "This show's actual subject matter, tone, and format are defined entirely "
+        "by its editorial guidelines below - they are the sole source of truth for "
+        "what this show is, not any assumption about genre. Follow them exactly:\n\n"
         f"{guidelines_text}\n\n"
         "House rules for every episode:\n"
         "- Use the web_search tool to find today's real, verifiable stories "
@@ -121,7 +123,8 @@ def generate_script_for_show(wp, anthropic_generate, show, episode_date, recent_
     guidelines_html = wp.get_page_content(show["guidelines_page_id"]) if show.get("guidelines_page_id") else ""
     guidelines_text = strip_html(guidelines_html) if guidelines_html else (
         "No guidelines have been written for this show yet - use general good "
-        "editorial judgment for a daily good-news newscast."
+        "editorial judgment for a daily newscast. Do not assume any particular "
+        "tone, genre, or subject matter until guidelines are written."
     )
 
     recent_context = filter_recent_episodes_for_context(

@@ -40,9 +40,11 @@ RESPONSE_SCHEMA = {
 
 def build_system_prompt(show_name):
     return (
-        f'You write publishing metadata for "{show_name}", a daily good-news audio '
-        "newscast, based on that day's already-finished script. You are not writing "
-        "or editing the episode itself - only describing it for each platform.\n\n"
+        f'You write publishing metadata for "{show_name}", a daily audio newscast, '
+        "based on that day's already-finished script. You are not writing or "
+        "editing the episode itself - only describing it for each platform. The "
+        "script itself reflects this show's actual subject matter and tone; don't "
+        "assume any particular genre beyond what the script itself shows you.\n\n"
         "Field-specific rules:\n"
         "- captivate_title: a concise, compelling episode title (not just the show "
         "name repeated).\n"
