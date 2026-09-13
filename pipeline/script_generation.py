@@ -2,6 +2,12 @@
 Script generation business logic (SPEC.md Section 5): guidelines + recent
 reviewed-final scripts as literal context, fed to Claude alongside a request
 to source today's real stories via web search and write today's script.
+
+Recent episodes serve two distinct purposes in that context (Section 5.1):
+duplicate-story suppression (every episode with a final script, always) and
+editorial-preference learning (a strict subset - only episodes where the
+host's edit was substantial enough to carry a real signal about what they
+actually wanted instead of the draft).
 """
 
 import re
@@ -20,23 +26,36 @@ def strip_html(html):
     return text
 
 
-def filter_recent_final_scripts(episodes, lookback_days, before_date):
+def filter_recent_episodes_for_context(episodes, lookback_days, before_date):
     """
     From a show's episode list (as returned by WPClient.list_episodes_for_show,
-    newest first), returns (date, script) pairs for episodes with a non-empty
-    ng_script_final, dated strictly before `before_date` (a "YYYY-MM-DD"
-    string) and within the lookback window - oldest first, so the prompt
-    reads as a natural day-by-day recap.
+    newest first), returns (date, final_script, draft_or_none) triples for
+    episodes with a non-empty ng_script_final, dated strictly before
+    `before_date` (a "YYYY-MM-DD" string) and within the lookback window -
+    oldest first, so the prompt reads as a natural day-by-day recap.
+
+    draft_or_none carries the original AI draft only when script_reviewed was
+    NOT flagged "degraded" - that flag is the existing near-identical-edit
+    signal (class-admin-actions.php's similar_text() check, Section 5.2), so
+    relying on it directly avoids re-implementing a second, cruder similarity
+    check here. A near-identical draft/final pair has no editorial-preference
+    signal to teach and would just add prompt noise.
     """
     cutoff = _days_before(before_date, lookback_days)
     matches = []
     for episode in episodes:
         meta = episode.get("meta", {})
         date = meta.get("ng_episode_date", "")
-        script = meta.get("ng_script_final", "")
-        if script and cutoff <= date < before_date:
-            matches.append((date, script))
-    matches.sort(key=lambda pair: pair[0])
+        final = meta.get("ng_script_final", "")
+        if not final or not (cutoff <= date < before_date):
+            continue
+
+        draft = meta.get("ng_script_draft", "")
+        reviewed_status = (meta.get("ng_step_status") or {}).get("script_reviewed", {}).get("status")
+        draft_for_context = draft if (draft and reviewed_status != "degraded") else None
+        matches.append((date, final, draft_for_context))
+
+    matches.sort(key=lambda triple: triple[0])
     return matches
 
 
@@ -59,17 +78,34 @@ def build_system_prompt(guidelines_text, show_name):
         "article - no headers, bullet points, or markdown formatting.\n"
         "- Do not repeat a story already covered in the recent-episodes context "
         "you're given, even if it's still developing.\n"
+        "- Where a recent episode shows your own original draft alongside the "
+        "host's actual final version, that pairing is deliberate: the final "
+        "reflects the host's real editorial judgment overriding your draft. "
+        "Compare them and carry forward whatever pattern of tone, sentence "
+        "length, structure, or word choice the edit reveals - don't repeat "
+        "the same issue today that was corrected there.\n"
         "- Output only the finished script text - no preamble, no notes to the "
         "editor, no commentary about your process."
     )
 
 
-def build_user_message(episode_date, recent_scripts):
-    if recent_scripts:
-        recap = "\n\n".join(f"[{date}]\n{script}" for date, script in recent_scripts)
+def build_user_message(episode_date, recent_context):
+    if recent_context:
+        entries = []
+        for date, final, draft in recent_context:
+            if draft:
+                entries.append(
+                    f"[{date}]\nYour original draft:\n{draft}\n\n"
+                    f"The host's actual final, as broadcast:\n{final}"
+                )
+            else:
+                entries.append(f"[{date}]\n{final}")
+        recap = "\n\n---\n\n".join(entries)
         context_block = (
             "Here are this show's most recent reviewed, final scripts, oldest "
-            f"first, for continuity and to avoid repeating stories:\n\n{recap}\n\n"
+            "first, for continuity and to avoid repeating stories. Some entries "
+            "also show your own original draft alongside the host's final - "
+            f"see the house rules above for what to do with those:\n\n{recap}\n\n"
         )
     else:
         context_block = "This is this show's first episode - there is no prior-episode context yet.\n\n"
@@ -88,12 +124,12 @@ def generate_script_for_show(wp, anthropic_generate, show, episode_date, recent_
         "editorial judgment for a daily good-news newscast."
     )
 
-    recent_scripts = filter_recent_final_scripts(
+    recent_context = filter_recent_episodes_for_context(
         recent_episodes, show.get("lookback_days", 30), episode_date
     )
 
     system_prompt = build_system_prompt(guidelines_text, show["name"])
-    user_message = build_user_message(episode_date, recent_scripts)
+    user_message = build_user_message(episode_date, recent_context)
 
     # High effort, not the default "low" - explicit human-operator request
     # (2026-09-12) for genuine research/writing quality on the actual

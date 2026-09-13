@@ -77,7 +77,8 @@ Guidelines edits, talent reassignment, and branding-frame changes **all apply pr
 ## 5. Content Pipeline
 
 ### 5.1 Script Generation
-- Each generation call includes the show's own past N days of *reviewed, final* scripts (not raw AI drafts) as literal context, alongside the guidelines — N is the per-show configurable lookback window. This is real transcript context for duplicate-story suppression, not just an instruction to "avoid repeating stories" (which does not work reliably on its own, since each generation is a fresh conversation with no memory of prior days).
+- Each generation call includes the show's own past N days of *reviewed, final* scripts as literal context, alongside the guidelines — N is the per-show configurable lookback window. This is real transcript context for duplicate-story suppression, not just an instruction to "avoid repeating stories" (which does not work reliably on its own, since each generation is a fresh conversation with no memory of prior days).
+- **Editorial-preference learning (added 2026-09-12)**: for episodes within that same lookback window where the host's edit was substantial — i.e., `script_reviewed` was *not* flagged `degraded` (Section 5.2's own near-identical-edit signal) — the original AI draft is included alongside its final, paired, with an explicit instruction to compare them and carry forward whatever pattern of tone, structure, or word-choice preference the edit reveals, rather than repeating the same issue next time. Episodes with a near-identical draft/final pair carry no editorial signal and are shown as final-only, same as before, to avoid diluting the prompt with pairs that teach nothing. This is prompt-based, not model fine-tuning — fine-tuning was considered and rejected as impractical at this stage (too few real episodes to train on, and it would fight the guidelines-doc-driven design's whole premise that redefining a show's voice is a doc edit, not a code or model change).
 - `thinking: {"type": "disabled"}` is required on this call (see Section 1 lessons).
 
 ### 5.2 Human Review Step (new, required)
@@ -85,7 +86,7 @@ A distinct pipeline stage exists between AI draft and "final": **Script reviewed
 
 **Safeguard**: a similarity/diff check compares the saved final text against the original AI draft. If suspiciously close to identical, show a non-blocking warning badge (e.g., "X% changed" in a caution state) rather than silently proceeding — a legitimate zero-edit day is possible, so this flags for a second look rather than blocking the save.
 
-It is the **reviewed, final** version — never the raw draft — that gets archived and fed forward as next-day dedup context.
+It is the **reviewed, final** version that gets archived as this show's permanent historical record. The original AI draft is also fed forward, but only for the subset of recent episodes where it differs meaningfully from the final (Section 5.1's editorial-preference learning) — never as the archived/canonical version of the episode itself.
 
 ## 6. Publishing Integrations
 
