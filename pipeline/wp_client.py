@@ -186,6 +186,25 @@ class WPClient:
     def publish_website(self, episode_id):
         return self._request("POST", f"/wp-json/net-gain/v1/episodes/{episode_id}/publish-website")
 
+    # --- YouTube (Phase 9) -----------------------------------------------------
+
+    def get_youtube_access_token(self, show_id):
+        """
+        Mints a short-lived (~1hr) YouTube API access token for this show. The
+        per-show refresh token and the studio's OAuth client secret both stay
+        inside WordPress (SPEC Section 3.3) - this side never holds either
+        one, only ever this short-lived token.
+
+        A 409 here means the show has no YouTube channel connected (not
+        retryable - raises WPClientError immediately, same as any other 4xx).
+        WordPress returns 502 on a Google-side refresh failure specifically so
+        this method's normal 5xx handling (_request -> call_with_retries)
+        applies with no special-casing needed here.
+
+        Never log the return value - it carries a live, bearer-capable token.
+        """
+        return self._request("POST", f"/wp-json/net-gain/v1/shows/{show_id}/youtube-access-token")
+
     # --- manual-trigger actions ------------------------------------------------
 
     def update_action(self, show_id, action_id, status):

@@ -1,15 +1,15 @@
 """
 Metadata generation (SPEC.md Section 6.1): one call produces Captivate
-title/notes, AIOSEO fields, and YouTube fields together - only Captivate's
-share is consumed until Phases 6 and 9 exist, but generating all of them
-now avoids a second, near-identical call per platform later.
+title/notes, AIOSEO fields, and YouTube fields together - generating all of
+them in one pass avoids a second, near-identical call per platform.
 
 No web search tool here (unlike script_generation.py) - this repackages an
 already-written final script, it doesn't need to research anything new.
-Runs synchronously, immediately before a Captivate publish attempt (see
-tick.py) - not on its own schedule - per the Phase 4 amendment to Section
-8.1: generation work is deferred until the closest possible point to actual
-publication, to avoid wasting it on episodes later aborted and replaced.
+Runs synchronously, immediately before whichever publish attempt needs it
+first (Captivate, website, or YouTube - see tick.py) - not on its own
+schedule - per the Phase 4 amendment to Section 8.1: generation work is
+deferred until the closest possible point to actual publication, to avoid
+wasting it on episodes later aborted and replaced.
 """
 
 import json
@@ -60,10 +60,28 @@ def build_system_prompt(show_name):
         "rather than inventing one.\n"
         "- aioseo_title / aioseo_description: written for search engines and social "
         "link previews, not duplicates of the Captivate fields.\n"
-        "- youtube_title: under 100 characters.\n"
+        "- youtube_title: under 100 characters (aim for under 70 so it isn't truncated "
+        "in search results and suggested-video rows). Lead with the episode's single "
+        "most search- and recommendation-relevant keyword or phrase - usually the lead "
+        "story's real subject - rather than a generic show-name-first framing. Written "
+        "for genuine discovery, not clickbait.\n"
         "- youtube_description: the first ~125 characters are what's visible before "
-        "truncation on YouTube, so lead with the most important part.\n"
-        "- youtube_tags: 5-15 relevant single words or short phrases, no '#' symbols."
+        "truncation on YouTube, so lead with the most important, keyword-rich summary "
+        "sentence. Keep the rest dense with the real topics, names, and terms a viewer "
+        "or YouTube's own matching algorithm would search for - do not pad with "
+        "generic filler to reach a target length; a shorter, denser description beats "
+        "a longer, diluted one. Stay well under YouTube's 5000-character hard limit.\n"
+        "- youtube_tags: 5-15 relevant single words or short phrases, no '#' symbols, "
+        "drawn from the episode's actual specific content (company, person, product, "
+        "and topic names) rather than generic show-level tags repeated every episode - "
+        "specific per-episode tags are what actually help one video surface in search "
+        "and suggested videos.\n"
+        "- Ticker symbols: whenever the episode discusses a publicly-traded company, "
+        "include its stock ticker symbol (e.g. $AAPL) at least once in "
+        "captivate_notes, aioseo_description, youtube_description, and as its own "
+        "entry in youtube_tags - investors commonly search by ticker in a way plain "
+        "company names don't capture. Omit this entirely when no public company is "
+        "genuinely discussed; never invent or guess a ticker."
     )
 
 

@@ -6,3 +6,16 @@ Pillow>=10.0,<11.0
 # Verify this is still the current correct Vertex AI SDK/version at build
 # time (SPEC.md Section 1) - not trusted as-is from this plan.
 google-genai>=0.1.0
+# Phase 9 (YouTube): resumable video upload is a genuine multi-step protocol
+# (session init, chunked PUT, resume-on-interruption) where a hand-rolled bug
+# risks a corrupted/duplicated public video - a scoped exception to this
+# project's usual lean-requests-client pattern, same reasoning already
+# applied to google-genai above rather than hand-rolling Vertex AI's protocol.
+google-api-python-client>=2.100.0
+# Already pulled in transitively by google-genai/google-api-python-client;
+# pinned directly since youtube_client.py imports it explicitly.
+google-auth>=2.23.0
+# Bundles a static ffmpeg binary - no system/root ffmpeg install needed on
+# Canspace's shared cPanel hosting. Verify the bundled binary is actually
+# present/executable on the real host at deploy time, not just importable.
+imageio-ffmpeg>=0.5.1

@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from tick import (
     CAPTIVATE_ACCOUNT_TIMEZONE,
@@ -15,9 +15,11 @@ from tick import (
     compute_captivate_date_field,
     compute_target_publish_moment,
     finalization_elapsed,
+    resolve_youtube_processing,
     script_generation_due,
     verify_website_publish,
     website_publish_due,
+    youtube_publish_due,
 )
 
 
@@ -326,6 +328,206 @@ class WebsitePublishDueTests(unittest.TestCase):
         show = {"publish_mode": "scheduled", "publish_timezone": "UTC", "publish_time": future.strftime("%H:%M")}
         episode = self._episode(finalized_seconds_ago=1)
         self.assertFalse(website_publish_due(show, episode))
+
+
+class YouTubePublishDueTests(unittest.TestCase):
+    def _episode(
+        self, state="finalized", youtube_status="pending", finalized_seconds_ago=3600, images_status="done"
+    ):
+        finalized_at = _gmt_mysql(datetime.now(timezone.utc) - timedelta(seconds=finalized_seconds_ago))
+        return {
+            "id": 42,
+            "finalization": {"state": state, "finalized_at": finalized_at},
+            "step_status": {
+                "youtube_published": {"status": youtube_status},
+                "images_rendered": {"status": images_status},
+            },
+        }
+
+    def _show(self, publish_mode="immediate", pending_actions=None, youtube_channel_id="UC123"):
+        return {
+            "publish_mode": publish_mode,
+            "pending_actions": pending_actions or [],
+            "youtube_channel_id": youtube_channel_id,
+        }
+
+    def test_none_when_show_has_no_youtube_channel_connected(self):
+        """A show with no YouTube connection is a valid, expected state
+        (Section 6.3's connection is opt-in per show) - never "due", same as
+        it never being in_flight per the class-rest-tick-context.php fix."""
+        show = self._show(youtube_channel_id="")
+        episode = self._episode()
+        self.assertIsNone(youtube_publish_due(show, episode))
+
+    def test_none_when_not_finalized(self):
+        show = self._show()
+        episode = self._episode(state="counting_down")
+        self.assertIsNone(youtube_publish_due(show, episode))
+
+    def test_none_when_images_not_yet_rendered(self):
+        show = self._show()
+        episode = self._episode(images_status="pending")
+        self.assertIsNone(youtube_publish_due(show, episode))
+
+    def test_upload_when_images_degraded_not_just_done(self):
+        show = self._show()
+        episode = self._episode(images_status="degraded")
+        self.assertEqual(youtube_publish_due(show, episode), "upload")
+
+    def test_upload_when_finalized_and_due(self):
+        show = self._show()
+        episode = self._episode()
+        self.assertEqual(youtube_publish_due(show, episode), "upload")
+
+    def test_none_when_scheduled_target_is_in_the_future(self):
+        future = datetime.now(timezone.utc) + timedelta(hours=2)
+        show = self._show(publish_mode="scheduled")
+        show["publish_timezone"] = "UTC"
+        show["publish_time"] = future.strftime("%H:%M")
+        episode = self._episode(finalized_seconds_ago=1)
+        self.assertIsNone(youtube_publish_due(show, episode))
+
+    def test_verify_when_already_in_progress(self):
+        """in_progress always routes to verify, never upload - re-uploading an
+        in-flight or already-uploaded video would publish a duplicate."""
+        show = self._show()
+        episode = self._episode(youtube_status="in_progress")
+        self.assertEqual(youtube_publish_due(show, episode), "verify")
+
+    def test_none_once_already_done(self):
+        show = self._show()
+        episode = self._episode(youtube_status="done")
+        self.assertIsNone(youtube_publish_due(show, episode))
+
+    def test_none_once_failed_with_no_force(self):
+        """Unlike Captivate, a failed YouTube step does not auto-retry -
+        SPEC's manual publish_youtube trigger is the only way back."""
+        show = self._show()
+        episode = self._episode(youtube_status="failed")
+        self.assertIsNone(youtube_publish_due(show, episode))
+
+    def test_forced_action_bypasses_done_skip(self):
+        show = self._show(pending_actions=[{"action": "publish_youtube", "status": "pending", "force": True}])
+        episode = self._episode(youtube_status="done")
+        self.assertEqual(youtube_publish_due(show, episode), "upload")
+
+    def test_forced_action_bypasses_failed_skip(self):
+        show = self._show(pending_actions=[{"action": "publish_youtube", "status": "pending", "force": True}])
+        episode = self._episode(youtube_status="failed")
+        self.assertEqual(youtube_publish_due(show, episode), "upload")
+
+
+class ResolveYouTubeProcessingTests(unittest.TestCase):
+    def _wp(self, access_token_response=None):
+        wp = Mock()
+        wp.get_youtube_access_token.return_value = access_token_response or {"access_token": "tok"}
+        return wp
+
+    def test_no_video_id_within_stall_window_does_nothing(self):
+        wp = self._wp()
+        meta = {
+            "ng_youtube_video_id": "",
+            "ng_youtube_upload_started_at": datetime.now(timezone.utc).isoformat(),
+        }
+        resolve_youtube_processing(wp, {}, {"id": 1}, 42, meta)
+        wp.update_step.assert_not_called()
+
+    def test_no_video_id_past_stall_window_raises(self):
+        wp = self._wp()
+        started = (datetime.now(timezone.utc) - timedelta(minutes=90)).isoformat()
+        meta = {"ng_youtube_video_id": "", "ng_youtube_upload_started_at": started}
+        with self.assertRaises(RuntimeError) as ctx:
+            resolve_youtube_processing(wp, {}, {"id": 1}, 42, meta)
+        self.assertIn("orphaned", str(ctx.exception))
+
+    @patch("tick.yt")
+    def test_video_no_longer_exists_raises(self, mock_yt):
+        mock_yt.get_video_state.return_value = {"exists": False}
+        wp = self._wp()
+        meta = {"ng_youtube_video_id": "abc", "ng_youtube_upload_started_at": _gmt_mysql(datetime.now(timezone.utc))}
+        with self.assertRaises(RuntimeError) as ctx:
+            resolve_youtube_processing(wp, {}, {"id": 1}, 42, meta)
+        self.assertIn("no longer exists", str(ctx.exception))
+
+    @patch("tick.yt")
+    def test_rejected_video_raises_with_reason(self, mock_yt):
+        mock_yt.get_video_state.return_value = {
+            "exists": True, "upload_status": "rejected", "rejection_reason": "duplicate",
+        }
+        wp = self._wp()
+        meta = {"ng_youtube_video_id": "abc", "ng_youtube_upload_started_at": _gmt_mysql(datetime.now(timezone.utc))}
+        with self.assertRaises(RuntimeError) as ctx:
+            resolve_youtube_processing(wp, {}, {"id": 1}, 42, meta)
+        self.assertIn("duplicate", str(ctx.exception))
+
+    @patch("tick.yt")
+    def test_still_processing_within_timeout_does_nothing(self, mock_yt):
+        mock_yt.get_video_state.return_value = {"exists": True, "upload_status": "uploaded"}
+        wp = self._wp()
+        started = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+        meta = {"ng_youtube_video_id": "abc", "ng_youtube_upload_started_at": started}
+        resolve_youtube_processing(wp, {}, {"id": 1}, 42, meta)
+        wp.update_step.assert_not_called()
+
+    @patch("tick.yt")
+    def test_still_processing_past_timeout_raises(self, mock_yt):
+        mock_yt.get_video_state.return_value = {"exists": True, "upload_status": "uploaded"}
+        wp = self._wp()
+        started = (datetime.now(timezone.utc) - timedelta(minutes=150)).isoformat()
+        meta = {"ng_youtube_video_id": "abc", "ng_youtube_upload_started_at": started}
+        with self.assertRaises(RuntimeError) as ctx:
+            resolve_youtube_processing(wp, {}, {"id": 1}, 42, meta)
+        self.assertIn("in progress indefinitely", str(ctx.exception))
+
+    @patch("tick.yt")
+    def test_title_mismatch_raises_without_writing_url(self, mock_yt):
+        mock_yt.get_video_state.return_value = {
+            "exists": True, "upload_status": "processed", "title": "Wrong Title",
+        }
+        wp = self._wp()
+        meta = {
+            "ng_youtube_video_id": "abc",
+            "ng_youtube_upload_started_at": _gmt_mysql(datetime.now(timezone.utc)),
+            "ng_meta_youtube_title": "Correct Title",
+        }
+        with self.assertRaises(RuntimeError):
+            resolve_youtube_processing(wp, {}, {"id": 1}, 42, meta)
+        wp.update_episode_meta.assert_not_called()
+
+    @patch("tick.yt")
+    def test_processed_and_verified_writes_url_and_marks_done(self, mock_yt):
+        mock_yt.get_video_state.return_value = {
+            "exists": True, "upload_status": "processed", "title": "Correct Title",
+        }
+        mock_yt.watch_url.return_value = "https://www.youtube.com/watch?v=abc"
+        wp = self._wp()
+        meta = {
+            "ng_youtube_video_id": "abc",
+            "ng_youtube_upload_started_at": _gmt_mysql(datetime.now(timezone.utc)),
+            "ng_meta_youtube_title": "Correct Title",
+            "ng_youtube_thumbnail_error": "",
+        }
+        resolve_youtube_processing(wp, {}, {"id": 1, "name": "Net Gain Edtech"}, 42, meta)
+        wp.update_episode_meta.assert_called_with(42, {"ng_url_youtube": "https://www.youtube.com/watch?v=abc"})
+        wp.update_step.assert_called_with(42, "youtube_published", "done")
+
+    @patch("tick.yt")
+    def test_processed_with_thumbnail_error_resolves_to_degraded(self, mock_yt):
+        mock_yt.get_video_state.return_value = {
+            "exists": True, "upload_status": "processed", "title": "Correct Title",
+        }
+        mock_yt.watch_url.return_value = "https://www.youtube.com/watch?v=abc"
+        wp = self._wp()
+        meta = {
+            "ng_youtube_video_id": "abc",
+            "ng_youtube_upload_started_at": _gmt_mysql(datetime.now(timezone.utc)),
+            "ng_meta_youtube_title": "Correct Title",
+            "ng_youtube_thumbnail_error": "channel not phone-verified",
+        }
+        resolve_youtube_processing(wp, {}, {"id": 1, "name": "Net Gain Edtech"}, 42, meta)
+        status_call = wp.update_step.call_args
+        self.assertEqual(status_call.args[:2], (42, "youtube_published"))
+        self.assertEqual(status_call.args[2], "degraded")
 
 
 class VerifyWebsitePublishTests(unittest.TestCase):

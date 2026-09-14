@@ -3,9 +3,10 @@ Cron entry point (SPEC.md Section 3.1): invoked directly as a CLI process by
 a single Canspace cron entry, frequently. Each pass checks every Active show
 for anything due. Phase 3 added script generation; Phase 4 added detecting
 an elapsed finalization countdown (Section 8.1); Phase 5 added metadata
-generation and Captivate publishing (Section 6.1); Phase 6 adds website
-publishing (Section 6.2). Metadata generation, Captivate, and website
-publishing are all deliberately triggered at the same moment - the closest
+generation and Captivate publishing (Section 6.1); Phase 6 added website
+publishing (Section 6.2); Phase 8 added image rendering (Section 7); Phase 9
+adds YouTube publishing (Section 6.3). Metadata generation and all three
+publish targets are deliberately triggered at the same moment - the closest
 point to actual publication, per the Phase 4 amendment deferring generation
 work to avoid wasting it on episodes later aborted and replaced. Later
 phases extend the same loop further, per CLAUDE.md's architecture note that
@@ -14,20 +15,27 @@ manual and scheduled triggers must share one code path.
 Each show is processed in complete isolation (Section 3.1: "each show's
 processing must run as a fully independent, isolated process with no shared
 lock or queue across shows") - one show's failure is logged and alerted on,
-never allowed to stop the loop for the rest. Within one show, Captivate and
-website publishing are likewise isolated from each other and from script
-generation (Section 9: publish-target independence) - a failure in one must
-never prevent attempts at the other two.
+never allowed to stop the loop for the rest. Within one show, Captivate,
+website, and YouTube publishing are likewise isolated from each other and
+from script generation (Section 9: publish-target independence) - a failure
+in one must never prevent attempts at the other two. YouTube is the one
+exception to every other step's single-tick-pass completion: a real
+processing delay on YouTube's side (sometimes several minutes) means its
+publish step spans two tick passes - see youtube_publish_due()'s "upload" vs
+"verify" modes.
 """
 
 import logging
 import sys
+import tempfile
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import anthropic
 import requests
 
+import youtube_client as yt
 from anthropic_client import generate as anthropic_generate
 from captivate_client import CaptivateClient
 from config import ConfigError, load_config
@@ -35,7 +43,9 @@ from image_generation import FALLBACK_META_KEYS, IMAGE_META_KEYS, build_vertex_c
 from metadata_generation import generate_metadata_for_episode
 from notify import notify_failure
 from script_generation import generate_script_for_show
+from video_composition import render_still_video
 from wp_client import WPClient
+from youtube_checklist import evaluate as evaluate_youtube_checklist
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("net_gain.tick")
@@ -70,6 +80,15 @@ MIN_SCRIPT_WORDS = 250
 # the prototype (CLAUDE.md), Pacific is the proven, correct value here too,
 # not a per-show guess.
 CAPTIVATE_ACCOUNT_TIMEZONE = ZoneInfo("America/Los_Angeles")
+
+# YouTube's own processing delay (SPEC Section 6.3: "sometimes several
+# minutes") means youtube_published needs two genuinely different timeouts,
+# unlike any other step: how long to wait before treating an upload that
+# never recorded a video id as dead (STALL), and how long to wait before
+# giving up on a video stuck in YouTube's own processing queue (TIMEOUT).
+# Both are this build's own judgment call, not SPEC-pinned values.
+YOUTUBE_UPLOAD_STALL_MINUTES = 45
+YOUTUBE_PROCESSING_TIMEOUT_MINUTES = 120
 
 
 def _gmt_mysql(dt):
@@ -443,6 +462,276 @@ def process_website_publishes(wp, client, config, show):
             notify_failure(config, show["name"], "website_published", str(exc))
 
 
+def youtube_publish_due(show, episode):
+    """
+    Returns None | "upload" | "verify". Unlike Captivate/website, which
+    verify synchronously within one tick pass, YouTube's real processing
+    delay means upload and verification are genuinely two separate tick
+    passes over the same youtube_published step.
+    """
+    if not show.get("youtube_channel_id"):
+        return None  # no YouTube channel connected - a valid, expected state (Section 6.3).
+
+    step_status = episode.get("step_status") or {}
+    current = step_status.get("youtube_published", {}).get("status", "pending")
+
+    # Always verify, never re-upload, once a video is (or might be) already in
+    # flight - the cost of a race here is a duplicate PUBLIC video, not a
+    # retried API call, unlike every other retry in this pipeline.
+    if current == "in_progress":
+        return "verify"
+
+    finalization = episode.get("finalization") or {}
+    if finalization.get("state") != "finalized":
+        return None
+
+    pending = [
+        a
+        for a in show.get("pending_actions", []) or []
+        if a.get("action") == "publish_youtube" and a.get("status") == "pending"
+    ]
+    forced = any(a.get("force") for a in pending)
+
+    if current in ("done", "degraded", "failed") and not forced:
+        return None
+
+    # Same reasoning as captivate_publish_due()/website_publish_due(): checked
+    # here because WordPress's server-side prerequisite enforcement would
+    # otherwise silently strand a blocked transition at "pending" with no
+    # alert ever firing.
+    if step_status.get("images_rendered", {}).get("status", "pending") not in ("done", "degraded"):
+        return None
+
+    if datetime.now(timezone.utc) < compute_target_publish_moment(show, finalization):
+        return None
+
+    return "upload"
+
+
+def _minutes_since(iso_timestamp):
+    if not iso_timestamp:
+        return None
+    started = datetime.fromisoformat(iso_timestamp)
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - started).total_seconds() / 60
+
+
+def upload_episode_to_youtube(wp, client, config, show, episode_id, meta):
+    step_status = meta.get("ng_step_status", {}) or {}
+    metadata_status = step_status.get("metadata_generated", {}).get("status", "pending")
+    if metadata_status not in ("done", "degraded"):
+        generate_metadata(wp, client, show, episode_id)
+        meta = wp.get_episode(episode_id).get("meta", {})
+
+    title = meta.get("ng_meta_youtube_title", "")
+    description = meta.get("ng_meta_youtube_description", "")
+    tags = meta.get("ng_meta_youtube_tags", []) or []
+
+    image_id = meta.get("ng_image_16x9_id")
+    audio_id = meta.get("ng_audio_attachment_id")
+    if not image_id or not audio_id:
+        raise RuntimeError("Episode is missing its 16:9 image or audio attachment - cannot build a video.")
+
+    thumbnail_bytes = wp.download_binary(wp.get_attachment_url(image_id))
+
+    failures = evaluate_youtube_checklist(title, description, tags, thumbnail_bytes, show["name"])
+    if failures:
+        # Specific, named criteria (Section 1's "fail loudly and specifically"),
+        # never a generic error - checked, and failed, before any in_progress
+        # transition or ffmpeg work, so the dashboard never flashes blue for
+        # work that never actually started.
+        raise RuntimeError("Pre-publish checklist failed: " + "; ".join(failures))
+
+    wp.update_step(episode_id, "youtube_published", "in_progress")
+
+    access_token = wp.get_youtube_access_token(show["id"])["access_token"]
+    service = yt.build_service(access_token)
+
+    # Cheap (1-unit), high-value safety check - a mis-wired connection
+    # publishing one client's episode to another client's channel would be
+    # the single worst failure mode this multi-tenant system could produce.
+    actual_channel_id = yt.get_own_channel_id(service)
+    if actual_channel_id != show.get("youtube_channel_id"):
+        raise RuntimeError(
+            f"Minted access token's channel ({actual_channel_id}) does not match this "
+            f"show's stored channel ({show.get('youtube_channel_id')}) - refusing to "
+            "upload. This needs a human operator to check the show's YouTube connection."
+        )
+
+    # UTC, written by this process before upload begins - not derived from
+    # ng_step_status's site-local timestamp (same timezone-ambiguity class as
+    # the Captivate `date` field incident this codebase already hit once).
+    wp.update_episode_meta(
+        episode_id, {"ng_youtube_upload_started_at": datetime.now(timezone.utc).isoformat()}
+    )
+
+    audio_url = wp.get_attachment_url(audio_id)
+    audio_bytes = wp.download_binary(audio_url)
+    audio_filename = audio_url.rsplit("/", 1)[-1] or "episode.mp3"
+    audio_extension = audio_filename.rsplit(".", 1)[-1] if "." in audio_filename else "mp3"
+
+    with tempfile.TemporaryDirectory() as workdir:
+        video_path, _duration = render_still_video(
+            thumbnail_bytes, audio_bytes, workdir, audio_extension=audio_extension
+        )
+
+        snippet = {
+            "title": title,
+            "description": description,
+            "tags": tags,
+            # FLAG: "25" (News & Politics) is this build's best guess, not
+            # verified against live docs, and may not suit every future show's
+            # actual subject matter - verify/reconsider per-show if this ever
+            # onboards a genuinely different vertical.
+            "categoryId": "25",
+            "defaultLanguage": "en",
+            "defaultAudioLanguage": "en",
+        }
+        status = {
+            # Section 13: test shows go to an unlisted (not fully private)
+            # upload - off search/recommendations, but the watch URL still
+            # works for manual end-to-end verification.
+            "privacyStatus": "unlisted" if show.get("is_test") else "public",
+            # FLAG: appears required, not optional, per live discovery during
+            # planning - uploads can be blocked/flagged without an explicit
+            # made-for-kids declaration. Verify against live docs.
+            "selfDeclaredMadeForKids": False,
+            "license": "youtube",
+            "embeddable": True,
+        }
+
+        video_id = yt.upload_video(service, video_path, snippet, status)
+        # Written immediately - this is the one piece of state that makes the
+        # two-phase upload/verify flow resumable at all if this process dies
+        # right after the upload succeeds.
+        wp.update_episode_meta(episode_id, {"ng_youtube_video_id": video_id})
+        logger.info("Uploaded episode %s to YouTube as video %s for %s.", episode_id, video_id, show["name"])
+
+        thumbnail_path = Path(workdir) / "thumbnail.jpg"
+        thumbnail_path.write_bytes(thumbnail_bytes)
+        try:
+            yt.set_thumbnail(service, video_id, str(thumbnail_path))
+            wp.update_episode_meta(episode_id, {"ng_youtube_thumbnail_error": ""})
+        except Exception as exc:
+            # Caught separately, deliberately - the video is already public,
+            # so a thumbnail failure (almost always: channel not phone-
+            # verified) degrades the eventual resolution, it does not fail
+            # the whole step the way a checklist or upload failure does.
+            logger.warning(
+                "Setting YouTube thumbnail failed for video %s (%s): %s", video_id, show["name"], exc
+            )
+            wp.update_episode_meta(episode_id, {"ng_youtube_thumbnail_error": str(exc)[:500]})
+
+    # Step stays in_progress here - resolve_youtube_processing() settles it
+    # to done/degraded/failed on a later tick once YouTube's own processing
+    # actually completes.
+
+
+def resolve_youtube_processing(wp, config, show, episode_id, meta):
+    video_id = meta.get("ng_youtube_video_id") or ""
+    started_raw = meta.get("ng_youtube_upload_started_at") or ""
+
+    if not video_id:
+        # Genuinely ambiguous: either an upload is mid-flight in another
+        # process right now, or a process died before ever recording a video
+        # id. Only the latter is actionable, and only past a real stall
+        # window - a normal upload of a real newscast video can itself take
+        # a few minutes.
+        elapsed = _minutes_since(started_raw)
+        if elapsed is None or elapsed < YOUTUBE_UPLOAD_STALL_MINUTES:
+            return
+        raise RuntimeError(
+            f"An upload was started at {started_raw} but no YouTube video id was ever "
+            f"recorded, and it has been stalled for over {YOUTUBE_UPLOAD_STALL_MINUTES} "
+            "minutes. Check this channel's YouTube Content page for an orphaned or "
+            "partial upload BEFORE retrying, so a retry can't publish a duplicate."
+        )
+
+    access_token = wp.get_youtube_access_token(show["id"])["access_token"]
+    service = yt.build_service(access_token)
+    state = yt.get_video_state(service, video_id)
+
+    if not state["exists"]:
+        raise RuntimeError(f"YouTube video {video_id} no longer exists on the channel (videos.list returned no items).")
+
+    if state["upload_status"] == "rejected":
+        raise RuntimeError(f"YouTube rejected video {video_id}: {state['rejection_reason'] or 'no reason given'}.")
+    if state["upload_status"] == "failed":
+        raise RuntimeError(f"YouTube reported video {video_id} failed: {state['failure_reason'] or 'no reason given'}.")
+
+    if state["upload_status"] != "processed":
+        # Still genuinely processing - an external delay outside our control
+        # (Section 6.3), not a failure. Only resolved to failed once stuck
+        # past a real timeout, so the dashboard doesn't stay blue forever.
+        elapsed = _minutes_since(started_raw)
+        if elapsed is not None and elapsed >= YOUTUBE_PROCESSING_TIMEOUT_MINUTES:
+            raise RuntimeError(
+                f"YouTube video {video_id} is still {state['upload_status']!r} after "
+                f"{YOUTUBE_PROCESSING_TIMEOUT_MINUTES} minutes - treating as failed rather "
+                "than leaving this step in progress indefinitely."
+            )
+        return  # leave it in_progress; a later tick checks again.
+
+    # Full end-to-end verification (Section 9): re-fetch and confirm before
+    # writing the public URL - never write it speculatively from the upload
+    # call's own success response alone.
+    expected_title = meta.get("ng_meta_youtube_title", "")
+    if expected_title and state["title"] != expected_title:
+        raise RuntimeError(
+            f"Verification failed: YouTube's title for video {video_id} "
+            f"({state['title']!r}) does not match what was uploaded ({expected_title!r})."
+        )
+
+    wp.update_episode_meta(episode_id, {"ng_url_youtube": yt.watch_url(video_id)})
+
+    thumbnail_error = meta.get("ng_youtube_thumbnail_error") or ""
+    if thumbnail_error:
+        wp.update_step(episode_id, "youtube_published", "degraded", note=f"Thumbnail could not be set: {thumbnail_error[:400]}")
+    else:
+        wp.update_step(episode_id, "youtube_published", "done")
+    logger.info("YouTube video %s for episode %s (%s) confirmed live.", video_id, episode_id, show["name"])
+
+
+def process_youtube_publishes(wp, client, config, show):
+    for episode in show.get("in_flight_episodes", []) or []:
+        mode = youtube_publish_due(show, episode)
+        if mode is None:
+            continue
+
+        episode_id = episode["id"]
+        pending = [
+            a
+            for a in show.get("pending_actions", []) or []
+            if a.get("action") == "publish_youtube" and a.get("status") == "pending"
+        ]
+
+        try:
+            full_episode = wp.get_episode(episode_id)
+            meta = full_episode.get("meta", {})
+
+            # Safety rule: a force-triggered re-publish must never re-upload
+            # once a video id already exists, regardless of how "upload" was
+            # reached - that is exactly how a duplicate public video gets
+            # published. Re-check instead.
+            if mode == "upload" and meta.get("ng_youtube_video_id"):
+                mode = "verify"
+
+            if mode == "upload":
+                upload_episode_to_youtube(wp, client, config, show, episode_id, meta)
+            else:
+                resolve_youtube_processing(wp, config, show, episode_id, meta)
+
+            for action in pending:
+                wp.update_action(show["id"], action["id"], "done")
+        except Exception as exc:
+            logger.exception("YouTube publish failed for episode %s (%s)", episode_id, show["name"])
+            wp.update_step(episode_id, "youtube_published", "failed", note=str(exc)[:500])
+            for action in pending:
+                wp.update_action(show["id"], action["id"], "failed")
+            notify_failure(config, show["name"], "youtube_published", str(exc))
+
+
 def process_show(wp, client, captivate, vertex_client, config, show):
     try:
         check_finalizations(wp, show)
@@ -463,6 +752,11 @@ def process_show(wp, client, captivate, vertex_client, config, show):
         process_website_publishes(wp, client, config, show)
     except Exception:
         logger.exception("Error processing website publishes for %s", show["name"])
+
+    try:
+        process_youtube_publishes(wp, client, config, show)
+    except Exception:
+        logger.exception("Error processing YouTube publishes for %s", show["name"])
 
     tz_name = show.get("recording_timezone") or "UTC"
     now_local = datetime.now(ZoneInfo(tz_name))
