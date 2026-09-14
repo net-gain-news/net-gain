@@ -78,6 +78,15 @@ class Net_Gain_CPT_Episode {
 			'ng_url_website'   => array( 'type' => 'string', 'default' => '' ),
 			'ng_url_youtube'   => array( 'type' => 'string', 'default' => '' ),
 			'ng_website_post_id' => array( 'type' => 'integer', 'default' => 0 ),
+			// Internal/machine references to the in-flight YouTube upload (Spec Section
+			// 6.3's two-phase upload-then-verify) - distinct from ng_url_youtube above,
+			// which is written only once the video is confirmed live.
+			'ng_youtube_video_id'          => array( 'type' => 'string', 'default' => '' ),
+			// UTC ISO8601, written by the pipeline itself before upload begins - not
+			// derived from ng_step_status's site-local timestamp (same timezone-
+			// ambiguity class as the Captivate `date` field incident).
+			'ng_youtube_upload_started_at' => array( 'type' => 'string', 'default' => '' ),
+			'ng_youtube_thumbnail_error'   => array( 'type' => 'string', 'default' => '' ),
 			// Snapshotted at finalization - never re-derived from the Show's *current*
 			// primary talent, per Spec Section 4.1's prospective-only-changes rule.
 			'ng_talent_user_id' => array( 'type' => 'integer', 'default' => 0 ),

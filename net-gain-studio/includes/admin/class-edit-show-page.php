@@ -1,11 +1,12 @@
 <?php
 /**
  * Add/Edit Show — implements every field in Spec Section 11. Renders three
- * separate, non-nested <form>s: the main show-details form, a standalone
- * Captivate "Connect" form (Section 6.1's own explicit connection action,
- * kept apart so Phase 5's real verification call has a natural home to slot
- * into), and no form at all for YouTube - its OAuth flow doesn't exist yet
- * (Phase 9), so the control is a disabled button, not a fake action.
+ * independent connection surfaces below the main show-details form: a
+ * standalone Captivate "Connect" form (Section 6.1's own explicit connection
+ * action), and a YouTube Connect/Disconnect control (Section 6.3) that's a
+ * pair of plain nonce-protected links to admin-post.php rather than a form -
+ * each just starts or tears down an OAuth flow, with no extra fields to
+ * submit.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -114,7 +115,7 @@ class Net_Gain_Edit_Show_Page {
 						<th><label for="ng_target_time">Target time</label></th>
 						<td>
 							<input type="time" id="ng_target_time" name="ng_target_time" value="<?php echo esc_attr( $get( 'ng_target_time' ) ); ?>">
-							<p class="description">When the script needs to be ready for talent to record, in the timezone below.</p>
+							<p class="description">The earliest time the tick loop will request today's script — not a deadline it must be ready by. Actual script availability could be as much as 10 minutes after this time, once the next tick loop pass picks it up.</p>
 						</td>
 					</tr>
 
@@ -349,10 +350,44 @@ class Net_Gain_Edit_Show_Page {
 
 				<hr>
 				<h2>Connect YouTube channel</h2>
-				<?php $youtube_connected = Net_Gain_Secrets::exists( 'show', $show_id, 'youtube_oauth' ); ?>
-				<p>Status: <strong><?php echo $youtube_connected ? 'Connected' : 'Not connected'; ?></strong></p>
-				<button type="button" class="button" disabled>Connect YouTube Channel</button>
-				<p class="description">OAuth connection ships in a later build phase (Phase 9) — this control is intentionally disabled until then.</p>
+				<?php
+				$youtube_connected = Net_Gain_Secrets::exists( 'show', $show_id, 'youtube_oauth' );
+				$youtube_channel_title = $get( 'ng_youtube_channel_title' );
+				$youtube_channel_id    = $get( 'ng_youtube_channel_id' );
+				$phone_verified        = $get( 'ng_youtube_phone_verified' );
+				?>
+				<?php if ( $youtube_connected ) : ?>
+					<p>
+						Status: <strong>Connected</strong>
+						<?php if ( $youtube_channel_title ) : ?>
+							— <?php echo esc_html( $youtube_channel_title ); ?> (channel ID <code><?php echo esc_html( $youtube_channel_id ); ?></code>)
+						<?php endif; ?>
+					</p>
+					<?php if ( 'disallowed' === $phone_verified ) : ?>
+						<p class="description" style="color:#a00;">
+							This channel does not appear to be phone-verified. YouTube requires phone
+							verification before a custom thumbnail can be set programmatically, with no
+							exception — episodes will still upload, but setting the thumbnail will fail
+							until this is resolved in YouTube's own channel settings (Settings → Channel →
+							Feature eligibility), then reconnected here.
+						</p>
+					<?php elseif ( $phone_verified && 'unknown' !== $phone_verified ) : ?>
+						<p class="description">Phone verification looks OK (based on YouTube's own "long uploads" eligibility flag — the closest available proxy, not an officially documented verification field).</p>
+					<?php endif; ?>
+					<a class="button" href="<?php echo esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ng_disconnect_youtube', 'show_id' => $show_id ), admin_url( 'admin-post.php' ) ), 'ng_disconnect_youtube' ) ); ?>">Disconnect YouTube Channel</a>
+				<?php else : ?>
+					<p>Status: <strong>Not connected</strong></p>
+					<a class="button button-primary" href="<?php echo esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ng_connect_youtube', 'show_id' => $show_id ), admin_url( 'admin-post.php' ) ), 'ng_connect_youtube' ) ); ?>">Connect YouTube Channel</a>
+				<?php endif; ?>
+				<p class="description">
+					Connecting opts this show into automated YouTube publishing — once connected,
+					finalized episodes upload automatically at publish time, the same as Captivate and
+					the website above. <strong>Before connecting, make sure this channel is already
+					phone-verified</strong> in YouTube's own settings (Settings → Channel → Feature
+					eligibility) — YouTube requires this before any custom thumbnail can be set
+					programmatically, confirmed with no exception, and there is no way to fix it from
+					here after the fact short of reconnecting.
+				</p>
 			<?php endif; ?>
 
 		</div>
@@ -362,12 +397,16 @@ class Net_Gain_Edit_Show_Page {
 	private static function render_notices() {
 		if ( isset( $_GET['ng_notice'] ) ) {
 			$messages = array(
-				'saved'               => 'Show saved.',
-				'captivate_connected' => 'Captivate show ID saved.',
+				'saved'                 => 'Show saved.',
+				'captivate_connected'   => 'Captivate show ID saved.',
+				'youtube_connected'     => 'YouTube channel connected.',
+				'youtube_disconnected'  => 'YouTube channel disconnected.',
+				'youtube_connect_failed' => 'Could not connect the YouTube channel — Google rejected or did not complete the connection. Try again; if it keeps failing, this needs a human operator to check the GCP OAuth client configuration.',
 			);
 			$notice = sanitize_key( wp_unslash( $_GET['ng_notice'] ) );
 			if ( isset( $messages[ $notice ] ) ) {
-				printf( '<div class="notice notice-success is-dismissible"><p>%s</p></div>', esc_html( $messages[ $notice ] ) );
+				$css_class = false !== strpos( $notice, 'failed' ) ? 'notice-error' : 'notice-success';
+				printf( '<div class="notice %s is-dismissible"><p>%s</p></div>', esc_attr( $css_class ), esc_html( $messages[ $notice ] ) );
 			}
 		}
 	}

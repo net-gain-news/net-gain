@@ -34,6 +34,13 @@ class Net_Gain_Episode_Detail_Page {
 			'YouTube art'  => (int) get_post_meta( $episode_id, 'ng_image_16x9_id', true ),
 			'Website art'  => (int) get_post_meta( $episode_id, 'ng_image_1200x630_id', true ),
 		);
+		$url_website          = get_post_meta( $episode_id, 'ng_url_website', true );
+		$url_youtube          = get_post_meta( $episode_id, 'ng_url_youtube', true );
+		$youtube_video_id     = get_post_meta( $episode_id, 'ng_youtube_video_id', true );
+		$youtube_thumb_error  = get_post_meta( $episode_id, 'ng_youtube_thumbnail_error', true );
+		$youtube_title        = get_post_meta( $episode_id, 'ng_meta_youtube_title', true );
+		$youtube_description  = get_post_meta( $episode_id, 'ng_meta_youtube_description', true );
+		$youtube_tags         = get_post_meta( $episode_id, 'ng_meta_youtube_tags', true );
 
 		self::render_notices();
 		?>
@@ -76,7 +83,42 @@ class Net_Gain_Episode_Detail_Page {
 			<h2>Publishing</h2>
 			<p>Captivate: <strong><?php echo esc_html( $step_status['captivate_published']['status'] ?? 'pending' ); ?></strong></p>
 			<p><?php self::render_trigger_button( $show_id, $episode_date, 'publish_captivate', 'captivate_published', $step_status, 'Publish to Captivate', 'Re-publish to Captivate' ); ?></p>
-			<p class="description">Website and YouTube publishing aren't built yet (Phases 6 and 9).</p>
+
+			<p>
+				Website: <strong><?php echo esc_html( $step_status['website_published']['status'] ?? 'pending' ); ?></strong>
+				<?php if ( $url_website ) : ?>
+					— <a href="<?php echo esc_url( $url_website ); ?>" target="_blank" rel="noopener">View page</a>
+				<?php endif; ?>
+			</p>
+
+			<p>
+				YouTube: <strong><?php echo esc_html( $step_status['youtube_published']['status'] ?? 'pending' ); ?></strong>
+				<?php if ( $url_youtube ) : ?>
+					— <a href="<?php echo esc_url( $url_youtube ); ?>" target="_blank" rel="noopener">Watch on YouTube</a>
+				<?php elseif ( $youtube_video_id ) : ?>
+					— video ID <code><?php echo esc_html( $youtube_video_id ); ?></code> (still processing — YouTube's own processing delay can run several minutes; this resolves automatically once it finishes)
+				<?php endif; ?>
+			</p>
+			<?php if ( $youtube_thumb_error ) : ?>
+				<p class="description" style="color:#a00;">Thumbnail could not be set: <?php echo esc_html( $youtube_thumb_error ); ?></p>
+			<?php endif; ?>
+			<p><?php self::render_trigger_button( $show_id, $episode_date, 'publish_youtube', 'youtube_published', $step_status, 'Publish to YouTube', 'Re-check YouTube publish' ); ?></p>
+
+			<?php if ( $youtube_title || $youtube_description || $youtube_tags ) : ?>
+				<h3>Generated YouTube metadata</h3>
+				<p>
+					<strong>Title</strong> (<?php echo esc_html( strlen( (string) $youtube_title ) ); ?> characters):
+					<?php echo esc_html( $youtube_title ); ?>
+				</p>
+				<p><strong>Description:</strong><br><?php echo nl2br( esc_html( $youtube_description ) ); ?></p>
+				<p><strong>Tags:</strong> <?php echo esc_html( implode( ', ', (array) $youtube_tags ) ); ?></p>
+				<p class="description">
+					If the YouTube step fails with a named pre-publish-checklist criterion, this is
+					where to check what was actually generated. Known gap: there is currently no
+					admin control to regenerate just this metadata in place — metadata_generated only
+					(re)runs when it isn't already done/degraded, and nothing here clears that status.
+				</p>
+			<?php endif; ?>
 		</div>
 		<?php
 	}

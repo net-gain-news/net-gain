@@ -111,7 +111,7 @@ class Net_Gain_Dashboard_Page {
 		$step_status  = $episode['step_status'];
 		$finalization = $episode['finalization'];
 		$cell_status  = Net_Gain_Dashboard_Status::compute_cell_status( $step_key, $step_status, $finalization, $show );
-		$tooltip      = Net_Gain_Dashboard_Status::tooltip( $step_key, $cell_status, $step_status );
+		$tooltip      = Net_Gain_Dashboard_Status::tooltip( $step_key, $cell_status, $step_status, $show );
 		$url          = self::artifact_url( $step_key, $episode );
 
 		$led = sprintf(
@@ -206,6 +206,10 @@ class Net_Gain_Dashboard_Page {
 					'name'    => $post->post_title,
 					'is_test' => (bool) get_post_meta( $post->ID, 'ng_is_test', true ),
 					'publish_mode' => get_post_meta( $post->ID, 'ng_publish_mode', true ),
+					// Drives youtube_published's pending/failure tooltips below - 'not
+					// connected' is a valid, expected state for a show that doesn't
+					// publish to YouTube, not an error (Spec Section 6.3).
+					'youtube_connected' => Net_Gain_Secrets::exists( 'show', $post->ID, 'youtube_oauth' ),
 				);
 			},
 			$posts

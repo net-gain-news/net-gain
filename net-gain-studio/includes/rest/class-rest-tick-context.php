@@ -54,6 +54,7 @@ class Net_Gain_REST_Tick_Context {
 				'lookback_days'       => (int) get_post_meta( $show->ID, 'ng_lookback_days', true ),
 				'captivate_show_id'   => get_post_meta( $show->ID, 'ng_captivate_show_id', true ),
 				'youtube_channel_id'  => get_post_meta( $show->ID, 'ng_youtube_channel_id', true ),
+				'is_test'             => (bool) get_post_meta( $show->ID, 'ng_is_test', true ),
 				'publish_mode'        => get_post_meta( $show->ID, 'ng_publish_mode', true ),
 				'publish_time'        => get_post_meta( $show->ID, 'ng_publish_time', true ),
 				'publish_timezone'    => get_post_meta( $show->ID, 'ng_publish_timezone', true ),
@@ -79,12 +80,23 @@ class Net_Gain_REST_Tick_Context {
 			)
 		);
 
+		// A show with no YouTube channel connected is a valid, expected state
+		// (Section 6.3's connection is opt-in per show, not every show's) - without
+		// this, youtube_published would sit at 'pending' forever for such a show
+		// (nothing ever advances it), which is NOT in $settled below, so every one
+		// of its episodes would stay "in flight" indefinitely and invisibly,
+		// eventually crowding real work out of the 50-post cap above.
+		$youtube_connected = Net_Gain_Secrets::exists( 'show', $show_id, 'youtube_oauth' );
+
 		$in_flight = array();
 		foreach ( $episodes as $episode ) {
 			$step_status = get_post_meta( $episode->ID, 'ng_step_status', true );
 			$settled     = array( 'done', 'degraded', 'failed' );
 			$complete    = true;
 			foreach ( Net_Gain_Step_Status::STEPS as $step ) {
+				if ( 'youtube_published' === $step && ! $youtube_connected ) {
+					continue;
+				}
 				$status = isset( $step_status[ $step ]['status'] ) ? $step_status[ $step ]['status'] : 'pending';
 				if ( ! in_array( $status, $settled, true ) ) {
 					$complete = false;

@@ -36,19 +36,32 @@ Phases 1–7 of the Net Gain multi-tenant newscast studio build — see `../SPEC
 - Test shows (a new `ng_is_test` checkbox on the setup screen) render in a native `<details>`/`<summary>` disclosure, collapsed by default — Section 13's "turning triangle," with zero JS.
 - Bundled fix: aborting the finalization countdown (Phase 4) never reset the audio-received step back to pending, so a dashboard built on that data would have shown "done" for audio that was just discarded.
 
+**Phase 8 — Image pipeline:**
+- One AI-generated base image per episode (Gemini 2.5 Flash Image via Vertex AI), cropped to each of three output ratios rather than three independently generated images, so an episode looks like one consistent piece of art across Captivate/YouTube/website.
+- `ng_service` gained `upload_files` (needed for `POST /wp/v2/media`), fixed via a generic version-check upgrade hook (`Net_Gain_Roles::maybe_upgrade()`, run on `init`) since `grant_capabilities()` previously only ever ran at plugin activation — the identical latent gap from Phase 6's capability grants is fixed by the same mechanism.
+- Per-show fallback images (used if generation fails) and an optional duotone style treatment (two brand colors + a fixed grayscale/contrast/blend algorithm), both configurable on the show setup screen.
+- Talent- and admin-facing review: three image thumbnails plus a "Regenerate Images" control on both the My Show page and the Episode Detail page.
+
+**Phase 9 — YouTube publishing:**
+- The real OAuth flow (`class-rest-secrets.php`): a studio-wide GCP OAuth client, `show_id` carried in the OAuth `state` parameter (not the redirect URI, which must be one static URL), and a short-lived `youtube-access-token` route so the refresh token and client secret never leave WordPress — Python only ever holds a ~1hr access token per tick.
+- "Connect YouTube channel" on the show setup screen is now a real Connect/Disconnect flow, showing the connected channel's title/ID and a phone-verification indicator (`channels.list`'s `status.longUploadsStatus`, the best available proxy — YouTube requires phone verification before any programmatic thumbnail-setting, confirmed no exception).
+- Two new non-secret show fields (`ng_youtube_channel_title`, `ng_youtube_phone_verified`) alongside the existing `ng_youtube_channel_id`, and three new episode fields (`ng_youtube_video_id`, `ng_youtube_upload_started_at`, `ng_youtube_thumbnail_error`) supporting the two-phase upload-then-verify flow the real processing delay requires (see `../pipeline/README.md`).
+- Fixed a pre-existing bug in `class-rest-tick-context.php`'s `in_flight_episodes()`: `youtube_published` sitting at `pending` forever (since nothing had ever advanced it) meant *every* episode of *every* show had been staying "in flight" indefinitely and invisibly — now a show with no YouTube connection (a valid, expected state) is correctly treated as settled on that step.
+
 ## Setup required at install time
 
 Add to `wp-config.php` before activating (needed for the secrets table to actually encrypt anything):
 
 ```php
 define( 'NET_GAIN_ENCRYPTION_KEY', 'a long random string, generate once and never change' );
+define( 'NET_GAIN_YOUTUBE_CLIENT_ID', 'the GCP OAuth client ID (apps.googleusercontent.com)' );
+define( 'NET_GAIN_YOUTUBE_CLIENT_SECRET', 'the GCP OAuth client secret' );
 ```
+
+The YouTube OAuth client is created once, studio-wide (never per-show — YouTube's API Terms of Service explicitly prohibit "sharding" quota across separate projects), in the same GCP project as Vertex AI. Its registered redirect URI must be exactly `{site_url}/wp-json/net-gain/v1/youtube-oauth-callback` (see `Net_Gain_REST_Secrets::callback_url()`) — see `PHASE_9_HANDOFF.md` for the full setup walkthrough, including the OAuth consent-screen verification question that gates how long a connected channel's refresh token survives.
 
 After activation, create an Application Password for a user with the `ng_service` role — that's what the Python pipeline authenticates with.
 
 ## Deliberately not built yet
 
-- The real YouTube OAuth flow (`/shows/{id}/secrets/youtube-oauth` currently just stores whatever payload it's given — see the `TODO(youtube-phase)` marker in `includes/rest/class-rest-secrets.php`; the admin screen's YouTube button is disabled for the same reason).
 - Live Captivate validation at connect-time (Section 6.1's verification happens at episode-publish time, Phase 5) — the admin screen just saves the ID.
-- `cover_image_id` on the public episode post, and `episode_art` on Captivate — both wait on Phase 8 (images); neither blocks publishing in the meantime.
-- Real image generation and YouTube publishing — the manual-trigger buttons in the episode detail view queue an intent that nothing processes yet (Phases 8, 9).

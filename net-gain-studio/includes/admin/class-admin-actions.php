@@ -14,6 +14,8 @@ class Net_Gain_Admin_Actions {
 	public static function register() {
 		add_action( 'admin_post_ng_save_show', array( __CLASS__, 'save_show' ) );
 		add_action( 'admin_post_ng_connect_captivate', array( __CLASS__, 'connect_captivate' ) );
+		add_action( 'admin_post_ng_connect_youtube', array( __CLASS__, 'connect_youtube' ) );
+		add_action( 'admin_post_ng_disconnect_youtube', array( __CLASS__, 'disconnect_youtube' ) );
 		add_action( 'admin_post_ng_save_script_review', array( __CLASS__, 'save_script_review' ) );
 		add_action( 'admin_post_ng_enqueue_action', array( __CLASS__, 'enqueue_action' ) );
 	}
@@ -134,6 +136,89 @@ class Net_Gain_Admin_Actions {
 					'page'      => Net_Gain_Admin_Menu::EDIT_SLUG,
 					'show_id'   => $show_id,
 					'ng_notice' => 'captivate_connected',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
+	 * Starts the real YouTube OAuth flow (Spec Section 6.3). Reached as a plain
+	 * browser link (GET, not a POST form) since all it does is redirect on to
+	 * Google - nonce travels as the default _wpnonce query arg via
+	 * wp_nonce_url(), matching check_admin_referer()'s default. show_id rides
+	 * in the OAuth `state` param (see class-rest-secrets.php::oauth_callback())
+	 * since Google's redirect_uri must be one static, studio-wide URL.
+	 */
+	public static function connect_youtube() {
+		if ( ! current_user_can( Net_Gain_Admin_Menu::CAPABILITY ) ) {
+			wp_die( 'You do not have permission to do this.' );
+		}
+		check_admin_referer( 'ng_connect_youtube' );
+
+		$show_id = isset( $_GET['show_id'] ) ? (int) $_GET['show_id'] : 0;
+		if ( ! $show_id || Net_Gain_CPT_Show::POST_TYPE !== get_post_type( $show_id ) ) {
+			wp_die( 'Show not found.' );
+		}
+		if ( ! defined( 'NET_GAIN_YOUTUBE_CLIENT_ID' ) || ! NET_GAIN_YOUTUBE_CLIENT_ID ) {
+			wp_die( 'YouTube is not configured yet - NET_GAIN_YOUTUBE_CLIENT_ID is not defined in wp-config.php. This needs a human operator to set up a GCP OAuth client before any show can connect.' );
+		}
+
+		$state = wp_generate_password( 32, false );
+		set_transient(
+			'ng_youtube_oauth_state_' . $state,
+			array( 'show_id' => $show_id, 'user_id' => get_current_user_id() ),
+			15 * MINUTE_IN_SECONDS
+		);
+
+		$auth_url = add_query_arg(
+			array(
+				'client_id'              => NET_GAIN_YOUTUBE_CLIENT_ID,
+				'redirect_uri'           => Net_Gain_REST_Secrets::callback_url(),
+				'response_type'          => 'code',
+				// Both youtube.upload (videos.insert) and youtube.force-ssl
+				// (thumbnails.set) - FLAG: verify these are the correct/minimal
+				// scopes for thumbnails.set against live docs before the first
+				// real consent screen; changing scopes later forces every
+				// already-connected channel to re-consent.
+				'scope'                  => 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.force-ssl',
+				// Both required to reliably get a refresh token back, not just
+				// an access token.
+				'access_type'            => 'offline',
+				'prompt'                 => 'consent',
+				'include_granted_scopes' => 'true',
+				'state'                  => $state,
+			),
+			'https://accounts.google.com/o/oauth2/v2/auth'
+		);
+
+		wp_redirect( $auth_url );
+		exit;
+	}
+
+	public static function disconnect_youtube() {
+		if ( ! current_user_can( Net_Gain_Admin_Menu::CAPABILITY ) ) {
+			wp_die( 'You do not have permission to do this.' );
+		}
+		check_admin_referer( 'ng_disconnect_youtube' );
+
+		$show_id = isset( $_GET['show_id'] ) ? (int) $_GET['show_id'] : 0;
+		if ( ! $show_id || Net_Gain_CPT_Show::POST_TYPE !== get_post_type( $show_id ) ) {
+			wp_die( 'Show not found.' );
+		}
+
+		Net_Gain_Secrets::delete( 'show', $show_id, Net_Gain_REST_Secrets::SECRET_KEY );
+		update_post_meta( $show_id, 'ng_youtube_channel_id', '' );
+		update_post_meta( $show_id, 'ng_youtube_channel_title', '' );
+		update_post_meta( $show_id, 'ng_youtube_phone_verified', '' );
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'      => Net_Gain_Admin_Menu::EDIT_SLUG,
+					'show_id'   => $show_id,
+					'ng_notice' => 'youtube_disconnected',
 				),
 				admin_url( 'admin.php' )
 			)

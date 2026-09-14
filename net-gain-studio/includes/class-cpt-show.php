@@ -104,6 +104,11 @@ class Net_Gain_CPT_Show {
 			'ng_is_test'             => array( 'type' => 'boolean', 'default' => false ), // Spec Section 13 - hidden from the dashboard by default.
 			'ng_captivate_show_id'   => array( 'type' => 'string', 'default' => '' ),
 			'ng_youtube_channel_id'  => array( 'type' => 'string', 'default' => '' ), // non-secret; OAuth tokens live in wp_ng_secrets.
+			'ng_youtube_channel_title'   => array( 'type' => 'string', 'default' => '' ), // non-secret; captured at connect time.
+			// Proxy for YouTube's phone-verification requirement (Spec Section 6.3) -
+			// captured once at connect time from channels.list's status.longUploadsStatus,
+			// not a documented verification field directly. 'disallowed' == not verified.
+			'ng_youtube_phone_verified'  => array( 'type' => 'string', 'default' => '' ),
 			'ng_publish_mode'        => array( 'type' => 'string', 'default' => 'immediate' ), // immediate|scheduled
 			'ng_publish_time'        => array( 'type' => 'string', 'default' => '' ),
 			'ng_publish_timezone'    => array( 'type' => 'string', 'default' => '' ),
