@@ -25,6 +25,7 @@ publish step spans two tick passes - see youtube_publish_due()'s "upload" vs
 "verify" modes.
 """
 
+import html
 import logging
 import sys
 import tempfile
@@ -434,8 +435,33 @@ def verify_website_publish(permalink, episode_meta):
         raise RuntimeError(f"Re-fetching the published page returned {response.status_code}: {permalink}")
 
     title = episode_meta.get("ng_meta_aioseo_title") or ""
-    if title and title not in response.text:
+    if title and _normalize_wp_text(title) not in _normalize_wp_text(response.text):
         raise RuntimeError(f"Published page did not contain the expected title {title!r}: {permalink}")
+
+
+# WordPress's wptexturize() (run on titles/content by default) converts straight
+# quotes to smart/curly quotes, hyphens to en/em dashes, etc., and the raw HTML
+# always entity-encodes & and non-ASCII characters on output - so a literal
+# substring match between our stored plain-ASCII title and the live page's raw
+# HTML source fails even when the title is genuinely, correctly present.
+# Confirmed live (2026-09-14): a real episode's stored title contained
+# "Illuminate's" (straight apostrophe) and "&"; the live page's raw HTML had
+# "Illuminate&#8217;s" (curly-quote entity) and "&amp;" - both sides are
+# normalized to the same plain-ASCII form before comparing, rather than
+# weakening the check to something less specific.
+_SMART_PUNCTUATION = {
+    "‘": "'", "’": "'",  # smart single quotes -> straight apostrophe
+    "“": '"', "”": '"',  # smart double quotes -> straight quote
+    "–": "-", "—": "-",  # en/em dash -> hyphen
+    "…": "...",  # ellipsis
+}
+
+
+def _normalize_wp_text(text):
+    text = html.unescape(text)
+    for smart, plain in _SMART_PUNCTUATION.items():
+        text = text.replace(smart, plain)
+    return text
 
 
 def process_website_publishes(wp, client, config, show):

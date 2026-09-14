@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 
 from tick import (
     CAPTIVATE_ACCOUNT_TIMEZONE,
+    _normalize_wp_text,
     captivate_publish_due,
     check_finalizations,
     compute_captivate_date_field,
@@ -566,6 +567,37 @@ class VerifyWebsitePublishTests(unittest.TestCase):
         verify_website_publish("https://example.com/shows/x/y/", {})
         _, kwargs = mock_get.call_args
         self.assertIn("NetGainStudio-Pipeline", kwargs.get("headers", {}).get("User-Agent", ""))
+
+    @patch("tick.requests.get")
+    def test_passes_when_page_has_texturized_apostrophe_and_escaped_ampersand(self, mock_get):
+        """Live incident (2026-09-14): a real episode's stored title contained a
+        straight apostrophe and a literal '&' - WordPress's wptexturize() (run
+        on titles by default) converts the apostrophe to a curly quote on
+        output, and the raw HTML always entity-encodes '&', so the live page's
+        actual source read "Illuminate&#8217;s ... &amp; Chegg" even though the
+        title was genuinely, correctly published. A raw substring check
+        wrongly failed this as a verification error."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.text = (
+            "<title>Pupil Data Risks, Illuminate&#8217;s Final Order &amp; "
+            "Chegg vs. Duolingo | Net Gain Edtech &#8211; Net Gain News</title>"
+        )
+        verify_website_publish(
+            "https://netgain.news/shows/edtech/pupil-data-risks/",
+            {"ng_meta_aioseo_title": "Pupil Data Risks, Illuminate's Final Order & Chegg vs. Duolingo | Net Gain Edtech"},
+        )  # no raise
+
+
+class NormalizeWpTextTests(unittest.TestCase):
+    def test_unescapes_html_entities(self):
+        self.assertEqual(_normalize_wp_text("Chegg &amp; Duolingo"), "Chegg & Duolingo")
+
+    def test_collapses_smart_quotes_to_straight(self):
+        self.assertEqual(_normalize_wp_text("Illuminate’s"), "Illuminate's")
+        self.assertEqual(_normalize_wp_text("Illuminate&#8217;s"), "Illuminate's")
+
+    def test_collapses_dashes_and_ellipsis(self):
+        self.assertEqual(_normalize_wp_text("A – B — C…"), "A - B - C...")
 
 
 if __name__ == "__main__":
