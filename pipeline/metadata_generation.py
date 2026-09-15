@@ -1,7 +1,8 @@
 """
 Metadata generation (SPEC.md Section 6.1): one call produces Captivate
-title/notes, AIOSEO fields, and YouTube fields together - generating all of
-them in one pass avoids a second, near-identical call per platform.
+title/notes, AIOSEO fields, a website excerpt, and YouTube fields together -
+generating all of them in one pass avoids a second, near-identical call per
+platform.
 
 No web search tool here (unlike script_generation.py) - this repackages an
 already-written final script, it doesn't need to research anything new.
@@ -10,6 +11,11 @@ first (Captivate, website, or YouTube - see tick.py) - not on its own
 schedule - per the Phase 4 amendment to Section 8.1: generation work is
 deferred until the closest possible point to actual publication, to avoid
 wasting it on episodes later aborted and replaced.
+
+captivate_notes formatting (added 2026-09-14, after a live episode's notes
+came back as one unbroken paragraph): real HTML, not plain-text paragraph
+breaks - confirmed directly by the human operator that Captivate's own
+show-notes editor is a styled-text (rich text) editor, not plain text.
 """
 
 import json
@@ -21,6 +27,7 @@ RESPONSE_SCHEMA = {
         "captivate_notes": {"type": "string"},
         "aioseo_title": {"type": "string"},
         "aioseo_description": {"type": "string"},
+        "website_excerpt": {"type": "string"},
         "youtube_title": {"type": "string"},
         "youtube_description": {"type": "string"},
         "youtube_tags": {"type": "array", "items": {"type": "string"}},
@@ -30,6 +37,7 @@ RESPONSE_SCHEMA = {
         "captivate_notes",
         "aioseo_title",
         "aioseo_description",
+        "website_excerpt",
         "youtube_title",
         "youtube_description",
         "youtube_tags",
@@ -48,18 +56,30 @@ def build_system_prompt(show_name):
         "Field-specific rules:\n"
         "- captivate_title: a concise, compelling episode title (not just the show "
         "name repeated).\n"
-        "- captivate_notes: substantial show notes, not a brief summary - cover each "
-        "story in the episode with genuine detail (what happened, who's involved, why "
-        "it matters), written to be rich in the specific names, terms, and phrases a "
-        "search engine or an AI answer engine would match against, not just readable "
-        "prose for a human skimming quickly. After the descriptive section, if the "
-        "script below ends with its own \"story names and links\" section (and, if "
-        "present, a \"stories considered but not used\" section), copy that section "
-        "into captivate_notes character-for-character - do not paraphrase, "
-        "summarize, or alter any URL. If the script has no such section, omit it "
-        "rather than inventing one.\n"
+        "- captivate_notes: written as real HTML - Captivate's own show-notes editor "
+        "is a styled-text editor, not plain text. Substantial show notes, not a brief "
+        "summary - cover each story in the episode with genuine detail (what happened, "
+        "who's involved, why it matters), written to be rich in the specific names, "
+        "terms, and phrases a search engine or an AI answer engine would match "
+        "against, not just readable prose for a human skimming quickly. One <p>...</p> "
+        "per story - never one unbroken block of text. After the story paragraphs, if "
+        "the script below ends with its own \"story names and links\" section (and, if "
+        "present, a \"stories considered but not used\" section), add a short "
+        "'<p><strong>Stories &amp; links:</strong></p>' header, then reproduce that "
+        "section with each URL wrapped in a real '<a href=\"...\" rel=\"nofollow\">' "
+        "tag - the href must be the exact, unaltered URL from the script; never "
+        "invent, paraphrase, or modify a URL. If the script has no such section, omit "
+        "it rather than inventing one.\n"
         "- aioseo_title / aioseo_description: written for search engines and social "
         "link previews, not duplicates of the Captivate fields.\n"
+        "- website_excerpt: a genuine excerpt, not a teaser at any length - under 160 "
+        "characters (roughly a search-result meta-description length; WordPress does "
+        "not truncate a manually-set excerpt on its own, so this field is the actual "
+        "hard ceiling, not a suggestion), 1-2 sentences. Draw on whatever the script's "
+        "own opening lines set up as that day's preview/summary (a natural newscast "
+        "convention, not guaranteed to be a single clean sentence) - written to make "
+        "someone want to click through and listen, not a compressed table of contents "
+        "of every story.\n"
         "- youtube_title: under 100 characters (aim for under 70 so it isn't truncated "
         "in search results and suggested-video rows). Lead with the episode's single "
         "most search- and recommendation-relevant keyword or phrase - usually the lead "

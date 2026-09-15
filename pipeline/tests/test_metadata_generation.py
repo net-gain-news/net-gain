@@ -23,6 +23,7 @@ class GenerateMetadataForEpisodeTests(unittest.TestCase):
             "captivate_notes": "Notes",
             "aioseo_title": "SEO Title",
             "aioseo_description": "SEO description",
+            "website_excerpt": "A short teaser.",
             "youtube_title": "YT Title",
             "youtube_description": "YT description",
             "youtube_tags": ["tag1", "tag2"],

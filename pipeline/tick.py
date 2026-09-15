@@ -279,6 +279,7 @@ def generate_metadata(wp, client, show, episode_id):
             "ng_meta_captivate_notes": metadata["captivate_notes"],
             "ng_meta_aioseo_title": metadata["aioseo_title"],
             "ng_meta_aioseo_description": metadata["aioseo_description"],
+            "ng_meta_website_excerpt": metadata["website_excerpt"],
             "ng_meta_youtube_title": metadata["youtube_title"],
             "ng_meta_youtube_description": metadata["youtube_description"],
             "ng_meta_youtube_tags": metadata["youtube_tags"],

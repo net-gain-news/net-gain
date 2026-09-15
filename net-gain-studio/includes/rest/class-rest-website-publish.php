@@ -119,7 +119,7 @@ class Net_Gain_REST_Website_Publish {
 
 	private function create_or_update_episode_post( $episode_id, $episode, $term_id ) {
 		$meta = array();
-		foreach ( array( 'ng_script_final', 'ng_meta_aioseo_title', 'ng_audio_attachment_id', 'ng_image_square_id', 'ng_talent_user_id', 'ng_website_post_id' ) as $key ) {
+		foreach ( array( 'ng_script_final', 'ng_meta_aioseo_title', 'ng_meta_website_excerpt', 'ng_audio_attachment_id', 'ng_image_square_id', 'ng_talent_user_id', 'ng_website_post_id' ) as $key ) {
 			$meta[ $key ] = get_post_meta( $episode_id, $key, true );
 		}
 
@@ -132,7 +132,14 @@ class Net_Gain_REST_Website_Publish {
 			'post_type'    => 'podcast',
 			'post_status'  => 'publish',
 			'post_title'   => $meta['ng_meta_aioseo_title'] ?: $episode->post_title,
-			'post_content' => wpautop( $meta['ng_script_final'] ),
+			// Real-world request (2026-09-14): the script's own "story names and
+			// links" section reads as inert plain-text URLs otherwise -
+			// make_clickable() is WP core's own linkifier (already the standard
+			// behavior for comment text), and rel="nofollow" is added on top since
+			// these are outbound citations to third-party news sources, not
+			// endorsements this site should pass link equity to.
+			'post_content' => self::linkify( wpautop( $meta['ng_script_final'] ) ),
+			'post_excerpt' => $meta['ng_meta_website_excerpt'],
 			'meta_input'   => array(
 				'audio_file'            => $audio_url,
 				'_ng_source_episode_id' => $episode_id,
@@ -158,5 +165,20 @@ class Net_Gain_REST_Website_Publish {
 		wp_set_object_terms( $post_id, array( $term_id ), 'series' );
 
 		return $post_id;
+	}
+
+	/**
+	 * make_clickable() (WP core) turns bare URLs in the script's own "story
+	 * names and links" section into real <a> tags - it adds no rel attribute
+	 * of its own, so nofollow/noopener is injected after the fact. Safe as a
+	 * blanket str_replace here specifically because the input at this point is
+	 * AI-generated script text passed through wpautop()/make_clickable() -
+	 * neither of those introduces an <a> tag any other way, so every
+	 * `<a href=` in the string at this point is one make_clickable() just
+	 * created from a bare URL.
+	 */
+	private static function linkify( $content ) {
+		$content = make_clickable( $content );
+		return str_replace( '<a href=', '<a rel="nofollow noopener" href=', $content );
 	}
 }

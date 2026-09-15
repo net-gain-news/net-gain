@@ -72,7 +72,22 @@ class Net_Gain_Shortcodes {
 
 		$html = '<ul class="ng-show-episodes">';
 		foreach ( $episodes as $episode ) {
-			$html .= '<li><a href="' . esc_url( get_permalink( $episode ) ) . '">' . esc_html( $episode->post_title ) . '</a></li>';
+			// Deliberately this post's own post_date, not the internal ng_episode
+			// record's ng_episode_date - the latter is the RECORDING date, which
+			// in scheduled publish mode can be a day or more before the episode
+			// actually goes live (Spec Section 8.2's own example: records Pacific
+			// afternoon, publishes 7am Eastern the next day). post_date is set at
+			// the moment this public post is actually created/published, so it's
+			// already the correct publish date with no extra lookup needed - and
+			// a later website-publish retry (wp_update_post(), no post_date in the
+			// array) never overwrites it back to "now" on retry. Rendered as its
+			// own <time> element, deliberately not concatenated into the title
+			// link's text, so a theme can style/place it independently of the
+			// headline.
+			$html .= '<li class="ng-show-episode">';
+			$html .= '<a href="' . esc_url( get_permalink( $episode ) ) . '">' . esc_html( $episode->post_title ) . '</a>';
+			$html .= ' <time class="ng-episode-date" datetime="' . esc_attr( get_the_date( 'Y-m-d', $episode ) ) . '">' . esc_html( get_the_date( '', $episode ) ) . '</time>';
+			$html .= '</li>';
 		}
 		$html .= '</ul>';
 		return $html;
