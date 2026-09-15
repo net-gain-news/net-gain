@@ -33,8 +33,21 @@ def notify_failure(config, show_name, step_key, error_message):
     )
 
     try:
-        with smtplib.SMTP(config["SMTP_HOST"], config["SMTP_PORT"], timeout=15) as smtp:
-            smtp.starttls()
+        # Port 465 is implicit TLS (SMTPS) - the server expects a TLS handshake
+        # from the very first byte and never speaks plaintext SMTP on that port
+        # at all, so opening a plain SMTP() connection and then calling
+        # starttls() (the port-587 protocol) just hangs waiting for a greeting
+        # that structurally cannot arrive. Confirmed live (2026-09-14): cPanel's
+        # own mail setup instructions point at 465, so this needs to actually
+        # support it, not just document "use 587 instead."
+        if config["SMTP_PORT"] == 465:
+            smtp_context = smtplib.SMTP_SSL(config["SMTP_HOST"], config["SMTP_PORT"], timeout=15)
+        else:
+            smtp_context = smtplib.SMTP(config["SMTP_HOST"], config["SMTP_PORT"], timeout=15)
+
+        with smtp_context as smtp:
+            if config["SMTP_PORT"] != 465:
+                smtp.starttls()
             if config.get("SMTP_USERNAME"):
                 smtp.login(config["SMTP_USERNAME"], config["SMTP_PASSWORD"])
             smtp.send_message(message)
