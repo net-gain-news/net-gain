@@ -28,6 +28,18 @@ generating them) was judged not worth the time investment right now.
 Financial iconography is allowed for money-related stories, but must not
 default to the US dollar sign - the show's stories are not all
 US-market-specific, and hardcoding $ would be an unwarranted assumption.
+
+Tightened 2026-09-17 after reviewing the first real episode generated under
+the rewritten prompt (live on netgain.news): the concrete-detail fix worked
+- the image showed a tablet with an AI-tutoring chat interface, a genuine
+match for the lead story's "AI tutoring" detail - but the word "BILLION"
+rendered as garbled text on a background whiteboard, next to a financial
+growth-chart motif, for a story about a "$400 million" pledge. The general
+no-readable-text rule apparently lost to the newer financial-iconography
+rule sitting right next to it, which permitted graphical money symbols but
+never explicitly excluded spelling the amount out as a word or numeral -
+tightened to close that gap directly at the point of conflict, rather than
+trusting the general rule to win on its own.
 """
 
 import json
@@ -80,7 +92,11 @@ def build_system_prompt(show_name):
         "banknotes. Infer whichever currency actually fits the story's real context "
         "(the company's home market, a currency the script itself mentions); do not "
         "default to the US dollar sign as a generic stand-in for \"money\" - this "
-        "show's stories are not all US-market-specific.\n"
+        "show's stories are not all US-market-specific. This is a graphical symbol "
+        "only - never spell out the actual amount as a word or numeral (not \"$400 "
+        "million\", not \"BILLION\", not any digit) anywhere in the image, including "
+        "as background signage, on-screen text, or a whiteboard/poster detail - the "
+        "no-readable-text rule below still fully applies to financial imagery too.\n"
         "- Do not include any company logo, brand mark, readable text, or numerals - "
         "text-to-image models cannot reproduce real logos accurately, and this "
         "show's own branding is composited on top afterward regardless.\n"

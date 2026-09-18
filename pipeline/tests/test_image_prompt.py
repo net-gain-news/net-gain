@@ -41,6 +41,17 @@ class BuildSystemPromptTests(unittest.TestCase):
         self.assertIn("currency", prompt.lower())
         self.assertIn("do not default to the us dollar sign", prompt.lower())
 
+    def test_financial_iconography_may_not_spell_out_the_amount(self):
+        """Live incident (2026-09-17): the first real episode under the
+        rewritten prompt showed a genuine, on-topic tablet/AI-tutoring scene
+        (the concrete-detail fix working) but also rendered the word
+        "BILLION" as garbled background text for a $400M-pledge story - the
+        financial-iconography rule permitted graphical money symbols but
+        never explicitly excluded spelling the amount out, so it won out
+        over the general no-readable-text rule on this exact overlap."""
+        prompt = build_system_prompt("Net Gain Edtech")
+        self.assertIn("never spell out the actual amount", prompt.lower())
+
 
 class GenerateImagePromptForEpisodeTests(unittest.TestCase):
     def test_wires_schema_and_no_web_search_into_the_generate_call(self):
