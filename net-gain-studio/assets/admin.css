@@ -71,6 +71,14 @@
 	padding: 8px 0;
 }
 
+/* The mobile-card row label - a real element, always in the DOM, hidden on
+   desktop (the <thead> column headers already cover that case) and shown at
+   the same breakpoint the card layout itself kicks in below. Not CSS
+   ::before-generated content - see the comment in render_cell(). */
+.ng-cell-label {
+	display: none;
+}
+
 /* Responsive: stacked cards, not the same grid with horizontal scrolling (Section 10). */
 @media screen and (max-width: 782px) {
 	.ng-dashboard-table thead {
@@ -101,8 +109,8 @@
 		text-align: right;
 	}
 
-	.ng-dashboard-table td::before {
-		content: attr(data-label);
+	.ng-cell-label {
+		display: inline;
 		font-weight: 600;
 		text-align: left;
 	}

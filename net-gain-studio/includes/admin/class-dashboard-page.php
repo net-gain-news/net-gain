@@ -94,7 +94,8 @@ class Net_Gain_Dashboard_Page {
 		$episode = self::find_episode_for_date( $show['id'], $date );
 		?>
 		<tr>
-			<td data-label="Show"><strong><?php echo esc_html( $show['name'] ); ?></strong></td>
+			<?php // No .ng-cell-label here - the show name is already self-explanatory as the mobile card's title, unlike the bare LED dots in every other cell. ?>
+			<td><strong><?php echo esc_html( $show['name'] ); ?></strong></td>
 			<?php foreach ( array_keys( self::COLUMNS ) as $step_key ) : ?>
 				<?php self::render_cell( $step_key, $episode, $show ); ?>
 			<?php endforeach; ?>
@@ -103,8 +104,17 @@ class Net_Gain_Dashboard_Page {
 	}
 
 	private static function render_cell( $step_key, $episode, $show ) {
+		// The mobile card label is a real element (.ng-cell-label), not CSS-
+		// generated content (content: attr(data-label) on a <td> switched to
+		// display:flex) - confirmed live (2026-09-17) that combination silently
+		// drops the generated text on at least one real mobile browser while
+		// the surrounding flex layout still renders fine, which is a known-flaky
+		// pattern (pseudo-element content on a table cell repurposed as a flex
+		// container). A real span has no such edge case, in any browser.
+		$label = sprintf( '<span class="ng-cell-label">%s</span>', esc_html( self::COLUMNS[ $step_key ] ) );
+
 		if ( ! $episode ) {
-			printf( '<td data-label="%1$s"><span class="ng-led ng-led-pending" title="No episode for this show on this date yet."></span></td>', esc_attr( self::COLUMNS[ $step_key ] ) );
+			printf( '<td>%1$s<span class="ng-led ng-led-pending" title="No episode for this show on this date yet."></span></td>', $label );
 			return;
 		}
 
@@ -120,7 +130,7 @@ class Net_Gain_Dashboard_Page {
 			esc_attr( $tooltip )
 		);
 
-		printf( '<td data-label="%1$s">', esc_attr( self::COLUMNS[ $step_key ] ) );
+		echo '<td>' . $label;
 		if ( $url ) {
 			printf( '<a href="%1$s" target="_blank" rel="noopener">%2$s</a>', esc_url( $url ), $led );
 		} else {
