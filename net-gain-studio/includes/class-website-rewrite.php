@@ -17,18 +17,24 @@
  * (queried from `ng_show`) rather than an unqualified `([^/]+)/([^/]+)/?$` -
  * a blanket two-segment wildcard would also swallow every show's own child
  * pages (episodes/index/subscribe/welcome, each a normal Page one level
- * under the show's page). The rule is additionally registered at 'bottom'
- * priority rather than 'top': WordPress's own auto-generated page rewrite
- * rules (which cover exactly those child pages) then get checked first, and
- * this rule only fires for a second segment that isn't an existing child
- * page - i.e. an actual episode post_name.
+ * under the show's page).
+ *
+ * Registered at 'top' priority, deliberately, with the four reserved child-
+ * page slugs excluded via negative lookahead. An earlier version of this
+ * class tried 'bottom' priority instead, reasoning that WordPress's own page
+ * rules would then be checked first - that's wrong: WordPress does not
+ * generate a specific rewrite rule per existing page. Every page (at any
+ * depth) is caught by ONE generic, low-priority pattern
+ * (`(.?.+?)(?:/([0-9]+))?/?$` -> `pagename`) that WordPress registers last.
+ * At 'bottom' priority our rule sits even later than that catch-all, which
+ * always matches a two-segment path first and 404s before our rule is ever
+ * tried - confirmed live via `wp rewrite list`. Hence 'top' + an explicit
+ * exclusion list, rather than relying on rule ordering to defer to pages.
  *
  * Deploy note: adding/changing add_rewrite_rule() calls doesn't retroactively
  * update WordPress's cached compiled rewrite rules on an already-active
  * install - a flush (Settings -> Permalinks -> Save, or deactivate/reactivate
- * this plugin) is required once after deploying this file. Create/reparent
- * any show and child pages *before* that flush so their own page rules are
- * included in it.
+ * this plugin) is required once after deploying this file.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -36,6 +42,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class Net_Gain_Website_Rewrite {
+
+	/**
+	 * Every show gets these same child pages (see the design handoff's site
+	 * map) - reserved so they never get mistaken for an episode's post_name.
+	 */
+	const RESERVED_CHILD_SLUGS = array( 'episodes', 'index', 'subscribe', 'welcome' );
 
 	public static function register() {
 		add_filter( 'post_type_link', array( __CLASS__, 'filter_permalink' ), 10, 2 );
@@ -61,15 +73,20 @@ class Net_Gain_Website_Rewrite {
 			return;
 		}
 
-		$pattern = '^(' . implode( '|', array_map( 'preg_quote', $show_slugs ) ) . ')/([^/]+)/?$';
+		$show_pattern    = implode( '|', array_map( 'preg_quote', $show_slugs ) );
+		$reserved_lookahead = implode( '|', array_map( 'preg_quote', self::RESERVED_CHILD_SLUGS ) );
+		$pattern = "^({$show_pattern})/(?!(?:{$reserved_lookahead})/?$)([^/]+)/?\$";
 
 		// Matched purely on the episode's own post_name (WordPress already enforces
 		// post_name uniqueness within a post type) - the show-slug segment makes the
 		// URL readable but isn't itself re-validated against the episode's series.
+		// The negative lookahead defers to a show's own reserved child pages
+		// (RESERVED_CHILD_SLUGS) - see the class docblock for why 'top' priority
+		// plus this exclusion is used instead of rule ordering.
 		add_rewrite_rule(
 			$pattern,
 			'index.php?post_type=podcast&name=$matches[2]',
-			'bottom'
+			'top'
 		);
 	}
 
