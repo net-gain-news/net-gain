@@ -128,17 +128,22 @@ class Net_Gain_REST_Website_Publish {
 		}
 		$audio_url = wp_get_attachment_url( $meta['ng_audio_attachment_id'] );
 
+		// The script's own trailing "Show notes - story names and links" section
+		// is split out into its own structured field (ng_story_links) rather than
+		// left inline as bare URLs in the body (2026-09-20) - the design calls
+		// for a distinct, labeled "Story Links" section, and bare long URLs with
+		// no safe line-break points were also overflowing the mobile layout.
+		$split = self::split_script( $meta['ng_script_final'] );
+		update_post_meta( $episode_id, 'ng_story_links', $split['links'] );
+
 		$postarr = array(
 			'post_type'    => 'podcast',
 			'post_status'  => 'publish',
 			'post_title'   => $meta['ng_meta_aioseo_title'] ?: $episode->post_title,
-			// Real-world request (2026-09-14): the script's own "story names and
-			// links" section reads as inert plain-text URLs otherwise -
-			// make_clickable() is WP core's own linkifier (already the standard
-			// behavior for comment text), and rel="nofollow" is added on top since
-			// these are outbound citations to third-party news sources, not
-			// endorsements this site should pass link equity to.
-			'post_content' => self::linkify( wpautop( $meta['ng_script_final'] ) ),
+			// linkify() is kept as a defensive pass over the narration body itself
+			// (in case a story ever mentions a URL inline) even though the links
+			// section above is no longer part of this string at all.
+			'post_content' => self::linkify( wpautop( $split['body'] ) ),
 			'post_excerpt' => $meta['ng_meta_website_excerpt'],
 			'meta_input'   => array(
 				'audio_file'            => $audio_url,
@@ -180,5 +185,68 @@ class Net_Gain_REST_Website_Publish {
 	private static function linkify( $content ) {
 		$content = make_clickable( $content );
 		return str_replace( '<a href=', '<a rel="nofollow noopener" href=', $content );
+	}
+
+	/**
+	 * Splits ng_script_final into the spoken narration (everything before the
+	 * "Show notes" heading, matching every real script sampled so far - a
+	 * trailing "---" divider then "**Show notes - story names and links:**")
+	 * and a structured list of {title, url} pairs parsed from the numbered
+	 * lines after it. Verified directly (2026-09-20) against 5 real episodes'
+	 * ng_script_final, 18 links total, before being ported in here - both the
+	 * quoted-title style ("Title" - url) and unquoted style (Title - url) the
+	 * AI actually produces are handled. Titles are separated from their URL by
+	 * an em dash specifically (not a hyphen), matching every real sample - a
+	 * plain hyphen is deliberately not treated as a separator since titles
+	 * themselves often contain one (e.g. "K-12").
+	 *
+	 * Returns array( 'body' => string, 'links' => array of [title, url] ).
+	 * If no "Show notes" heading is found, 'body' is the whole script
+	 * unchanged and 'links' is empty - fails soft, not loud, since this always
+	 * runs as part of the wider publish flow and a missing links section
+	 * shouldn't block the episode from publishing at all.
+	 */
+	private static function split_script( $script ) {
+		$marker_pos = mb_strpos( $script, 'Show notes' );
+		if ( false === $marker_pos ) {
+			return array(
+				'body'  => $script,
+				'links' => array(),
+			);
+		}
+
+		$body = mb_substr( $script, 0, $marker_pos );
+		// Strip the "---" (or em/en-dash variant) divider line right before the heading.
+		$body = preg_replace( '/[\-\x{2013}\x{2014}]{2,}\s*$/u', '', $body );
+		$body = trim( $body );
+
+		$links_section = mb_substr( $script, $marker_pos );
+		// Drop the heading line itself ("Show notes - story names and links:" or similar).
+		$links_section = preg_replace( '/^Show notes[^\n]*\n?/u', '', $links_section );
+
+		preg_match_all(
+			'/^\s*\d+\.\s*(.+?)\s*\x{2014}\s*(https?:\/\/\S+?)\s*$/mu',
+			$links_section,
+			$matches,
+			PREG_SET_ORDER
+		);
+
+		$links = array();
+		foreach ( $matches as $match ) {
+			$title = preg_replace(
+				'/^[\'"\x{2018}\x{2019}\x{201C}\x{201D}]+|[\'"\x{2018}\x{2019}\x{201C}\x{201D}]+$/u',
+				'',
+				trim( $match[1] )
+			);
+			$links[] = array(
+				'title' => $title,
+				'url'   => $match[2],
+			);
+		}
+
+		return array(
+			'body'  => $body,
+			'links' => $links,
+		);
 	}
 }

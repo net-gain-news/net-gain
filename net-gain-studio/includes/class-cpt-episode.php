@@ -79,6 +79,30 @@ class Net_Gain_CPT_Episode {
 			'ng_url_website'   => array( 'type' => 'string', 'default' => '' ),
 			'ng_url_youtube'   => array( 'type' => 'string', 'default' => '' ),
 			'ng_website_post_id' => array( 'type' => 'integer', 'default' => 0 ),
+			// Parsed out of ng_script_final's own trailing "Show notes - story names
+			// and links" section at website-publish time (website-theming project,
+			// 2026-09-20) - the design calls for these as their own labeled section,
+			// not bare URLs sitting inline in the body text. Kept on the internal
+			// episode record (not the public post) so the theme reaches it the same
+			// way it already reaches images/host name: the public-post-to-episode
+			// cross-reference in class-rest-website-publish.php / functions.php's
+			// ng_get_linked_episode().
+			'ng_story_links' => array(
+				'type'         => 'array',
+				'default'      => array(),
+				'show_in_rest' => array(
+					'schema' => array(
+						'type'  => 'array',
+						'items' => array(
+							'type'       => 'object',
+							'properties' => array(
+								'title' => array( 'type' => 'string' ),
+								'url'   => array( 'type' => 'string' ),
+							),
+						),
+					),
+				),
+			),
 			// Internal/machine references to the in-flight YouTube upload (Spec Section
 			// 6.3's two-phase upload-then-verify) - distinct from ng_url_youtube above,
 			// which is written only once the video is confirmed live.
