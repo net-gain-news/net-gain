@@ -356,7 +356,15 @@ def publish_to_captivate(wp, captivate, show, episode_id, finalization):
             f"does not match what was sent {title!r}."
         )
 
-    public_url = verification.get("link") or (verification.get("episode") or {}).get("link") or ""
+    # Captivate's episode object (confirmed directly via GET /shows/{id}/episodes,
+    # 2026-09-19) has no "link"/"url" field at all - id, shows_id, media_id, title,
+    # itunes_title, published_date, guid, status, episode_art, shownotes, nothing
+    # else. The public embed URL has to be built from the episode's own id instead,
+    # same pattern the website theme's show-level /latest/ fallback already uses
+    # successfully: https://player.captivate.fm/episode/{EPISODE_ID}. The previous
+    # verification.get("link") always silently resolved to "" - no exception, so
+    # every episode published clean in the log while writing an empty URL.
+    public_url = f"https://player.captivate.fm/episode/{new_episode_id}"
     wp.update_episode_meta(episode_id, {"ng_url_captivate": public_url})
     return episode_number
 
