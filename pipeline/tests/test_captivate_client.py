@@ -67,5 +67,37 @@ class UploadMediaTests(unittest.TestCase):
         self.assertIn("success", str(ctx.exception))
 
 
+class UpdateEpisodeTests(unittest.TestCase):
+    def test_sends_a_put_with_the_full_payload(self):
+        client = CaptivateClient("user-id", "api-token")
+        captured = {}
+
+        def fake_request(method, path, **kwargs):
+            captured["method"] = method
+            captured["path"] = path
+            captured["data"] = kwargs.get("data")
+            return {"success": True, "errors": [], "episode": [{"id": "ep-1"}]}
+
+        client._request = fake_request
+        payload = {"shows_id": "show-1", "title": "T", "media_id": "media-2", "episode_number": 5}
+        client.update_episode("ep-1", payload)
+
+        self.assertEqual(captured["method"], "PUT")
+        self.assertEqual(captured["path"], "/episodes/ep-1")
+        self.assertEqual(captured["data"], payload)
+
+
+class ListEpisodesTests(unittest.TestCase):
+    def test_get_next_episode_number_uses_list_episodes(self):
+        """list_episodes() and get_next_episode_number() must stay wired
+        together - a regression here would silently make numbering ignore
+        whatever list_episodes() actually returns."""
+        client = CaptivateClient("user-id", "api-token")
+        client._request = lambda method, path, **kwargs: {
+            "episodes": [{"episode_number": 3}, {"episode_number": 7}]
+        }
+        self.assertEqual(client.get_next_episode_number("show-1"), 8)
+
+
 if __name__ == "__main__":
     unittest.main()

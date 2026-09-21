@@ -89,7 +89,7 @@ class CaptivateClient:
         episode "1" (Section 1's "fail loudly, don't guess quietly" applies
         directly to numbering a live public feed).
         """
-        response = self._request("GET", f"/shows/{captivate_show_id}/episodes")
+        response = self.list_episodes(captivate_show_id)
 
         episodes = None
         for path in (("episodes",), ("data",)):
@@ -137,6 +137,20 @@ class CaptivateClient:
 
     def get_episode(self, episode_id):
         return self._request("GET", f"/episodes/{episode_id}")
+
+    def update_episode(self, episode_id, payload):
+        # PUT /episodes/{id} - confirmed against Captivate's live docs
+        # (docs.captivate.fm, 2026-09-21) to accept the SAME full field set as
+        # create_episode(), not a partial patch: the docs describe it as using
+        # "the similar principle" to Update Show, whose own example resends
+        # every field, not just the changed one. Callers must always send back
+        # every current field value they want preserved, not just what's
+        # actually changing - there is no confirmed guarantee that an omitted
+        # field is left alone rather than reset.
+        return self._request("PUT", f"/episodes/{episode_id}", data=payload)
+
+    def list_episodes(self, captivate_show_id):
+        return self._request("GET", f"/shows/{captivate_show_id}/episodes")
 
     def _request(self, method, path, **kwargs):
         url = f"{BASE_URL}{path}"
