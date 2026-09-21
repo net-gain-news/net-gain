@@ -38,6 +38,7 @@ import requests
 
 import youtube_client as yt
 from anthropic_client import generate as anthropic_generate
+from audio_conversion import convert_to_captivate_bitrate
 from captivate_client import CaptivateClient
 from config import ConfigError, load_config
 from image_generation import FALLBACK_META_KEYS, IMAGE_META_KEYS, build_vertex_client, render_images_for_episode
@@ -321,7 +322,19 @@ def publish_to_captivate(wp, captivate, show, episode_id, finalization):
         raise RuntimeError("No audio attached to this episode yet.")
     audio_url = wp.get_attachment_url(audio_id)
     audio_bytes = wp.download_binary(audio_url)
-    filename = audio_url.rsplit("/", 1)[-1] or "episode.mp3"
+    # Real-world requirement (2026-09-21): Captivate needs 192kbps CBR; the
+    # show's production software outputs 320kbps CBR. Converts a working copy
+    # for this upload only - the original file in WP's media library (used
+    # for website playback and YouTube's video audio track) stays untouched
+    # at its original bitrate, since neither of those needs this constraint.
+    # No dashboard step of its own (explicit instruction) - a conversion
+    # failure surfaces as a normal captivate_published "failed" status via
+    # the same try/except this whole function already runs inside.
+    audio_bytes = convert_to_captivate_bitrate(audio_bytes)
+    # Output is always MP3 regardless of the source extension, now that it's
+    # been transcoded - force the uploaded filename to match, rather than
+    # uploading MP3 bytes under a possibly-mismatched source extension.
+    filename = Path(audio_url.rsplit("/", 1)[-1] or "episode.mp3").stem + ".mp3"
     media_id = captivate.upload_media(captivate_show_id, audio_bytes, filename)
 
     date_field = compute_captivate_date_field(show, finalization)
