@@ -64,6 +64,22 @@ def to_captivate_date_field(published_date_iso):
     return local.strftime("%Y-%m-%d %H:%M:%S")
 
 
+def parse_captivate_timestamp(value):
+    """Captivate's `published_date` comes back in two different formats
+    depending on how the record was last written (confirmed live, 2026-09-21
+    - see verify_unchanged()) - "2026-09-18T15:18:00.000Z" (UTC, from a
+    POST-created episode) or "2026/09/18 08:18:00" (account-local wall clock,
+    from a PUT-updated one). Parses either into a real, timezone-aware
+    datetime so the two forms can be compared as the same instant, not as
+    unequal strings."""
+    if not value:
+        return None
+    if value.endswith("Z"):
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    naive = datetime.strptime(value, "%Y/%m/%d %H:%M:%S")
+    return naive.replace(tzinfo=CAPTIVATE_ACCOUNT_TIMEZONE)
+
+
 def build_update_payload(episode, media_id):
     """Every documented PUT /episodes/{id} field this script has a known
     current value for, resent as-is, with only media_id actually changing -
@@ -94,11 +110,23 @@ def verify_unchanged(captivate, episode_id, before, expected_media_url_change):
     if isinstance(after, list):
         after = after[0]
 
-    fields_that_must_not_change = ["title", "episode_number", "published_date", "status", "shownotes"]
+    fields_that_must_not_change = ["title", "episode_number", "status", "shownotes"]
     problems = []
     for field in fields_that_must_not_change:
         if after.get(field) != before.get(field):
             problems.append(f"{field} changed: was {before.get(field)!r}, now {after.get(field)!r}")
+
+    # published_date needs its own check, not a raw string comparison - confirmed
+    # live (2026-09-21) that Captivate echoes this field in a different string
+    # format after a PUT (local "YYYY/MM/DD HH:mm:ss") than a POST-created
+    # episode's own original value ("YYYY-MM-DDTHH:mm:ss.sssZ" UTC), even though
+    # both represent the exact same instant - verified independently against the
+    # live public RSS feed's <pubDate>, which was unaffected. Compare the parsed
+    # instant, not the string.
+    if parse_captivate_timestamp(after.get("published_date")) != parse_captivate_timestamp(before.get("published_date")):
+        problems.append(
+            f"published_date changed: was {before.get('published_date')!r}, now {after.get('published_date')!r}"
+        )
 
     if expected_media_url_change and after.get("media_url") == before.get("media_url"):
         problems.append("media_url did NOT change - the swap may not have taken effect")
