@@ -14,11 +14,16 @@ A system that produces branded, sponsor-underwritten daily newscasts for multipl
 - **WordPress → Python (manual "run now" triggers, Section 8.3 of the spec)**: WordPress does **not** invoke a Python process directly. Clicking "run now" for script generation, image generation, or Captivate publish should write a pending-action record via the REST API — a flag the *same* tick-loop cron job (Section 3.1) checks on its next pass, the identical code path used for scheduled execution. This is deliberate, not a shortcut: one execution path for both manual and scheduled triggers is what makes the idempotent "whichever happens first wins, the other is skipped" rule in Section 8.3 straightforward to implement correctly. Do not build a second, separate "instant trigger" pathway alongside the tick loop — it would need to duplicate all of the same completion-checking logic.
 - **The tick loop itself** runs frequently (every few minutes is reasonable — this is an implementation detail, not something the spec pins to an exact number) and, each pass, checks every `Active` show for: any due scheduled step, any pending manual-trigger flag, and any queued episode (Section 8.2) whose configured publish time has arrived.
 
-## Deployment — read this before assuming you can ship anything yourself
+## Deployment
 
-**You do not have deployment access to the live site or server, and you should not attempt to.** When code is ready to test or ship:
-- **WordPress plugin changes** are installed by a separate Claude session with direct WPVibe access to `netgain.news`. Hand off the plugin code/changes; that session performs the actual install.
-- **Python pipeline script changes** on Canspace are deployed the same way, via that session's cPanel access.
+**As of 2026-09-20, this session has standing SSH access to the Canspace server** (confirmed working, at the user's explicit request — this reverses the earlier "no deployment access" rule that applied before that date, if you're reading an older cached copy of this file). Connection details (host, port, username, key path) are deliberately **not recorded in this repo** — this repo is public, and that quadruple is enough of a head start for credential-stuffing/brute-force attempts against the account that it doesn't belong in a public file even without the key or password itself. Ask the user for the connection string if you need it and don't already have it noted locally (e.g. in your own scratch notes from a prior session).
+
+Jailed shell, confined to the account's home directory — that's not a limitation for this project, since everything relevant (the `net-gain` git checkout, the WordPress install) lives inside it. Even with this access, still check with the user before anything destructive or hard-to-reverse on production (overwriting live files outside the normal deploy path, restarting services, touching cron) — access isn't a blanket license to act unsupervised.
+
+The two deploy targets behave differently — confirmed directly on the server, not assumed:
+
+- **Python pipeline (`pipeline/`)**: cron runs `tick.py` **straight from the `~/net-gain` git checkout** — no separate copy step. A `git pull` in `~/net-gain` on the server takes effect on the next cron tick. This is the fast path for pipeline fixes.
+- **WordPress plugin (`net-gain-studio/`)**: the live plugin at `~/netgain.news/wp-content/plugins/net-gain-studio` is a **separate directory, not a symlink and not git-pulled** — pulling `~/net-gain` does *not* update it. It's been kept in sync so far via the WPVibe-session zip-install path (deactivate → delete → upload new zip → activate, per the `PHASE_*_HANDOFF.md` files). Confirm with the user before changing that established process (e.g. switching to a direct rsync from this session) even though it's now technically possible — it's a real workflow change, not just a mechanical one.
 - Expect **many iterations** through this loop — this was explicitly planned for, not a sign something's going wrong. Package changes in reviewable chunks rather than one enormous diff at the end.
 
 ## Repository
@@ -37,7 +42,7 @@ New, dedicated repo: **`net-gain-news/net-gain`**. Deliberately separate from th
 | `GOOGLE_CLOUD_PROJECT` credentials (Vertex AI) | AI image generation (Imagen) | New, dedicated GCP project — not the old Drive-oriented one |
 | YouTube OAuth client ID/secret + per-show refresh tokens | Native video upload, thumbnail-setting | Same new GCP project as Vertex AI (required — YouTube's API terms prohibit separate projects per show, "sharding") |
 | WordPress Application Password | Python → WordPress REST API auth | Generated per the mechanism above, scoped to the plugin's service account/user |
-| Git deploy credential | Pulling this repo onto Canspace | Set up when first needed, not gathered in advance |
+| SSH key | Direct shell access to Canspace — deploy + `git pull` on the server checkout | Generated 2026-09-20, public key installed by the user under cPanel → SSH Access; connection details deliberately not recorded in this public repo, see Deployment section above |
 
 ## First real show — seed data, not a hypothetical
 
