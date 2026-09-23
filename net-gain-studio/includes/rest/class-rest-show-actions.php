@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Net_Gain_REST_Show_Actions {
 
-	const ALLOWED_ACTIONS = array( 'generate_script', 'generate_images', 'publish_captivate', 'publish_youtube' );
+	const ALLOWED_ACTIONS = array( 'generate_script', 'generate_images', 'publish_captivate', 'publish_youtube', 'refresh_index' );
 
 	public function register_routes() {
 		register_rest_route(

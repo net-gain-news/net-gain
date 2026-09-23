@@ -205,6 +205,22 @@ class WPClient:
         """
         return self._request("POST", f"/wp-json/net-gain/v1/shows/{show_id}/youtube-access-token")
 
+    # --- Edtech Index (Google Sheet sync) ---------------------------------------
+
+    def publish_index_snapshot(self, show_id, snapshot):
+        return self._request(
+            "POST", f"/wp-json/net-gain/v1/shows/{show_id}/index-snapshot", json=snapshot
+        )
+
+    def update_show_meta(self, show_id, meta):
+        # A failed refresh must record the failure without touching
+        # ng_index_snapshot/ng_index_last_refresh_date, so it goes through the
+        # generic CPT meta route rather than /index-snapshot (which always
+        # updates all three together as one atomic "this succeeded" write).
+        return self._request(
+            "POST", f"/wp-json/wp/v2/ng_show/{show_id}", json={"meta": meta}
+        )
+
     # --- manual-trigger actions ------------------------------------------------
 
     def update_action(self, show_id, action_id, status):

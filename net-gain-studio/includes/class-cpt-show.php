@@ -112,6 +112,72 @@ class Net_Gain_CPT_Show {
 			'ng_publish_mode'        => array( 'type' => 'string', 'default' => 'immediate' ), // immediate|scheduled
 			'ng_publish_time'        => array( 'type' => 'string', 'default' => '' ),
 			'ng_publish_timezone'    => array( 'type' => 'string', 'default' => '' ),
+			// Edtech Index (Google Sheet sync, 2026-09-21) - empty string means
+			// this show has no index page. Accepts the sheet's full editor URL
+			// (…/edit?gid=0#gid=0, whatever a human copies from the address bar)
+			// or a bare sheet id; pipeline/edtech_index.py parses either.
+			'ng_index_sheet_url'          => array( 'type' => 'string', 'default' => '' ),
+			// Written only by POST /shows/{id}/index-snapshot (tick.py) - never
+			// hand-edited. Whole-snapshot replace on every successful fetch, so
+			// constituents can be added/removed in the sheet at any time with no
+			// corresponding change needed here.
+			'ng_index_snapshot'           => array(
+				'type'         => 'object',
+				'default'      => array(),
+				'show_in_rest' => array(
+					'schema' => array(
+						'type'       => 'object',
+						'properties' => array(
+							'as_of'                => array( 'type' => 'string' ),
+							'total_index_value'    => array( 'type' => array( 'number', 'null' ) ),
+							'daily_change_dollar'  => array( 'type' => array( 'number', 'null' ) ),
+							'daily_change_percent' => array( 'type' => array( 'number', 'null' ) ),
+							'ytd_change_percent'   => array( 'type' => array( 'number', 'null' ) ),
+							'constituent_count'    => array( 'type' => 'integer' ),
+							'constituents'         => array(
+								'type'  => 'array',
+								'items' => array(
+									'type'       => 'object',
+									'properties' => array(
+										'ticker'             => array( 'type' => 'string' ),
+										'exchange'           => array( 'type' => 'string' ),
+										'company'            => array( 'type' => 'string' ),
+										'country'            => array( 'type' => 'string' ),
+										'segment'            => array( 'type' => 'string' ),
+										'price'              => array( 'type' => array( 'number', 'null' ) ),
+										'day_change_percent' => array( 'type' => array( 'number', 'null' ) ),
+										'position_value'     => array( 'type' => array( 'number', 'null' ) ),
+										'ytd_change_percent' => array( 'type' => array( 'number', 'null' ) ),
+									),
+								),
+							),
+						),
+					),
+				),
+			),
+			// Site-local Y-m-d of the last successful refresh - the "once per
+			// business day" guard tick.py itself checks against (in NY time, not
+			// this site-local date); stored here only so a human glancing at the
+			// record can tell when it last actually succeeded.
+			'ng_index_last_refresh_date'  => array( 'type' => 'string', 'default' => '' ),
+			// Independent of the date above so a *failed* attempt is visible even
+			// on a day a prior success already set the date - surfaced on the ops
+			// dashboard (Section 10) so a silently-broken sheet (e.g. sharing
+			// tightened) gets noticed instead of the site quietly going stale.
+			'ng_index_last_refresh_status' => array(
+				'type'         => 'object',
+				'default'      => array(),
+				'show_in_rest' => array(
+					'schema' => array(
+						'type'       => 'object',
+						'properties' => array(
+							'status'  => array( 'type' => 'string' ), // success|failed
+							'at'      => array( 'type' => 'string' ),
+							'message' => array( 'type' => 'string' ),
+						),
+					),
+				),
+			),
 			'ng_pending_actions'     => array(
 				'type'    => 'array',
 				'default' => array(),

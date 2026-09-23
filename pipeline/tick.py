@@ -36,6 +36,7 @@ from zoneinfo import ZoneInfo
 import anthropic
 import requests
 
+import edtech_index
 import youtube_client as yt
 from anthropic_client import generate as anthropic_generate
 from audio_conversion import convert_to_captivate_bitrate
@@ -91,6 +92,17 @@ CAPTIVATE_ACCOUNT_TIMEZONE = ZoneInfo("America/Los_Angeles")
 # Both are this build's own judgment call, not SPEC-pinned values.
 YOUTUBE_UPLOAD_STALL_MINUTES = 45
 YOUTUBE_PROCESSING_TIMEOUT_MINUTES = 120
+
+# Edtech Index (Google Sheet sync, 2026-09-21): "at least once a business
+# day... as of North American market close" is the user's own framing, so
+# this is pinned to NYSE/NASDAQ's own 4:00pm close in its own timezone, not
+# to any show's recording_timezone - index freshness is inherently on the
+# market's clock, not the show's. The buffer gives the sheet's own hourly
+# GOOGLEFINANCE recalculation (confirmed set with the user, 2026-09-21) a
+# little room to have already settled by the time this checks.
+MARKET_TIMEZONE = ZoneInfo("America/New_York")
+MARKET_CLOSE_HOUR = 16
+MARKET_CLOSE_BUFFER_MINUTES = 15
 
 
 def _gmt_mysql(dt):
@@ -413,6 +425,78 @@ def process_captivate_publishes(wp, client, captivate, config, show):
                 if action.get("action") == "publish_captivate" and action.get("status") == "pending":
                     wp.update_action(show["id"], action["id"], "failed")
             notify_failure(config, show["name"], "captivate_published", str(exc))
+
+
+def index_refresh_due(show):
+    """
+    True once per business day, after North American market close, for any
+    show with an index sheet configured (ng_index_sheet_url) - or
+    immediately, regardless of time of day, if a manual 'refresh_index'
+    pending action is waiting. Unlike this file's other *_due() helpers,
+    there's no per-episode dimension here, so this takes/returns just the
+    show. A show with no sheet configured is a valid, expected state (only
+    Edtech has one today) - not an error, just nothing to do.
+    """
+    pending_actions = [
+        a for a in show.get("pending_actions", []) or []
+        if a.get("action") == "refresh_index" and a.get("status") == "pending"
+    ]
+
+    if not show.get("index_sheet_url"):
+        return False, pending_actions
+
+    if pending_actions:
+        return True, pending_actions
+
+    now_market = datetime.now(MARKET_TIMEZONE)
+    if now_market.weekday() >= 5:  # Saturday/Sunday - the sheet's own prices are last Friday's close either way.
+        return False, pending_actions
+
+    close_threshold = now_market.replace(
+        hour=MARKET_CLOSE_HOUR, minute=MARKET_CLOSE_BUFFER_MINUTES, second=0, microsecond=0
+    )
+    if now_market < close_threshold:
+        return False, pending_actions
+
+    if show.get("index_last_refresh_date") == now_market.date().isoformat():
+        return False, pending_actions
+
+    return True, pending_actions
+
+
+def process_index_refresh(wp, config, show):
+    due, pending_actions = index_refresh_due(show)
+    if not due:
+        return
+
+    try:
+        snapshot = edtech_index.fetch_index_snapshot(show["index_sheet_url"])
+        wp.publish_index_snapshot(show["id"], snapshot)
+        for action in pending_actions:
+            wp.update_action(show["id"], action["id"], "done")
+        logger.info(
+            "Refreshed the index for %s: %d constituent(s), total value %s.",
+            show["name"], snapshot["constituent_count"], snapshot.get("total_index_value"),
+        )
+    except Exception as exc:
+        # Deliberately does NOT touch ng_index_snapshot or ng_index_last_refresh_date -
+        # a failed fetch must leave the last good snapshot in place (the site keeps
+        # showing yesterday's real numbers, not a blank or broken page) while still
+        # recording the failure itself so it's visible rather than silent.
+        logger.exception("Index refresh failed for %s", show["name"])
+        for action in pending_actions:
+            wp.update_action(show["id"], action["id"], "failed")
+        try:
+            wp.update_show_meta(show["id"], {
+                "ng_index_last_refresh_status": {
+                    "status": "failed",
+                    "at": datetime.now(timezone.utc).isoformat(),
+                    "message": str(exc)[:500],
+                },
+            })
+        except Exception:
+            logger.exception("Also failed to record the index-refresh failure status for %s", show["name"])
+        notify_failure(config, show["name"], "index_refresh", str(exc))
 
 
 def website_publish_due(show, episode):
@@ -805,6 +889,11 @@ def process_show(wp, client, captivate, vertex_client, config, show):
         process_youtube_publishes(wp, client, config, show)
     except Exception:
         logger.exception("Error processing YouTube publishes for %s", show["name"])
+
+    try:
+        process_index_refresh(wp, config, show)
+    except Exception:
+        logger.exception("Error processing index refresh for %s", show["name"])
 
     tz_name = show.get("recording_timezone") or "UTC"
     now_local = datetime.now(ZoneInfo(tz_name))
