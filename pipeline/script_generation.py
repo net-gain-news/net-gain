@@ -83,9 +83,8 @@ def build_system_prompt(guidelines_text, show_name):
         "- Where a recent episode shows your own original draft alongside the "
         "host's actual final version, that pairing is deliberate: the final "
         "reflects the host's real editorial judgment overriding your draft. "
-        "Compare them and carry forward whatever pattern of tone, sentence "
-        "length, structure, or word choice the edit reveals - don't repeat "
-        "the same issue today that was corrected there.\n"
+        "Compare them and carry forward whatever changes the edit reveals - "
+        "don't repeat the same issues today that were corrected there.\n"
         "- Output only the finished script text - no preamble, no notes to the "
         "editor, no commentary about your process."
     )
