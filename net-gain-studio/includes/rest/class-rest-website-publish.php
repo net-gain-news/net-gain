@@ -216,8 +216,16 @@ class Net_Gain_REST_Website_Publish {
 		}
 
 		$body = mb_substr( $script, 0, $marker_pos );
-		// Strip the "---" (or em/en-dash variant) divider line right before the heading.
-		$body = preg_replace( '/[\-\x{2013}\x{2014}]{2,}\s*$/u', '', $body );
+		// Strip everything trailing between the real narration and the heading:
+		// the "---" (or em/en-dash variant) divider line, AND the "**" bold-
+		// markdown prefix immediately before "**Show notes...**" - both must be
+		// handled in one pass, not two. A version that only stripped a bare
+		// trailing "---" left "---\n\n**" as visible junk at the bottom of a
+		// real published episode's body (confirmed live 2026-09-21) once a
+		// script's divider was directly followed by the heading's own "**"
+		// bold marker, since mb_strpos() finds "Show notes" itself, not the
+		// "**" two characters before it, so that prefix stays in $body.
+		$body = preg_replace( '/[\s\-*\x{2013}\x{2014}]+$/u', '', $body );
 		$body = trim( $body );
 
 		$links_section = mb_substr( $script, $marker_pos );
