@@ -119,7 +119,7 @@ class Net_Gain_REST_Website_Publish {
 
 	private function create_or_update_episode_post( $episode_id, $episode, $term_id ) {
 		$meta = array();
-		foreach ( array( 'ng_script_final', 'ng_meta_aioseo_title', 'ng_meta_website_excerpt', 'ng_audio_attachment_id', 'ng_image_square_id', 'ng_talent_user_id', 'ng_website_post_id' ) as $key ) {
+		foreach ( array( 'ng_script_final', 'ng_meta_aioseo_title', 'ng_meta_website_excerpt', 'ng_meta_captivate_notes', 'ng_audio_attachment_id', 'ng_image_square_id', 'ng_talent_user_id', 'ng_website_post_id' ) as $key ) {
 			$meta[ $key ] = get_post_meta( $episode_id, $key, true );
 		}
 
@@ -135,6 +135,13 @@ class Net_Gain_REST_Website_Publish {
 		// no safe line-break points were also overflowing the mobile layout.
 		$split = self::split_script( $meta['ng_script_final'] );
 		update_post_meta( $episode_id, 'ng_story_links', $split['links'] );
+
+		// Episode-page-UX handoff (2026-09-23): promote Captivate-style show
+		// notes above the transcript, with its own trailing "Stories & links"
+		// paragraph stripped first - that would otherwise duplicate every link
+		// already shown above via ng_story_links (a real one, not a hypothetical:
+		// confirmed directly against a real published episode's ng_meta_captivate_notes).
+		update_post_meta( $episode_id, 'ng_website_show_notes', self::website_show_notes( $meta['ng_meta_captivate_notes'] ) );
 
 		$postarr = array(
 			'post_type'    => 'podcast',
@@ -188,49 +195,73 @@ class Net_Gain_REST_Website_Publish {
 	}
 
 	/**
-	 * Splits ng_script_final into the spoken narration (everything before the
-	 * "Show notes" heading, matching every real script sampled so far - a
-	 * trailing "---" divider then "**Show notes - story names and links:**")
-	 * and a structured list of {title, url} pairs parsed from the numbered
-	 * lines after it. Verified directly (2026-09-20) against 5 real episodes'
-	 * ng_script_final, 18 links total, before being ported in here - both the
-	 * quoted-title style ("Title" - url) and unquoted style (Title - url) the
-	 * AI actually produces are handled. Titles are separated from their URL by
-	 * an em dash specifically (not a hyphen), matching every real sample - a
+	 * Splits ng_script_final into the spoken narration and a structured list
+	 * of {title, url} pairs parsed from a trailing numbered links section.
+	 *
+	 * Locates that section by finding the FIRST line matching the numbered
+	 * link pattern itself ("N. "Title" — url"), not by searching for a
+	 * "Show notes" heading - pipeline/script_generation.py's own prompt
+	 * never actually instructs a heading at all (confirmed directly,
+	 * 2026-09-23: no "show notes" / "links" / "source" instruction anywhere
+	 * in that file), so the heading some scripts show is the AI's own
+	 * unprompted, inconsistent convention, not a documented contract. A
+	 * live episode confirmed this the hard way the same day: its script
+	 * jumped straight from the sign-off line into "1. ... — url" with no
+	 * heading, no "---" divider, and no "Show notes" text anywhere in the
+	 * script - the old heading-text search found nothing, so that entire
+	 * links section leaked into the published body as bare, unlinked text
+	 * and ng_story_links came back empty. Searching for the links'
+	 * *shape*, not a heading's wording, is robust to any convention (or
+	 * none) the AI settles on.
+	 *
+	 * Verified directly (2026-09-20, re-verified 2026-09-23 against a wider
+	 * sample including the no-heading case above) - both the quoted-title
+	 * style ("Title" - url) and unquoted style (Title - url) the AI
+	 * produces are handled. Titles are separated from their URL by an em
+	 * dash specifically (not a hyphen), matching every real sample - a
 	 * plain hyphen is deliberately not treated as a separator since titles
 	 * themselves often contain one (e.g. "K-12").
 	 *
 	 * Returns array( 'body' => string, 'links' => array of [title, url] ).
-	 * If no "Show notes" heading is found, 'body' is the whole script
-	 * unchanged and 'links' is empty - fails soft, not loud, since this always
-	 * runs as part of the wider publish flow and a missing links section
-	 * shouldn't block the episode from publishing at all.
+	 * If no numbered link line is found at all, 'body' is the whole script
+	 * unchanged and 'links' is empty - fails soft, not loud, since this
+	 * always runs as part of the wider publish flow and a missing links
+	 * section shouldn't block the episode from publishing at all.
 	 */
 	private static function split_script( $script ) {
-		$marker_pos = mb_strpos( $script, 'Show notes' );
-		if ( false === $marker_pos ) {
+		$link_line_pattern = '/^\s*\d+\.\s*.+?\s*\x{2014}\s*https?:\/\/\S+?\s*$/mu';
+
+		$found = preg_match( $link_line_pattern, $script, $first_link_match );
+		if ( ! $found ) {
 			return array(
 				'body'  => $script,
 				'links' => array(),
 			);
 		}
 
+		// mb_strpos() on the matched STRING, not preg_match's own byte offset
+		// (PREG_OFFSET_CAPTURE) - this script contains multibyte characters
+		// (em dashes, curly quotes), and preg's byte offsets don't line up
+		// with mb_substr()'s character offsets, which would risk splitting a
+		// multibyte character mid-sequence.
+		$marker_pos = mb_strpos( $script, $first_link_match[0] );
+
 		$body = mb_substr( $script, 0, $marker_pos );
-		// Strip everything trailing between the real narration and the heading:
-		// the "---" (or em/en-dash variant) divider line, AND the "**" bold-
-		// markdown prefix immediately before "**Show notes...**" - both must be
-		// handled in one pass, not two. A version that only stripped a bare
-		// trailing "---" left "---\n\n**" as visible junk at the bottom of a
-		// real published episode's body (confirmed live 2026-09-21) once a
-		// script's divider was directly followed by the heading's own "**"
-		// bold marker, since mb_strpos() finds "Show notes" itself, not the
-		// "**" two characters before it, so that prefix stays in $body.
+		// Strip a trailing heading line naming the links section, in
+		// whatever phrasing/wrapping the AI used this time - with or
+		// without a "---" divider before it, with or without ** bold
+		// markers, or (see above) no heading at all, in which case this
+		// simply matches nothing and the next line handles the bare
+		// divider/whitespace that's left.
+		$body = preg_replace( '/\**\s*(?:show notes|stories\s*(?:&(?:amp;)?)?\s*(?:names\s*(?:and|&)\s*)?links)[^\n]*:?\**\s*$/iu', '', $body );
+		// Strip whatever divider/whitespace debris is left right before the
+		// heading (or right before the links themselves, if there was no
+		// heading at all) - a "---" (or em/en-dash variant) divider line
+		// and/or a stray "**" bold-markdown prefix.
 		$body = preg_replace( '/[\s\-*\x{2013}\x{2014}]+$/u', '', $body );
 		$body = trim( $body );
 
 		$links_section = mb_substr( $script, $marker_pos );
-		// Drop the heading line itself ("Show notes - story names and links:" or similar).
-		$links_section = preg_replace( '/^Show notes[^\n]*\n?/u', '', $links_section );
 
 		preg_match_all(
 			'/^\s*\d+\.\s*(.+?)\s*\x{2014}\s*(https?:\/\/\S+?)\s*$/mu',
@@ -256,5 +287,54 @@ class Net_Gain_REST_Website_Publish {
 			'body'  => $body,
 			'links' => $links,
 		);
+	}
+
+	/**
+	 * Strips Captivate notes' own trailing "Stories & links" section so the
+	 * website's already-structured ng_story_links section (split_script(),
+	 * above) isn't duplicated inline as prose too. Handles two real formats,
+	 * not one assumed format - confirmed directly (2026-09-23) by actually
+	 * publishing all 5 live episodes through this code, not just the newest:
+	 *
+	 * - Current (metadata_generation.py's prompt, 2026-09-14 onward): real
+	 *   HTML, one <p> per story, ending in the exact literal marker
+	 *   '<p><strong>Stories &amp; links:</strong></p>'.
+	 * - Legacy (episode 44 only, predating that prompt's own <p>-tag fix -
+	 *   its docblock explains why the fix exists: "after a live episode's
+	 *   notes came back as one unbroken paragraph"): plain text, blank-line
+	 *   paragraphs, no HTML at all, ending in ng_script_final's own
+	 *   "**Show notes - story names and links:**" marker instead - captured
+	 *   directly from the episode's raw ng_meta_captivate_notes, not
+	 *   inferred. Detected by the absence of any '<p' tag, not an episode-
+	 *   date cutoff, so this keeps working even if the true cutoff date
+	 *   turns out to be approximate.
+	 *
+	 * Either way, a missing/no-match marker returns the input essentially
+	 * unchanged (HTML) or wpautop()'d (legacy) - fails soft, matching
+	 * split_script()'s own precedent, since the prompt itself documents an
+	 * absent links section as a normal, valid state ("If the script has no
+	 * such section, omit it rather than inventing one").
+	 */
+	private static function website_show_notes( $captivate_notes ) {
+		if ( empty( $captivate_notes ) ) {
+			return '';
+		}
+
+		$html_marker = '<p><strong>Stories &amp; links:</strong></p>';
+		$marker_pos  = mb_strpos( $captivate_notes, $html_marker );
+		if ( false !== $marker_pos ) {
+			return trim( mb_substr( $captivate_notes, 0, $marker_pos ) );
+		}
+
+		if ( false === mb_strpos( $captivate_notes, '<p' ) ) {
+			$legacy_marker_pos = mb_strpos( $captivate_notes, 'Show notes' );
+			$body = false !== $legacy_marker_pos
+				? mb_substr( $captivate_notes, 0, $legacy_marker_pos )
+				: $captivate_notes;
+			$body = preg_replace( '/[\s\-*\x{2013}\x{2014}]+$/u', '', $body );
+			return wpautop( trim( $body ) );
+		}
+
+		return $captivate_notes;
 	}
 }

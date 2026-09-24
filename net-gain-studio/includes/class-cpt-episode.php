@@ -103,6 +103,14 @@ class Net_Gain_CPT_Episode {
 					),
 				),
 			),
+			// Website "Show notes" (episode-page-UX handoff, 2026-09-23) - a
+			// subset of ng_meta_captivate_notes with its own trailing "Stories
+			// & links" paragraph already stripped at publish time
+			// (class-rest-website-publish.php's website_show_notes()), since
+			// ng_story_links above already renders that as its own structured
+			// section. Empty string for episodes published before this field
+			// existed - the theme degrades gracefully, same as ng_story_links.
+			'ng_website_show_notes' => array( 'type' => 'string', 'default' => '' ),
 			// Internal/machine references to the in-flight YouTube upload (Spec Section
 			// 6.3's two-phase upload-then-verify) - distinct from ng_url_youtube above,
 			// which is written only once the video is confirmed live.
