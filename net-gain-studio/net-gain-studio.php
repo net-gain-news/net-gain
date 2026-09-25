@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.6.4
+ * Version:           0.6.8
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
