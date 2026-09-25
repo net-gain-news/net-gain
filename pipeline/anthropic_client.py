@@ -46,8 +46,14 @@ WEB_SEARCH_TOOL = {
     # successful production runs, not a guess.
     "type": "web_search_20250305",
     "name": "web_search",
-    # Matches the prototype's proven value (generate_script.py) - not a guess.
-    "max_uses": 8,
+    # Was 8 (the prototype's proven value) until 2026-09-25: a live draft's own
+    # leaked search narration (see the text-extraction fix above) explicitly
+    # cited "given my remaining budget" right before settling for a weaker,
+    # staler lead story over a fresher one a human found independently -
+    # direct evidence of budget pressure affecting story selection, not a
+    # guess. Raised to give real headroom; revisit if this dollar cost proves
+    # unwelcome, but a rushed/settled story is the worse failure mode.
+    "max_uses": 14,
 }
 
 
@@ -129,7 +135,22 @@ def generate(client, system, user_content, tools=None, response_schema=None, eff
         messages.append({"role": "assistant", "content": trimmed})
         messages.append({"role": "user", "content": "Continue."})
 
-    text = "".join(block.text for block in response.content if block.type == "text")
+    # Confirmed live (2026-09-25): with web_search, Anthropic runs the whole
+    # search loop server-side within one response - so response.content can
+    # hold several text blocks interleaved with search calls ("I'll research
+    # X.", then a search, "Let me check Y.", another search, ...) before the
+    # actual final answer. Naively joining every text block concatenated that
+    # narration straight into the saved script ("...build today's script.Here's
+    # the latest from Net Gain Edtech..."), confirmed on a live draft. Only
+    # text blocks after the last non-text (tool-use/tool-result) block are the
+    # real answer - anything earlier is commentary between searches.
+    last_non_text_idx = -1
+    for i, block in enumerate(response.content):
+        if block.type != "text":
+            last_non_text_idx = i
+    text = "".join(
+        block.text for block in response.content[last_non_text_idx + 1:] if block.type == "text"
+    )
     if not text.strip():
         block_types = [block.type for block in response.content]
         logger.warning(

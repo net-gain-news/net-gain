@@ -76,6 +76,16 @@ def build_system_prompt(guidelines_text, show_name):
         "House rules for every episode:\n"
         "- Use the web_search tool to find today's real, verifiable stories "
         "relevant to this show's focus. Never invent or hallucinate a story.\n"
+        "- A story is only as fresh as its actual newest verifiable fact, not "
+        "whatever procedural or scheduling follow-up happens to reference it. "
+        "If the only new-development angle on an old incident is a narrow "
+        "process update (a board discussing options, a district recovery "
+        "timeline, a budget line), lead with and frame the story around that "
+        "specific update - never re-narrate the older underlying incident "
+        "itself as though it just happened. When choosing between a narrower "
+        "story with a genuinely fresh, standalone hook and a bigger one wrapped "
+        "in a thin new-development angle on weeks-old news, prefer the fresher "
+        "one.\n"
         "- Write natural spoken-word script text meant to be read aloud, not an "
         "article - no headers, bullet points, or markdown formatting.\n"
         "- Do not repeat a story already covered in the recent-episodes context "
@@ -182,7 +192,11 @@ def build_user_message(episode_date, recent_context, index_summary=None):
     if index_summary:
         index_block = (
             "Today's real index data - use these exact figures, and do not "
-            f"substitute any other numbers, companies, or tickers: {index_summary}\n\n"
+            "substitute any other numbers, companies, or tickers. This is reference "
+            "data for your own judgment, not spoken-word script text - write the "
+            "markets paragraph in your own natural phrasing per the guidelines above; "
+            "never read this sentence aloud or lift its wording into the script "
+            f"verbatim or near-verbatim: {index_summary}\n\n"
         )
     else:
         index_block = ""
