@@ -165,11 +165,6 @@ class BuildIndexSummaryTests(unittest.TestCase):
 
 class GenerateScriptForShowTests(unittest.TestCase):
     def test_wires_guidelines_and_context_into_the_generate_call(self):
-        class FakeWP:
-            def get_page_content(self, page_id):
-                self.requested_page_id = page_id
-                return "<p>Be concise.</p>"
-
         captured = {}
 
         def fake_generate(system, user_content, **kwargs):
@@ -178,28 +173,22 @@ class GenerateScriptForShowTests(unittest.TestCase):
             captured["kwargs"] = kwargs
             return "the generated script"
 
-        wp = FakeWP()
-        show = {"name": "Net Gain Edtech", "guidelines_page_id": 42, "lookback_days": 30}
+        show = {"name": "Net Gain Edtech", "guidelines_html": "<p>Be concise.</p>", "lookback_days": 30}
         recent_episodes = [{"meta": {"ng_episode_date": "2026-09-06", "ng_script_final": "yesterday's script"}}]
 
-        result = generate_script_for_show(wp, fake_generate, show, "2026-09-07", recent_episodes)
+        result = generate_script_for_show(fake_generate, show, "2026-09-07", recent_episodes)
 
         self.assertEqual(result, "the generated script")
-        self.assertEqual(wp.requested_page_id, 42)
         self.assertIn("Be concise.", captured["system"])
         self.assertIn("yesterday's script", captured["user_content"])
         self.assertEqual(captured["kwargs"].get("effort"), "high")
 
     def test_falls_back_when_no_guidelines_page(self):
-        class FakeWP:
-            def get_page_content(self, page_id):
-                raise AssertionError("should not be called when guidelines_page_id is falsy")
-
         def fake_generate(system, user_content, **kwargs):
             return system  # just echo so the test can inspect it
 
-        show = {"name": "Net Gain Edtech", "guidelines_page_id": 0, "lookback_days": 30}
-        result = generate_script_for_show(FakeWP(), fake_generate, show, "2026-09-07", [])
+        show = {"name": "Net Gain Edtech", "guidelines_html": "", "lookback_days": 30}
+        result = generate_script_for_show(fake_generate, show, "2026-09-07", [])
 
         self.assertIn("general good editorial judgment", result)
 

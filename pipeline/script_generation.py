@@ -195,8 +195,12 @@ def build_user_message(episode_date, recent_context, index_summary=None):
     )
 
 
-def generate_script_for_show(wp, anthropic_generate, show, episode_date, recent_episodes):
-    guidelines_html = wp.get_page_content(show["guidelines_page_id"]) if show.get("guidelines_page_id") else ""
+def generate_script_for_show(anthropic_generate, show, episode_date, recent_episodes):
+    # guidelines_html comes pre-resolved on the show object itself (the
+    # ng_guidelines_html REST field, computed server-side) rather than a
+    # separate wp.get_page_content() fetch - that generic core route 403s
+    # once the guidelines page is post_status=private (2026-09-25 incident).
+    guidelines_html = show.get("guidelines_html", "")
     guidelines_text = strip_html(guidelines_html) if guidelines_html else (
         "No guidelines have been written for this show yet - use general good "
         "editorial judgment for a daily newscast. Do not assume any particular "

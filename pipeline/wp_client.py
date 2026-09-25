@@ -67,16 +67,11 @@ class WPClient:
 
     def get_show(self, show_id):
         # /tick-context is a summary for the loop's own due-checking and doesn't
-        # carry every Show field (e.g. guidelines_page_id) - the default CPT
+        # carry every Show field (e.g. guidelines_page_id, or the computed
+        # ng_guidelines_html field - see class-cpt-show.php) - the default CPT
         # REST route already exposes all registered meta, so fetch it here
         # rather than adding a PHP route/field for one extra value.
         return self._request("GET", f"/wp-json/wp/v2/ng_show/{show_id}")
-
-    # --- guidelines ----------------------------------------------------------
-
-    def get_page_content(self, page_id):
-        page = self._request("GET", f"/wp-json/wp/v2/pages/{page_id}")
-        return page.get("content", {}).get("rendered", "")
 
     # --- media ---------------------------------------------------------------
 

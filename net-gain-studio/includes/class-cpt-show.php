@@ -38,6 +38,40 @@ class Net_Gain_CPT_Show {
 		);
 
 		self::register_meta();
+
+		add_action( 'rest_api_init', array( __CLASS__, 'register_rest_fields' ) );
+	}
+
+	/**
+	 * ng_guidelines_html (2026-09-25): the guidelines page's content, resolved
+	 * server-side and attached directly to the Show's own REST response,
+	 * rather than making the pipeline fetch the page itself via
+	 * /wp/v2/pages/{id}. That generic core route enforces a real permission
+	 * check on non-'publish'-status content (read_private_pages) - which is
+	 * exactly what broke script generation the day the guidelines page moved
+	 * to post_status=private (2026-09-24): the pipeline's Application-
+	 * Password account doesn't clear that check, unlike everything else it
+	 * touches, which is either 'publish'-status or a custom net-gain/v1
+	 * route with its own permission callback. get_post_field() here runs
+	 * unrestricted PHP-side, so this sidesteps that capability question
+	 * entirely instead of trying to grant the account a capability.
+	 */
+	public static function register_rest_fields() {
+		register_rest_field(
+			self::POST_TYPE,
+			'ng_guidelines_html',
+			array(
+				'get_callback' => function ( $object ) {
+					$page_id = (int) get_post_meta( $object['id'], 'ng_guidelines_page_id', true );
+					return $page_id ? (string) get_post_field( 'post_content', $page_id ) : '';
+				},
+				'schema'       => array(
+					'type'        => 'string',
+					'description' => "This show's editorial guidelines, resolved server-side regardless of the guidelines page's own REST visibility.",
+					'context'     => array( 'view', 'edit' ),
+				),
+			)
+		);
 	}
 
 	/** Canonical list of Show meta keys - reused by the Phase 2 admin save handler so the two can never drift apart. */

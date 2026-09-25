@@ -932,13 +932,13 @@ def process_show(wp, client, captivate, vertex_client, config, show):
         show_for_generation = dict(
             show,
             guidelines_page_id=show_meta.get("ng_guidelines_page_id", 0),
+            guidelines_html=show_details.get("ng_guidelines_html", ""),
             index_snapshot=show_meta.get("ng_index_snapshot") or {},
             index_last_refresh_date=show_meta.get("ng_index_last_refresh_date", ""),
         )
 
         recent_episodes = wp.list_episodes_for_show(show["id"])
         draft = generate_script_for_show(
-            wp,
             lambda **kwargs: anthropic_generate(client, **kwargs),
             show_for_generation,
             episode_date,
