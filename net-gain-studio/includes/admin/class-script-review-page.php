@@ -53,9 +53,9 @@ class Net_Gain_Script_Review_Page {
 				<textarea name="script_final" style="width:100%; min-height:60vh; font-size:15px; line-height:1.6;"><?php
 					echo esc_textarea( $final ?: $draft );
 				?></textarea>
-				<p class="description">This is the version that gets recorded, archived, and fed forward as next-day context — never the raw draft above.</p>
+				<p class="description">This is the version that gets recorded, archived, and fed forward as next-day context — never the raw draft above. You can keep revising and saving this right up until audio is uploaded for this episode - nothing here is locked in by saving alone.</p>
 
-				<?php submit_button( 'Save Final Script' ); ?>
+				<?php submit_button( 'Save Script' ); ?>
 			</form>
 		</div>
 		<script>
@@ -71,7 +71,7 @@ class Net_Gain_Script_Review_Page {
 
 	private static function render_notices() {
 		if ( isset( $_GET['ng_notice'] ) && 'saved' === $_GET['ng_notice'] ) {
-			echo '<div class="notice notice-success is-dismissible"><p>Final script saved.</p></div>';
+			echo '<div class="notice notice-success is-dismissible"><p>Script saved.</p></div>';
 		}
 	}
 }

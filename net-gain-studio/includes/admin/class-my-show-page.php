@@ -76,13 +76,16 @@ class Net_Gain_My_Show_Page {
 			<?php elseif ( 'finalized' === $state ) : ?>
 				<p>Finalized — queued, awaiting its scheduled publish time.</p>
 
-			<?php else : /* pending or awaiting_replacement */ ?>
+			<?php else : /* pending or awaiting_replacement - script saved at least once, audio not yet received */ ?>
 				<?php if ( 'awaiting_replacement' === $state ) : ?>
-					<p>Aborted — upload a replacement file to restart finalization.</p>
+					<p>Aborted — upload a replacement file to restart finalization. Still need to fix the script first? Edit it below - it's not locked in until audio is uploaded.</p>
 				<?php else : ?>
-					<p>Script reviewed. Upload today's recording to finalize.</p>
+					<p>Script reviewed. Upload today's recording to finalize, or keep editing the script - it's not locked in until audio is uploaded.</p>
 				<?php endif; ?>
-				<button type="button" class="button button-primary ng-upload-audio" data-episode-id="<?php echo esc_attr( $episode->ID ); ?>">Upload Audio</button>
+				<p>
+					<a class="button" href="<?php echo esc_url( add_query_arg( array( 'page' => Net_Gain_Script_Review_Page::SLUG, 'episode_id' => $episode->ID ), admin_url( 'admin.php' ) ) ); ?>">Edit Script</a>
+					<button type="button" class="button button-primary ng-upload-audio" data-episode-id="<?php echo esc_attr( $episode->ID ); ?>">Upload Audio</button>
+				</p>
 			<?php endif; ?>
 
 			<?php if ( $episode && in_array( $images_status, array( 'done', 'degraded' ), true ) ) : ?>
