@@ -50,6 +50,30 @@ class Net_Gain_Admin_Actions {
 
 		self::save_meta( $show_id, $is_new );
 
+		// Guidelines are edited inline on this screen (2026-09-24 - replaced the
+		// separate Gutenberg page-edit link, which forced a per-paragraph block
+		// workflow for what's really just a long prose document). The underlying
+		// storage is still the same ng_guidelines_page_id WordPress page - only
+		// the editing surface moved, so nothing downstream (script_generation.py's
+		// get_page_content() call, the website-publish REST route) needs to change.
+		if ( ! $is_new ) {
+			$guidelines_page_id = (int) get_post_meta( $show_id, 'ng_guidelines_page_id', true );
+			if ( $guidelines_page_id && isset( $_POST['ng_guidelines_content'] ) ) {
+				// post_status/_ng_is_guidelines_page are re-asserted on every save, not
+				// just at creation (2026-09-24) - self-heals any show whose guidelines
+				// page was seeded before this page was made private/noindexed, without
+				// a separate one-off migration script.
+				wp_update_post(
+					array(
+						'ID'           => $guidelines_page_id,
+						'post_status'  => 'private',
+						'post_content' => wp_kses_post( wp_unslash( $_POST['ng_guidelines_content'] ) ),
+					)
+				);
+				update_post_meta( $guidelines_page_id, '_ng_is_guidelines_page', true );
+			}
+		}
+
 		$primary_talent_id = isset( $_POST['ng_primary_talent'] ) ? (int) $_POST['ng_primary_talent'] : 0;
 		if ( $primary_talent_id ) {
 			Net_Gain_Talent_Assignments::set_primary( $show_id, $primary_talent_id );

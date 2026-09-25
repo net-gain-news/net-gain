@@ -80,7 +80,7 @@ class Net_Gain_Edit_Show_Page {
 									<option><?php echo esc_html( $get( 'ng_vertical_id' ) ? get_the_title( $get( 'ng_vertical_id' ) ) : '— None —' ); ?></option>
 								</select>
 								<input type="hidden" name="ng_vertical_id" value="<?php echo esc_attr( $get( 'ng_vertical_id', 0 ) ); ?>">
-								<p class="description">Set at creation; guidelines are now a normal WordPress page — edit them directly (see "Editorial guidelines" below).</p>
+								<p class="description">Set at creation; edit the guidelines directly below.</p>
 							<?php endif; ?>
 						</td>
 					</tr>
@@ -193,13 +193,25 @@ class Net_Gain_Edit_Show_Page {
 					</tr>
 
 					<tr>
-						<th>Editorial guidelines</th>
+						<th><label for="ng_guidelines_content">Editorial guidelines</label></th>
 						<td>
 							<?php if ( $is_new ) : ?>
 								<p class="description">Created automatically from the selected Vertical template as soon as you save this show.</p>
 							<?php elseif ( $get( 'ng_guidelines_page_id' ) ) : ?>
-								<a class="button" href="<?php echo esc_url( get_edit_post_link( $get( 'ng_guidelines_page_id' ) ) ); ?>" target="_blank" rel="noopener">Edit Guidelines Page</a>
-								<p class="description">Opens the full WordPress page editor in a new tab — these documents run long and need real formatting, not a plain text box.</p>
+								<?php
+								wp_editor(
+									get_post_field( 'post_content', $get( 'ng_guidelines_page_id' ) ),
+									'ng_guidelines_content',
+									array(
+										'textarea_name' => 'ng_guidelines_content',
+										'textarea_rows' => 25,
+										'media_buttons' => false,
+										'teeny'         => false,
+										'quicktags'     => true,
+									)
+								);
+								?>
+								<p class="description">Edit directly here — headings, bold, and lists work via the toolbar above. Saved when you save the show below.</p>
 							<?php else : ?>
 								<p class="description">No guidelines page found. This shouldn't normally happen — check <code>ng_guidelines_page_id</code> for this show.</p>
 							<?php endif; ?>

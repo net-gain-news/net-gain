@@ -99,10 +99,14 @@ YOUTUBE_PROCESSING_TIMEOUT_MINUTES = 120
 # to any show's recording_timezone - index freshness is inherently on the
 # market's clock, not the show's. The buffer gives the sheet's own hourly
 # GOOGLEFINANCE recalculation (confirmed set with the user, 2026-09-21) a
-# little room to have already settled by the time this checks.
+# little room to have already settled by the time this checks. Deliberately
+# kept short (5 min, not a wider margin) per the user's explicit call
+# (2026-09-24): this refresh has to land before Net Gain Edtech's 13:10
+# Pacific (=16:10 ET) script-generation target_time picks it up same-day -
+# freshness matters more here than settling margin.
 MARKET_TIMEZONE = ZoneInfo("America/New_York")
 MARKET_CLOSE_HOUR = 16
-MARKET_CLOSE_BUFFER_MINUTES = 15
+MARKET_CLOSE_BUFFER_MINUTES = 5
 
 
 def _gmt_mysql(dt):
@@ -924,7 +928,13 @@ def process_show(wp, client, captivate, vertex_client, config, show):
 
     try:
         show_details = wp.get_show(show["id"])
-        show_for_generation = dict(show, guidelines_page_id=show_details.get("meta", {}).get("ng_guidelines_page_id", 0))
+        show_meta = show_details.get("meta", {})
+        show_for_generation = dict(
+            show,
+            guidelines_page_id=show_meta.get("ng_guidelines_page_id", 0),
+            index_snapshot=show_meta.get("ng_index_snapshot") or {},
+            index_last_refresh_date=show_meta.get("ng_index_last_refresh_date", ""),
+        )
 
         recent_episodes = wp.list_episodes_for_show(show["id"])
         draft = generate_script_for_show(

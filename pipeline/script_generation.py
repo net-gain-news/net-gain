@@ -80,6 +80,16 @@ def build_system_prompt(guidelines_text, show_name):
         "article - no headers, bullet points, or markdown formatting.\n"
         "- Do not repeat a story already covered in the recent-episodes context "
         "you're given, even if it's still developing.\n"
+        "- The recent-episode recap you're given exists to avoid repeating stories and "
+        "to learn this show's editorial preferences - it is not a source for "
+        "today's content. Do not carry forward a specific company, statistic, or "
+        "market-commentary example from a recent episode into today's script "
+        "unless it is independently, freshly verified as still relevant today.\n"
+        "- Do not default to mentioning a company merely because it appeared in "
+        "a recent episode or is generally well-known. Only name a previously "
+        "mentioned company in today's market commentary if it has genuine, "
+        "current news dated today or a same-day stock price move meeting the "
+        "thresholds above.\n"
         "- Where a recent episode shows your own original draft alongside the "
         "host's actual final version, that pairing is deliberate: the final "
         "reflects the host's real editorial judgment overriding your draft. "
@@ -90,7 +100,65 @@ def build_system_prompt(guidelines_text, show_name):
     )
 
 
-def build_user_message(episode_date, recent_context):
+def build_index_summary(index_snapshot, index_last_refresh_date, episode_date):
+    """
+    Formats a show's index snapshot (edtech_index.py's own shape, as stored
+    in ng_index_snapshot) as short plain prose - deliberately never a table
+    and never the full constituent list or its position weights, only the
+    movers that actually clear the show's own guideline thresholds (a single
+    company >10%, or a move shifting the total index >1%). The guidelines
+    document already states that rule; this just gives the model real
+    numbers to check it against instead of guessing from memory.
+
+    Returns None (section omitted entirely) if there's no snapshot, or its
+    last-refresh date isn't episode_date - a snapshot from a prior day must
+    never be handed to the model as if it were today's, given script
+    generation's target_time can run close to the market-close refresh.
+    """
+    if not index_snapshot or index_last_refresh_date != episode_date:
+        return None
+
+    total = index_snapshot.get("total_index_value")
+    daily_pct = index_snapshot.get("daily_change_percent")
+    if total is None or daily_pct is None:
+        return None
+
+    direction = "up" if daily_pct >= 0 else "down"
+    constituents = index_snapshot.get("constituents") or []
+    movers = sorted(
+        (
+            c for c in constituents
+            if c.get("day_change_percent") is not None and abs(c["day_change_percent"]) > 10
+        ),
+        key=lambda c: abs(c["day_change_percent"]),
+        reverse=True,
+    )
+
+    if movers:
+        mover_text = ", ".join(
+            f"{c['company']} ({c['ticker']}), "
+            f"{'+' if c['day_change_percent'] >= 0 else ''}{c['day_change_percent']:.1f}%"
+            for c in movers
+        )
+        move_summary = f"Notable move{'s' if len(movers) > 1 else ''}: {mover_text}."
+    elif abs(daily_pct) > 1:
+        move_summary = (
+            "No single constituent moved more than 10%, but the day's overall "
+            "move shifted the total index by more than 1%."
+        )
+    else:
+        move_summary = (
+            "No constituent moved more than 10% individually, and no move "
+            "shifted the total index by more than 1%."
+        )
+
+    return (
+        f"Today's index closed at ${total:,.2f}, {direction} {abs(daily_pct):.1f}% "
+        f"on the day. {move_summary}"
+    )
+
+
+def build_user_message(episode_date, recent_context, index_summary=None):
     if recent_context:
         entries = []
         for date, final, draft in recent_context:
@@ -111,8 +179,17 @@ def build_user_message(episode_date, recent_context):
     else:
         context_block = "This is this show's first episode - there is no prior-episode context yet.\n\n"
 
+    if index_summary:
+        index_block = (
+            "Today's real index data - use these exact figures, and do not "
+            f"substitute any other numbers, companies, or tickers: {index_summary}\n\n"
+        )
+    else:
+        index_block = ""
+
     return (
         f"Today's date is {episode_date}.\n\n"
+        f"{index_block}"
         f"{context_block}"
         "Write today's script now."
     )
@@ -130,8 +207,12 @@ def generate_script_for_show(wp, anthropic_generate, show, episode_date, recent_
         recent_episodes, show.get("lookback_days", 30), episode_date
     )
 
+    index_summary = build_index_summary(
+        show.get("index_snapshot"), show.get("index_last_refresh_date"), episode_date
+    )
+
     system_prompt = build_system_prompt(guidelines_text, show["name"])
-    user_message = build_user_message(episode_date, recent_context)
+    user_message = build_user_message(episode_date, recent_context, index_summary)
 
     # High effort, not the default "low" - explicit human-operator request
     # (2026-09-12) for genuine research/writing quality on the actual

@@ -5,6 +5,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from script_generation import (
+    build_index_summary,
     build_system_prompt,
     build_user_message,
     filter_recent_episodes_for_context,
@@ -109,6 +110,57 @@ class PromptBuildingTests(unittest.TestCase):
     def test_user_message_omits_draft_labels_when_no_draft(self):
         message = build_user_message("2026-09-07", [("2026-09-06", "final only", None)])
         self.assertNotIn("Your original draft", message)
+
+    def test_user_message_includes_index_summary_when_given(self):
+        message = build_user_message("2026-09-07", [], index_summary="Today's index closed at $4,800.")
+        self.assertIn("Today's index closed at $4,800.", message)
+        self.assertIn("do not substitute", message)
+
+    def test_user_message_omits_index_block_when_absent(self):
+        message = build_user_message("2026-09-07", [], index_summary=None)
+        self.assertNotIn("index data", message)
+
+
+class BuildIndexSummaryTests(unittest.TestCase):
+    def _snapshot(self, total=4800.0, daily_pct=1.4, constituents=None):
+        return {
+            "total_index_value": total,
+            "daily_change_percent": daily_pct,
+            "constituents": constituents or [],
+        }
+
+    def test_none_when_no_snapshot(self):
+        self.assertIsNone(build_index_summary({}, "2026-09-07", "2026-09-07"))
+        self.assertIsNone(build_index_summary(None, "2026-09-07", "2026-09-07"))
+
+    def test_none_when_snapshot_is_stale(self):
+        snapshot = self._snapshot()
+        self.assertIsNone(build_index_summary(snapshot, "2026-09-06", "2026-09-07"))
+
+    def test_quiet_day_names_no_companies(self):
+        snapshot = self._snapshot(daily_pct=0.3, constituents=[
+            {"company": "Chegg", "ticker": "CHGG", "day_change_percent": 2.0},
+        ])
+        summary = build_index_summary(snapshot, "2026-09-07", "2026-09-07")
+        self.assertIn("No constituent moved more than 10%", summary)
+        self.assertNotIn("Chegg", summary)
+
+    def test_names_a_real_mover_over_threshold(self):
+        snapshot = self._snapshot(daily_pct=2.1, constituents=[
+            {"company": "IDP Education", "ticker": "IEL", "day_change_percent": 20.0},
+            {"company": "Chegg", "ticker": "CHGG", "day_change_percent": 3.0},
+        ])
+        summary = build_index_summary(snapshot, "2026-09-07", "2026-09-07")
+        self.assertIn("IDP Education (IEL), +20.0%", summary)
+        self.assertNotIn("Chegg", summary)
+
+    def test_index_wide_shift_without_a_single_mover(self):
+        snapshot = self._snapshot(daily_pct=1.5, constituents=[
+            {"company": "Chegg", "ticker": "CHGG", "day_change_percent": 4.0},
+        ])
+        summary = build_index_summary(snapshot, "2026-09-07", "2026-09-07")
+        self.assertIn("shifted the total index by more than 1%", summary)
+        self.assertNotIn("Chegg", summary)
 
 
 class GenerateScriptForShowTests(unittest.TestCase):
