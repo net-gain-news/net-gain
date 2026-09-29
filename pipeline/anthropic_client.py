@@ -1,16 +1,24 @@
 """
 Wraps the Claude Messages API call used for script generation.
 
-thinking and the pause/truncation continuation strategy below match the
-prototype's generate_script.py exactly, not current API documentation -
-Phase 3 originally chose differently based on documentation alone (adaptive
-thinking instead of disabled, and no synthetic "Continue" user turn on
-resume), and a live run on 2026-09-10 reproduced precisely the failure mode
-the prototype's approach exists to avoid: the model exhausted its web_search
-budget mid-turn and, rather than truly pausing, wrote out text explaining
-that it couldn't continue and asking to be sent another message. Documented
-API behavior and observed live behavior disagreed; the proven prototype
-wins.
+The pause/truncation continuation strategy below (a synthetic "Continue."
+user turn on resume) matches the prototype's generate_script.py, not current
+API documentation - kept regardless of the thinking setting below, since
+it's the resume mechanism itself (this model has no assistant-prefill
+support), not something thinking changes.
+
+thinking was disabled from Phase 3 (2026-09-12) through 2026-09-29: a live
+run on 2026-09-10, at the original 8-search web_search budget, reproduced a
+failure mode where the model exhausted that budget mid-turn and, rather
+than truly pausing, wrote out text explaining it couldn't continue. Re-
+enabled 2026-09-29 (adaptive) alongside raising max_uses 14->20, on an
+explicit human-operator request to test whether it improves story-selection
+judgment - a materially larger search budget than the one that triggered
+the original failure, but not proven not to recur. Watch generate()'s usage
+logging (added the same day) for a repeat: a response that stops for a
+reason other than a clean end_turn/tool completion, especially paired with
+a web_search_requests count at or near max_uses, is the signature to look
+for.
 """
 
 import logging
@@ -46,14 +54,16 @@ WEB_SEARCH_TOOL = {
     # successful production runs, not a guess.
     "type": "web_search_20250305",
     "name": "web_search",
-    # Was 8 (the prototype's proven value) until 2026-09-25: a live draft's own
-    # leaked search narration (see the text-extraction fix above) explicitly
-    # cited "given my remaining budget" right before settling for a weaker,
-    # staler lead story over a fresher one a human found independently -
-    # direct evidence of budget pressure affecting story selection, not a
-    # guess. Raised to give real headroom; revisit if this dollar cost proves
-    # unwelcome, but a rushed/settled story is the worse failure mode.
-    "max_uses": 14,
+    # Was 8 (the prototype's proven value) until 2026-09-25, then 14. Raised
+    # to 20 on 2026-09-29 (explicit human-operator request, alongside
+    # re-enabling thinking) after a live draft's own leaked search narration
+    # (see the text-extraction fix below) showed the model citing "given my
+    # remaining budget" right before settling for a weaker, staler lead story
+    # over a fresher one a human found independently. Each search is a flat
+    # $10/1000 fee regardless of model or token usage - watch
+    # web_search_requests in the new usage logging below to see how much of
+    # this budget episodes are actually using.
+    "max_uses": 20,
 }
 
 
@@ -70,6 +80,42 @@ def _without_trailing_thinking(content):
     while content and content[-1].type in ("thinking", "redacted_thinking"):
         content.pop()
     return content
+
+
+def _log_usage(purpose, attempt, response):
+    """
+    Added 2026-09-29 alongside re-enabling thinking and raising max_uses, on
+    an explicit human-operator request for real per-episode cost data rather
+    than the estimates used to make that decision. Logs one line per API
+    call (a multi-attempt generation via the Continue-turn loop above logs
+    once per attempt, each with that call's own usage - sum across attempts
+    with the same purpose/timestamp to get a whole generation's real cost).
+
+    Every field is read defensively (getattr with a 0 default) - usage
+    object shape can vary by SDK version and by what the call actually used
+    (e.g. no cache fields if caching wasn't in play), and a logging call must
+    never be what makes a real generation fail.
+    """
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        logger.warning("generate(%s) attempt %d: no usage data on the response.", purpose, attempt)
+        return
+
+    server_tool_use = getattr(usage, "server_tool_use", None)
+    web_search_requests = getattr(server_tool_use, "web_search_requests", 0) if server_tool_use else 0
+
+    logger.info(
+        "generate(%s) attempt %d usage: input=%d output=%d cache_read=%d cache_write=%d "
+        "web_search_requests=%d stop_reason=%s",
+        purpose,
+        attempt,
+        getattr(usage, "input_tokens", 0),
+        getattr(usage, "output_tokens", 0),
+        getattr(usage, "cache_read_input_tokens", 0),
+        getattr(usage, "cache_creation_input_tokens", 0),
+        web_search_requests,
+        response.stop_reason,
+    )
 
 
 def generate(client, system, user_content, tools=None, response_schema=None, effort="low"):
@@ -93,11 +139,12 @@ def generate(client, system, user_content, tools=None, response_schema=None, eff
     instruction alone.
 
     effort separately controls how much overall effort the model puts into
-    the response (distinct from `thinking`, which is fully disabled below
-    regardless) - defaults to "low" for the repackaging-style calls
-    (metadata, image prompts), overridden to "high" for script generation
-    itself per an explicit human-operator request (2026-09-12) for genuine
-    research/writing quality, not just the fastest passable answer.
+    the response, independent of thinking (adaptive below, as of 2026-09-29 -
+    see the module docstring) - defaults to "low" for the repackaging-style
+    calls (metadata, image prompts), overridden to "high" for script
+    generation itself per an explicit human-operator request (2026-09-12)
+    for genuine research/writing quality, not just the fastest passable
+    answer.
     """
     tools = tools if tools is not None else [WEB_SEARCH_TOOL]
     messages = [{"role": "user", "content": user_content}]
@@ -106,6 +153,13 @@ def generate(client, system, user_content, tools=None, response_schema=None, eff
     if response_schema is not None:
         output_config["format"] = {"type": "json_schema", "schema": response_schema}
 
+    # No dedicated "purpose" parameter - script_generation.py is the only
+    # caller that leaves tools at its web_search default (see the docstring
+    # above); every other caller (metadata, image prompts) explicitly passes
+    # tools=[]. Inferring from that is enough to tell the two apart in logs
+    # without changing every call site's signature.
+    purpose = "script_generation" if any(t.get("name") == "web_search" for t in tools) else "other"
+
     response = None
     for attempt in range(1, MAX_CONTINUATIONS + 1):
         response = call_with_retries(
@@ -113,13 +167,14 @@ def generate(client, system, user_content, tools=None, response_schema=None, eff
                 model=MODEL,
                 max_tokens=MAX_TOKENS,
                 system=system,
-                thinking={"type": "disabled"},
+                thinking={"type": "adaptive"},
                 output_config=output_config,
                 tools=tools,
                 messages=messages,
             ),
             RETRYABLE_EXCEPTIONS,
         )
+        _log_usage(purpose, attempt, response)
 
         if response.stop_reason == "refusal":
             category = getattr(response.stop_details, "category", None)

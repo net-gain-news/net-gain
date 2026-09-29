@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from anthropic_client import GenerationError, generate
+from anthropic_client import WEB_SEARCH_TOOL, GenerationError, generate
 
 
 def _block(type_, text=None):
@@ -16,9 +16,11 @@ class FakeMessages:
     def __init__(self, response):
         self.response = response
         self.calls = 0
+        self.last_kwargs = None
 
     def create(self, **kwargs):
         self.calls += 1
+        self.last_kwargs = kwargs
         return self.response
 
 
@@ -91,6 +93,70 @@ class GenerateTextExtractionTests(unittest.TestCase):
 
         with self.assertRaises(GenerationError):
             generate(client, system="sys", user_content="go")
+
+
+class RequestConfigTests(unittest.TestCase):
+    def test_thinking_is_adaptive_not_disabled(self):
+        # Re-enabled 2026-09-29 (explicit human-operator request) after being
+        # disabled since Phase 3 - see the module docstring for why.
+        response = SimpleNamespace(stop_reason="end_turn", content=[_block("text", "ok")])
+        client = FakeClient(response)
+
+        generate(client, system="sys", user_content="go")
+
+        self.assertEqual(client.messages.last_kwargs["thinking"], {"type": "adaptive"})
+
+    def test_web_search_max_uses_is_20(self):
+        # Raised from 14 -> 20 on 2026-09-29 (explicit human-operator request),
+        # after a live draft showed the model citing search-budget pressure.
+        self.assertEqual(WEB_SEARCH_TOOL["max_uses"], 20)
+
+
+class LogUsageTests(unittest.TestCase):
+    def test_does_not_raise_when_usage_is_missing(self):
+        # A real generation must never fail because logging itself broke -
+        # usage() shape can vary by SDK version/response.
+        response = SimpleNamespace(stop_reason="end_turn", content=[_block("text", "ok")])
+        client = FakeClient(response)
+
+        result = generate(client, system="sys", user_content="go")
+
+        self.assertEqual(result, "ok")
+
+    def test_logs_usage_fields_including_web_search_requests(self):
+        usage = SimpleNamespace(
+            input_tokens=1234,
+            output_tokens=567,
+            cache_read_input_tokens=100,
+            cache_creation_input_tokens=50,
+            server_tool_use=SimpleNamespace(web_search_requests=3),
+        )
+        response = SimpleNamespace(stop_reason="end_turn", content=[_block("text", "ok")], usage=usage)
+        client = FakeClient(response)
+
+        with self.assertLogs("net_gain.anthropic_client", level="INFO") as captured:
+            generate(client, system="sys", user_content="go")
+
+        logged = "\n".join(captured.output)
+        self.assertIn("input=1234", logged)
+        self.assertIn("output=567", logged)
+        self.assertIn("cache_read=100", logged)
+        self.assertIn("cache_write=50", logged)
+        self.assertIn("web_search_requests=3", logged)
+        self.assertIn("generate(script_generation)", logged)
+
+    def test_purpose_is_other_when_tools_explicitly_empty(self):
+        usage = SimpleNamespace(
+            input_tokens=1, output_tokens=1, cache_read_input_tokens=0,
+            cache_creation_input_tokens=0, server_tool_use=None,
+        )
+        response = SimpleNamespace(stop_reason="end_turn", content=[_block("text", "ok")], usage=usage)
+        client = FakeClient(response)
+
+        with self.assertLogs("net_gain.anthropic_client", level="INFO") as captured:
+            generate(client, system="sys", user_content="go", tools=[])
+
+        self.assertIn("generate(other)", "\n".join(captured.output))
 
 
 if __name__ == "__main__":
