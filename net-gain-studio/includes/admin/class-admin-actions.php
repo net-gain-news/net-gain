@@ -210,7 +210,16 @@ class Net_Gain_Admin_Actions {
 				// Both required to reliably get a refresh token back, not just
 				// an access token.
 				'access_type'            => 'offline',
-				'prompt'                 => 'consent',
+				// 'consent' alone silently skips Google's Brand Account channel
+				// picker and locks the connection to the account's personal
+				// channel - confirmed live 2026-09-28 (connected "Dallas Kachan"
+				// instead of the intended show channel, with no picker ever
+				// shown, out of 4+ channels on the account). Adding
+				// select_account forces the account chooser, which chains into
+				// the channel picker specifically when YouTube scopes are
+				// requested - documented fix, not a guess (postiz-app #1238,
+				// confirmed by hand 2026-09-23).
+				'prompt'                 => 'consent select_account',
 				'include_granted_scopes' => 'true',
 				'state'                  => $state,
 			),
