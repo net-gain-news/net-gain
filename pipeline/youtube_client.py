@@ -121,12 +121,16 @@ def get_video_state(service, video_id):
     `items` array (video deleted, or never existed) is treated as a
     meaningful terminal result (exists=False), not a parse error.
 
-    status.uploadStatus is treated as the primary done-signal;
-    processingDetails is corroborating only - it's owner-only and has a
-    reputation for being less reliable than status.uploadStatus itself.
+    status.uploadStatus is the only done-signal used - deliberately not
+    requesting processingDetails (was included through 2026-09-29, dropped
+    after a live incident: it's owner-only, and Google fails the *entire*
+    videos.list request with a 403 if the token isn't authorized for it,
+    which took down verification for a batch of real uploads even though
+    processingDetails was never actually read in the decision logic below
+    it - status.uploadStatus alone already carries the signal this needs.
     """
     response = _execute_with_retry(
-        service.videos().list(part="status,snippet,processingDetails", id=video_id)
+        service.videos().list(part="status,snippet", id=video_id)
     )
     items = response.get("items") or []
     return _normalize_video_item(items[0] if items else None)
@@ -139,7 +143,6 @@ def _normalize_video_item(item):
         return {
             "exists": False,
             "upload_status": None,
-            "processing_status": None,
             "privacy_status": None,
             "title": None,
             "failure_reason": None,
@@ -147,11 +150,9 @@ def _normalize_video_item(item):
         }
 
     status = item.get("status", {})
-    processing = item.get("processingDetails", {})
     return {
         "exists": True,
         "upload_status": status.get("uploadStatus"),
-        "processing_status": processing.get("processingStatus"),
         "privacy_status": status.get("privacyStatus"),
         "title": item.get("snippet", {}).get("title"),
         "failure_reason": status.get("failureReason"),

@@ -139,6 +139,12 @@ class Net_Gain_Admin_Actions {
 		update_post_meta( $show_id, 'ng_status', $status );
 
 		update_post_meta( $show_id, 'ng_is_test', ! empty( $_POST['ng_is_test'] ) );
+
+		update_post_meta(
+			$show_id,
+			'ng_youtube_description_boilerplate',
+			sanitize_textarea_field( wp_unslash( $_POST['ng_youtube_description_boilerplate'] ?? '' ) )
+		);
 	}
 
 	public static function connect_captivate() {

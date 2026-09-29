@@ -11,15 +11,20 @@ kind of unverified infrastructure assumption this project has been burned by
 before (SPEC.md Section 1). A system ffmpeg on PATH is still preferred if
 present, so this also works unmodified on a host that does have one.
 
-`-loop 1` on the still image plus `-shortest` lets the audio's own duration
-end the video - deliberately avoids needing ffprobe (which imageio-ffmpeg
-does not bundle) just to measure it first.
+`-loop 1` on the still image ends the video at the audio's own duration -
+via an explicit `-t <duration>` measured by decoding the audio first (see
+`_probe_audio_duration_seconds()`), not via `-shortest` alone. That was the
+original design (avoiding needing ffprobe, which imageio-ffmpeg doesn't
+bundle, just to measure duration first) - confirmed live 2026-09-29 that
+`-shortest` alone isn't reliable for every source file, so this now decodes
+the audio with plain ffmpeg instead, which is bundled either way.
 
-FLAG: every ffmpeg flag below is this build's best understanding, not
-verified against a real render on the actual target host - in particular
-`-r 1` (1fps) is the most likely one to need raising toward YouTube's
-documented 24fps recommendation if a 1fps upload causes problems. Verify
-with one real render before trusting this in production.
+Verified live 2026-09-29 against a real production render on the actual
+target host: 1280x720 h264/AAC, correct 16:9 DAR, real audio track - the
+pipeline's actual output, not a synthetic test. `-r 1` (1fps) specifically
+has not caused any observed YouTube-side problem in the one real upload
+tested so far, but that's one data point, not a guarantee across all
+content.
 """
 
 import logging
@@ -63,10 +68,19 @@ def render_still_video(image_bytes, audio_bytes, workdir, audio_extension="mp3")
     e.g. a tempfile.TemporaryDirectory() kept open across the subsequent
     upload, since ffmpeg needs real file paths) and renders out.mp4 there.
 
-    Returns (video_path, duration_seconds_or_None) - duration is parsed
-    best-effort from ffmpeg's own stderr purely for logging/a sanity floor;
-    parse failure is non-fatal and logged only, since stderr's exact format
-    is not a stable contract.
+    Returns (video_path, duration_seconds).
+
+    Confirmed live (2026-09-29): -shortest alone is not reliable here - a
+    real published episode came out ~45 seconds longer than its own source
+    audio (confirmed by fully decoding that audio file: no trailing silence,
+    true duration exactly matched its own header). The mechanism wasn't
+    pinned down (something in how -shortest interacts with an infinitely-
+    looped still-image input, not a bad source file), so rather than
+    continuing to depend on -shortest's heuristic at all, this now measures
+    the audio's real decoded duration up front and passes ffmpeg a hard
+    `-t <duration>` - an unambiguous, independent cap that produces a
+    correctly-timed video even if -shortest's own cutoff misbehaves again.
+    -shortest is left in place too, as a harmless second bound.
     """
     workdir = Path(workdir)
     image_path = workdir / "image.jpg"
@@ -76,8 +90,11 @@ def render_still_video(image_bytes, audio_bytes, workdir, audio_extension="mp3")
     image_path.write_bytes(image_bytes)
     audio_path.write_bytes(audio_bytes)
 
+    ffmpeg_bin = ffmpeg_path()
+    duration_seconds = _probe_audio_duration_seconds(ffmpeg_bin, audio_path)
+
     command = [
-        ffmpeg_path(),
+        ffmpeg_bin,
         "-nostdin",
         "-y",
         "-loglevel", "error",
@@ -95,6 +112,7 @@ def render_still_video(image_bytes, audio_bytes, workdir, audio_extension="mp3")
         "-c:a", "aac",
         "-b:a", "192k",
         "-ar", "44100",
+        "-t", f"{duration_seconds:.3f}",
         "-shortest",
         "-movflags", "+faststart",
         str(video_path),
@@ -108,16 +126,27 @@ def render_still_video(image_bytes, audio_bytes, workdir, audio_extension="mp3")
     if not video_path.exists() or video_path.stat().st_size == 0:
         raise VideoCompositionError("ffmpeg reported success but produced no output file.")
 
-    duration = _parse_duration(result.stderr.decode("utf-8", errors="replace"))
-    return str(video_path), duration
+    return str(video_path), duration_seconds
 
 
-def _parse_duration(stderr_text):
-    match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", stderr_text)
-    if not match:
-        return None
-    try:
-        hours, minutes, seconds = match.groups()
-        return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
-    except (TypeError, ValueError):
-        return None
+def _probe_audio_duration_seconds(ffmpeg_bin, audio_path):
+    """
+    Fully decodes the audio (not just reading its self-reported header) to
+    get its real duration, via ffmpeg's own periodic "time=" progress
+    output - the same mechanism confirmed by hand during the 2026-09-29
+    incident investigation. Deliberately does not trust a quick `-i` probe
+    alone; a full decode is the only way to be sure the header and the real
+    content agree, which is exactly what was suspect about this bug.
+    """
+    command = [ffmpeg_bin, "-nostdin", "-stats", "-i", str(audio_path), "-f", "null", "-"]
+    result = subprocess.run(command, capture_output=True, timeout=300)
+    stderr_text = result.stderr.decode("utf-8", errors="replace")
+
+    matches = re.findall(r"time=(\d+):(\d+):(\d+\.\d+)", stderr_text)
+    if not matches:
+        raise VideoCompositionError(
+            f"Could not determine the audio's real duration by decoding it: {stderr_text[-500:]}"
+        )
+
+    hours, minutes, seconds = matches[-1]
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)

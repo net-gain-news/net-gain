@@ -289,6 +289,14 @@ def generate_metadata(wp, client, show, episode_id):
         meta.get("ng_script_final", ""),
     )
 
+    youtube_description = metadata["youtube_description"]
+    boilerplate = (show.get("youtube_description_boilerplate") or "").strip()
+    if boilerplate:
+        # Appended here, in code, not asked of the model - this is meant to
+        # be fixed, operator-edited text (a follow/visit-the-website footer),
+        # never AI-paraphrased or varied episode to episode.
+        youtube_description = f"{youtube_description}\n\n{boilerplate}"
+
     wp.update_episode_meta(
         episode_id,
         {
@@ -298,7 +306,7 @@ def generate_metadata(wp, client, show, episode_id):
             "ng_meta_aioseo_description": metadata["aioseo_description"],
             "ng_meta_website_excerpt": metadata["website_excerpt"],
             "ng_meta_youtube_title": metadata["youtube_title"],
-            "ng_meta_youtube_description": metadata["youtube_description"],
+            "ng_meta_youtube_description": youtube_description,
             "ng_meta_youtube_tags": metadata["youtube_tags"],
         },
     )

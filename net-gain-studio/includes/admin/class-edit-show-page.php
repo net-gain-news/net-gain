@@ -335,6 +335,14 @@ class Net_Gain_Edit_Show_Page {
 						</td>
 					</tr>
 
+					<tr>
+						<th><label for="ng_youtube_description_boilerplate">YouTube description footer</label></th>
+						<td>
+							<textarea id="ng_youtube_description_boilerplate" name="ng_youtube_description_boilerplate" rows="4" class="large-text"><?php echo esc_textarea( $get( 'ng_youtube_description_boilerplate' ) ); ?></textarea>
+							<p class="description">Appended verbatim to the end of every generated YouTube description — a follow/subscribe or visit-the-website footer. Plain text only (YouTube descriptions don't render HTML). Edited here, never written by the AI, so it stays exactly as typed across every episode. Leave blank to append nothing.</p>
+						</td>
+					</tr>
+
 				</table>
 
 				<?php submit_button( 'Save changes' ); ?>

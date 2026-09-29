@@ -31,7 +31,6 @@ class NormalizeVideoItemTests(unittest.TestCase):
                 "rejectionReason": None,
             },
             "snippet": {"title": "Today's Newscast"},
-            "processingDetails": {"processingStatus": "succeeded"},
         }
         result = yt._normalize_video_item(item)
         self.assertEqual(
@@ -39,7 +38,6 @@ class NormalizeVideoItemTests(unittest.TestCase):
             {
                 "exists": True,
                 "upload_status": "processed",
-                "processing_status": "succeeded",
                 "privacy_status": "public",
                 "title": "Today's Newscast",
                 "failure_reason": None,
@@ -56,10 +54,18 @@ class NormalizeVideoItemTests(unittest.TestCase):
         self.assertEqual(result["upload_status"], "rejected")
         self.assertEqual(result["rejection_reason"], "duplicate")
 
-    def test_missing_processing_details_does_not_raise(self):
-        item = {"status": {"uploadStatus": "uploaded"}, "snippet": {"title": "X"}}
+    def test_ignores_a_processing_details_field_if_present(self):
+        # get_video_state() no longer requests processingDetails (2026-09-29 -
+        # a live incident where Google 403'd the whole videos.list call over
+        # it), but normalization should stay harmless if it ever shows up
+        # anyway (e.g. a cached/older response shape).
+        item = {
+            "status": {"uploadStatus": "uploaded"},
+            "snippet": {"title": "X"},
+            "processingDetails": {"processingStatus": "processing"},
+        }
         result = yt._normalize_video_item(item)
-        self.assertIsNone(result["processing_status"])
+        self.assertNotIn("processing_status", result)
 
 
 class ExecuteWithRetryTests(unittest.TestCase):

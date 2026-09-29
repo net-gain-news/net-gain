@@ -61,6 +61,7 @@ class Net_Gain_REST_Tick_Context {
 				'pending_actions'     => get_post_meta( $show->ID, 'ng_pending_actions', true ),
 				'index_sheet_url'     => get_post_meta( $show->ID, 'ng_index_sheet_url', true ),
 				'index_last_refresh_date' => get_post_meta( $show->ID, 'ng_index_last_refresh_date', true ),
+				'youtube_description_boilerplate' => get_post_meta( $show->ID, 'ng_youtube_description_boilerplate', true ),
 				'effective_talent_today' => Net_Gain_Talent_Assignments::get_effective_talent( $show->ID, $today ),
 				'in_flight_episodes'  => $this->in_flight_episodes( $show->ID ),
 			);

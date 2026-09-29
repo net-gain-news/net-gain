@@ -16,6 +16,7 @@ from tick import (
     compute_captivate_date_field,
     compute_target_publish_moment,
     finalization_elapsed,
+    generate_metadata,
     resolve_youtube_processing,
     script_generation_due,
     verify_website_publish,
@@ -92,6 +93,68 @@ class FinalizationElapsedTests(unittest.TestCase):
 
     def test_missing_started_at_is_not_elapsed(self):
         self.assertFalse(finalization_elapsed({"state": "counting_down"}))
+
+
+class GenerateMetadataTests(unittest.TestCase):
+    def _fake_metadata(self):
+        return {
+            "captivate_title": "Title",
+            "captivate_notes": "Notes",
+            "aioseo_title": "SEO Title",
+            "aioseo_description": "SEO description",
+            "website_excerpt": "A short teaser.",
+            "youtube_title": "YT Title",
+            "youtube_description": "Today's real story.",
+            "youtube_tags": ["tag1", "tag2"],
+        }
+
+    class FakeWP:
+        def __init__(self, episode_meta):
+            self._episode_meta = episode_meta
+            self.updates = []
+            self.steps = []
+
+        def get_episode(self, episode_id):
+            return {"meta": self._episode_meta}
+
+        def update_episode_meta(self, episode_id, meta):
+            self.updates.append((episode_id, meta))
+
+        def update_step(self, episode_id, step, status):
+            self.steps.append((episode_id, step, status))
+
+    def test_appends_boilerplate_verbatim_when_present(self):
+        wp = self.FakeWP({"ng_episode_date": "2026-09-29", "ng_script_final": "script"})
+        show = {"name": "Net Gain Edtech", "youtube_description_boilerplate": "Follow us: https://netgain.news/edtech"}
+
+        with patch("tick.generate_metadata_for_episode", return_value=self._fake_metadata()):
+            generate_metadata(wp, client=None, show=show, episode_id=149)
+
+        _, meta = wp.updates[0]
+        self.assertEqual(
+            meta["ng_meta_youtube_description"],
+            "Today's real story.\n\nFollow us: https://netgain.news/edtech",
+        )
+
+    def test_omits_separator_when_boilerplate_is_blank(self):
+        wp = self.FakeWP({"ng_episode_date": "2026-09-29", "ng_script_final": "script"})
+        show = {"name": "Net Gain Edtech", "youtube_description_boilerplate": ""}
+
+        with patch("tick.generate_metadata_for_episode", return_value=self._fake_metadata()):
+            generate_metadata(wp, client=None, show=show, episode_id=149)
+
+        _, meta = wp.updates[0]
+        self.assertEqual(meta["ng_meta_youtube_description"], "Today's real story.")
+
+    def test_missing_field_behaves_the_same_as_blank(self):
+        wp = self.FakeWP({"ng_episode_date": "2026-09-29", "ng_script_final": "script"})
+        show = {"name": "Net Gain Edtech"}  # field absent entirely
+
+        with patch("tick.generate_metadata_for_episode", return_value=self._fake_metadata()):
+            generate_metadata(wp, client=None, show=show, episode_id=149)
+
+        _, meta = wp.updates[0]
+        self.assertEqual(meta["ng_meta_youtube_description"], "Today's real story.")
 
 
 class CheckFinalizationsTests(unittest.TestCase):
