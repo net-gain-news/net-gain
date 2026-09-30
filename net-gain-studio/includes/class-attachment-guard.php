@@ -19,13 +19,23 @@
  *   the REST API) by making the delete capability itself unavailable -
  *   WordPress's own UI then simply hides the delete option, no custom
  *   error needed.
- * - before_delete_post is a second, code-path-independent net: core's own
+ * - delete_attachment is a second, code-path-independent net: core's own
  *   wp_delete_post() performs no capability check internally (callers are
  *   expected to check first), so anything that calls it directly - WP-CLI's
  *   own `wp post delete`, or any other direct PHP call - would skip the
  *   first layer entirely. This one hard wp_die()s instead, which is blunt
  *   but halts execution before either the DB row or the file on disk is
  *   removed, regardless of how deletion was invoked.
+ *
+ *   Confirmed live (2026-09-30) that `before_delete_post` is the wrong hook
+ *   for this: wp_delete_post() takes a completely separate internal branch
+ *   for post_type=attachment that never fires before_delete_post/
+ *   after_delete_post at all - only delete_attachment. An earlier version
+ *   of this file used before_delete_post and, tested directly against a
+ *   disposable attachment, did not block a real WP-CLI `--force` delete -
+ *   caught immediately by testing on a throwaway file, not on anything
+ *   real, but worth the explicit note given how easy it would be to
+ *   silently ship a guard that only protects half its own two layers.
  *
  * Deliberately does NOT protect items only moved to Trash (wp_trash_post())
  * - that's already reversible, no need to block it. Only permanent deletion
@@ -62,7 +72,7 @@ class Net_Gain_Attachment_Guard {
 
 	public static function register() {
 		add_filter( 'map_meta_cap', array( __CLASS__, 'block_delete_of_in_use_attachment' ), 10, 4 );
-		add_action( 'before_delete_post', array( __CLASS__, 'block_universal_delete' ) );
+		add_action( 'delete_attachment', array( __CLASS__, 'block_universal_delete' ) );
 		add_filter( 'manage_media_columns', array( __CLASS__, 'add_used_by_column' ) );
 		add_action( 'manage_media_custom_column', array( __CLASS__, 'render_used_by_column' ), 10, 2 );
 	}
