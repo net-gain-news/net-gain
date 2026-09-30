@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.6.12
+ * Version:           0.6.13
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -39,6 +39,7 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/class-secrets.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-cpt-vertical.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-cpt-show.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-cpt-episode.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/class-attachment-guard.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-guidelines.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-permissions.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-tick-context.php';
@@ -95,6 +96,7 @@ add_action( 'admin_enqueue_scripts', array( 'Net_Gain_Admin_Menu', 'enqueue_asse
 Net_Gain_Admin_Actions::register();
 
 Net_Gain_Website_Rewrite::register();
+Net_Gain_Attachment_Guard::register();
 Net_Gain_Guidelines::register();
 Net_Gain_AIOSEO_Integration::register();
 Net_Gain_Schema_Output::register();
