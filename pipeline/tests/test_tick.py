@@ -10,7 +10,10 @@ from unittest.mock import Mock, patch
 
 from tick import (
     CAPTIVATE_ACCOUNT_TIMEZONE,
+    WP_SITE_TIMEZONE,
+    YOUTUBE_PUBLISH_DELAY_MINUTES,
     _normalize_wp_text,
+    build_final_youtube_description,
     captivate_publish_due,
     check_finalizations,
     compute_captivate_date_field,
@@ -23,6 +26,13 @@ from tick import (
     website_publish_due,
     youtube_publish_due,
 )
+
+
+def _site_local_at(seconds_ago):
+    """A Net_Gain_Step_Status-style 'at' string (site-local, see
+    WP_SITE_TIMEZONE), seconds_ago in the past."""
+    moment = datetime.now(WP_SITE_TIMEZONE) - timedelta(seconds=seconds_ago)
+    return moment.strftime("%Y-%m-%d %H:%M:%S")
 
 
 class ScriptGenerationDueTests(unittest.TestCase):
@@ -123,32 +133,13 @@ class GenerateMetadataTests(unittest.TestCase):
         def update_step(self, episode_id, step, status):
             self.steps.append((episode_id, step, status))
 
-    def test_appends_boilerplate_verbatim_when_present(self):
+    def test_stores_the_raw_ai_description_unmodified(self):
+        # 2026-09-30: the footer (and the website link) are no longer baked
+        # in here at all - both get assembled later, in
+        # build_final_youtube_description(), at actual upload time. A show
+        # with a configured footer must not see it touch the stored value.
         wp = self.FakeWP({"ng_episode_date": "2026-09-29", "ng_script_final": "script"})
         show = {"name": "Net Gain Edtech", "youtube_description_boilerplate": "Follow us: https://netgain.news/edtech"}
-
-        with patch("tick.generate_metadata_for_episode", return_value=self._fake_metadata()):
-            generate_metadata(wp, client=None, show=show, episode_id=149)
-
-        _, meta = wp.updates[0]
-        self.assertEqual(
-            meta["ng_meta_youtube_description"],
-            "Today's real story.\n\nFollow us: https://netgain.news/edtech",
-        )
-
-    def test_omits_separator_when_boilerplate_is_blank(self):
-        wp = self.FakeWP({"ng_episode_date": "2026-09-29", "ng_script_final": "script"})
-        show = {"name": "Net Gain Edtech", "youtube_description_boilerplate": ""}
-
-        with patch("tick.generate_metadata_for_episode", return_value=self._fake_metadata()):
-            generate_metadata(wp, client=None, show=show, episode_id=149)
-
-        _, meta = wp.updates[0]
-        self.assertEqual(meta["ng_meta_youtube_description"], "Today's real story.")
-
-    def test_missing_field_behaves_the_same_as_blank(self):
-        wp = self.FakeWP({"ng_episode_date": "2026-09-29", "ng_script_final": "script"})
-        show = {"name": "Net Gain Edtech"}  # field absent entirely
 
         with patch("tick.generate_metadata_for_episode", return_value=self._fake_metadata()):
             generate_metadata(wp, client=None, show=show, episode_id=149)
@@ -396,7 +387,17 @@ class WebsitePublishDueTests(unittest.TestCase):
 
 class YouTubePublishDueTests(unittest.TestCase):
     def _episode(
-        self, state="finalized", youtube_status="pending", finalized_seconds_ago=3600, images_status="done"
+        self,
+        state="finalized",
+        youtube_status="pending",
+        finalized_seconds_ago=3600,
+        images_status="done",
+        captivate_status="done",
+        website_status="done",
+        # Well past YOUTUBE_PUBLISH_DELAY_MINUTES by default, so existing
+        # tests that don't care about the delay gate aren't affected by it.
+        captivate_at_seconds_ago=3600,
+        website_at_seconds_ago=3600,
     ):
         finalized_at = _gmt_mysql(datetime.now(timezone.utc) - timedelta(seconds=finalized_seconds_ago))
         return {
@@ -405,6 +406,8 @@ class YouTubePublishDueTests(unittest.TestCase):
             "step_status": {
                 "youtube_published": {"status": youtube_status},
                 "images_rendered": {"status": images_status},
+                "captivate_published": {"status": captivate_status, "at": _site_local_at(captivate_at_seconds_ago)},
+                "website_published": {"status": website_status, "at": _site_local_at(website_at_seconds_ago)},
             },
         }
 
@@ -479,6 +482,80 @@ class YouTubePublishDueTests(unittest.TestCase):
         show = self._show(pending_actions=[{"action": "publish_youtube", "status": "pending", "force": True}])
         episode = self._episode(youtube_status="failed")
         self.assertEqual(youtube_publish_due(show, episode), "upload")
+
+    def test_none_when_captivate_not_yet_published(self):
+        show = self._show()
+        episode = self._episode(captivate_status="pending")
+        self.assertIsNone(youtube_publish_due(show, episode))
+
+    def test_none_when_website_not_yet_published(self):
+        show = self._show()
+        episode = self._episode(website_status="pending")
+        self.assertIsNone(youtube_publish_due(show, episode))
+
+    def test_none_within_the_delay_window_after_the_later_of_the_two(self):
+        # Website finished 1 minute ago - well inside the delay window.
+        show = self._show()
+        episode = self._episode(captivate_at_seconds_ago=600, website_at_seconds_ago=60)
+        self.assertIsNone(youtube_publish_due(show, episode))
+
+    def test_upload_once_the_delay_window_after_the_later_of_the_two_has_passed(self):
+        safely_past = (YOUTUBE_PUBLISH_DELAY_MINUTES + 1) * 60
+        show = self._show()
+        episode = self._episode(captivate_at_seconds_ago=3600, website_at_seconds_ago=safely_past)
+        self.assertEqual(youtube_publish_due(show, episode), "upload")
+
+    def test_delay_is_measured_from_the_later_of_captivate_or_website(self):
+        # Captivate finished recently (inside the window); website finished
+        # long ago - the gate must still wait on Captivate's own timestamp.
+        show = self._show()
+        episode = self._episode(captivate_at_seconds_ago=60, website_at_seconds_ago=3600)
+        self.assertIsNone(youtube_publish_due(show, episode))
+
+    def test_sequencing_gate_applies_even_when_forced(self):
+        # The gate exists for a structural reason (a real website URL to put
+        # in the description), not just scheduling - a forced manual trigger
+        # must not be able to skip it.
+        show = self._show(pending_actions=[{"action": "publish_youtube", "status": "pending", "force": True}])
+        episode = self._episode(youtube_status="failed", website_status="pending")
+        self.assertIsNone(youtube_publish_due(show, episode))
+
+
+class BuildFinalYouTubeDescriptionTests(unittest.TestCase):
+    def test_assembles_all_three_parts_in_order(self):
+        result = build_final_youtube_description(
+            "Today's real story.",
+            "https://netgain.news/edtech/some-episode/",
+            "Subscribe wherever you get your podcasts.",
+        )
+        expected = (
+            "Today's real story.\n\n"
+            "Full show notes, transcript, and the Net Gain Edtech Index:\n"
+            "https://netgain.news/edtech/some-episode/\n\n"
+            "Subscribe wherever you get your podcasts."
+        )
+        self.assertEqual(result, expected)
+
+    def test_omits_the_link_block_entirely_when_url_is_blank(self):
+        result = build_final_youtube_description("Today's real story.", "", "Follow us.")
+        self.assertNotIn("Full show notes", result)
+        self.assertEqual(result, "Today's real story.\n\nFollow us.")
+
+    def test_omits_the_footer_entirely_when_blank(self):
+        result = build_final_youtube_description(
+            "Today's real story.", "https://netgain.news/edtech/x/", ""
+        )
+        self.assertNotIn("Subscribe", result)
+        self.assertTrue(result.endswith("https://netgain.news/edtech/x/"))
+
+    def test_handles_everything_missing_without_raising(self):
+        self.assertEqual(build_final_youtube_description("", "", ""), "")
+
+    def test_never_lets_the_ai_text_touch_the_url(self):
+        # The URL must always be code-inserted on its own labeled line, never
+        # concatenated so closely it could read as part of the AI's own text.
+        result = build_final_youtube_description("Story.", "https://x.test/y", "")
+        self.assertIn("Net Gain Edtech Index:\nhttps://x.test/y", result)
 
 
 class ResolveYouTubeProcessingTests(unittest.TestCase):
