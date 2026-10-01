@@ -104,7 +104,12 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 6px 8px;
+		/* Confirmed live on a real device (iPhone 17, 2026-09-30): 8px of
+		   horizontal padding reads as the LED sitting right on the card's
+		   edge - fine for a line of label text, not for a small isolated
+		   circle, which needs more deliberate clearance to read as
+		   intentionally placed rather than clipped. */
+		padding: 8px 20px;
 		border: none;
 		text-align: right;
 	}
