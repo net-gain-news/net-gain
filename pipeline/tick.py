@@ -743,6 +743,37 @@ def build_final_youtube_description(ai_description, website_url, boilerplate):
     return "\n\n".join(parts)
 
 
+def build_youtube_upload_status(show):
+    """
+    The `status` part sent with videos.insert. Pure function so it can be
+    unit-tested - this dict was previously built inline and nothing locked
+    its contents in.
+    """
+    return {
+        # Section 13: test shows go to an unlisted (not fully private)
+        # upload - off search/recommendations, but the watch URL still
+        # works for manual end-to-end verification.
+        "privacyStatus": "unlisted" if show.get("is_test") else "public",
+        # FLAG: appears required, not optional, per live discovery during
+        # planning - uploads can be blocked/flagged without an explicit
+        # made-for-kids declaration. Verify against live docs.
+        "selfDeclaredMadeForKids": False,
+        # Explicitly declared, not left unset (2026-10-02): YouTube was
+        # auto-labeling some episodes as AI-generated when this said nothing
+        # - confirmed on two real videos, one of which cleared only after a
+        # manual "not AI" declaration in YouTube Studio. status.
+        # containsSyntheticMedia is the API's own field for that Studio
+        # toggle (verified against the videos resource docs, writable on
+        # videos.insert). The show's audio is a human-recorded host and the
+        # script is human-edited; the image is illustrative art, not a
+        # realistic depiction of a real person or event (see image_prompt.py's
+        # real-people/real-places rules) - so False is the accurate answer.
+        "containsSyntheticMedia": False,
+        "license": "youtube",
+        "embeddable": True,
+    }
+
+
 def upload_episode_to_youtube(wp, client, config, show, episode_id, meta):
     step_status = meta.get("ng_step_status", {}) or {}
     metadata_status = step_status.get("metadata_generated", {}).get("status", "pending")
@@ -818,18 +849,7 @@ def upload_episode_to_youtube(wp, client, config, show, episode_id, meta):
             "defaultLanguage": "en",
             "defaultAudioLanguage": "en",
         }
-        status = {
-            # Section 13: test shows go to an unlisted (not fully private)
-            # upload - off search/recommendations, but the watch URL still
-            # works for manual end-to-end verification.
-            "privacyStatus": "unlisted" if show.get("is_test") else "public",
-            # FLAG: appears required, not optional, per live discovery during
-            # planning - uploads can be blocked/flagged without an explicit
-            # made-for-kids declaration. Verify against live docs.
-            "selfDeclaredMadeForKids": False,
-            "license": "youtube",
-            "embeddable": True,
-        }
+        status = build_youtube_upload_status(show)
 
         video_id = yt.upload_video(service, video_path, snippet, status)
         # Written immediately - this is the one piece of state that makes the

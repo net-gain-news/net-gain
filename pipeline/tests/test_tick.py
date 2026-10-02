@@ -14,6 +14,7 @@ from tick import (
     YOUTUBE_PUBLISH_DELAY_MINUTES,
     _normalize_wp_text,
     build_final_youtube_description,
+    build_youtube_upload_status,
     captivate_publish_due,
     check_finalizations,
     compute_captivate_date_field,
@@ -519,6 +520,23 @@ class YouTubePublishDueTests(unittest.TestCase):
         show = self._show(pending_actions=[{"action": "publish_youtube", "status": "pending", "force": True}])
         episode = self._episode(youtube_status="failed", website_status="pending")
         self.assertIsNone(youtube_publish_due(show, episode))
+
+
+class BuildYouTubeUploadStatusTests(unittest.TestCase):
+    def test_explicitly_declares_no_synthetic_media(self):
+        # 2026-10-02: leaving this unset let YouTube auto-label real episodes
+        # as AI-generated (confirmed on two live videos) - it has to be an
+        # explicit False in the upload request itself, not left to default.
+        status = build_youtube_upload_status({"is_test": False})
+        self.assertIn("containsSyntheticMedia", status)
+        self.assertIs(status["containsSyntheticMedia"], False)
+
+    def test_privacy_public_for_a_real_show_unlisted_for_a_test_show(self):
+        self.assertEqual(build_youtube_upload_status({"is_test": False})["privacyStatus"], "public")
+        self.assertEqual(build_youtube_upload_status({"is_test": True})["privacyStatus"], "unlisted")
+
+    def test_keeps_the_existing_made_for_kids_declaration(self):
+        self.assertIs(build_youtube_upload_status({})["selfDeclaredMadeForKids"], False)
 
 
 class BuildFinalYouTubeDescriptionTests(unittest.TestCase):
