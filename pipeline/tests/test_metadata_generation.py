@@ -22,14 +22,18 @@ class BuildSystemPromptTests(unittest.TestCase):
         self.assertIn("youtube_tags", prompt)
         self.assertIn("125 characters", prompt)
 
-    def test_caps_the_captivate_and_website_titles_at_two_stories_and_sixty_characters(self):
+    def test_caps_the_captivate_and_website_titles_at_two_stories_and_sixty_five_characters(self):
         """Operator decision 2026-10-02: three-story, 65-90 character titles were hard to read and got
-        cut off in podcast apps and Google."""
+        cut off in podcast apps and Google. Limit set at 65 after reviewing real two-story headlines."""
         prompt = build_system_prompt("Net Gain Edtech")
-        self.assertEqual(TITLE_MAX_CHARS, 60)
-        self.assertIn("at most 60", prompt)
+        self.assertEqual(TITLE_MAX_CHARS, 65)
+        self.assertIn("at most 65", prompt)
         self.assertIn("at most TWO", prompt)
         self.assertIn("lead", prompt)
+
+    def test_titles_may_join_two_stories_with_a_comma_a_semicolon_or_as(self):
+        prompt = build_system_prompt("Net Gain Edtech")
+        self.assertIn("a comma, a semicolon, or \"as\"", prompt)
 
     def test_youtube_title_rule_is_unchanged(self):
         self.assertIn("youtube_title: under 100 characters", build_system_prompt("Net Gain Edtech"))
@@ -85,11 +89,11 @@ class TitleLimitGuardTests(unittest.TestCase):
 
         return calls, generate_metadata_for_episode(fake, "Net Gain Edtech", "2026-10-02", "script")
 
-    def test_exactly_sixty_characters_is_allowed(self):
-        self.assertEqual(overlong_titles(self._meta(captivate="x" * 60, aioseo="y" * 60)), {})
-        self.assertEqual(overlong_titles(self._meta(captivate="x" * 61)), {"captivate_title": 61})
+    def test_exactly_sixty_five_characters_is_allowed(self):
+        self.assertEqual(overlong_titles(self._meta(captivate="x" * 65, aioseo="y" * 65)), {})
+        self.assertEqual(overlong_titles(self._meta(captivate="x" * 66)), {"captivate_title": 66})
 
-    def test_the_youtube_title_is_not_subject_to_the_sixty_character_limit(self):
+    def test_the_youtube_title_is_not_subject_to_the_title_limit(self):
         calls, result = self._run([self._meta()])
         self.assertEqual(len(calls), 1)
         self.assertEqual(len(result["youtube_title"]), 95)

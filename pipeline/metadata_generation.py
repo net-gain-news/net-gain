@@ -25,10 +25,12 @@ logger = logging.getLogger("net_gain.metadata_generation")
 
 # Revised 2026-10-02 at the human operator's request: three-story titles of
 # 65-90 characters were hard to read and got cut off in podcast apps (which
-# truncate around 40-60) and in Google (~580px, about 60 characters). Applies
+# truncate around 40-60) and in Google (~580px, about 60 characters). Set at
+# 65 rather than 60 after the operator reviewed real two-story headlines
+# (61 was fine; "up to 65 is okay"). Applies
 # to the Captivate and website titles; the YouTube title keeps its own
 # separate rules (under 100, aim under 70) and is deliberately unchanged.
-TITLE_MAX_CHARS = 60
+TITLE_MAX_CHARS = 65
 TITLE_FIELDS = ("captivate_title", "aioseo_title")
 MAX_METADATA_ATTEMPTS = 3
 
@@ -71,7 +73,9 @@ def build_system_prompt(show_name):
         "40-60 characters). Name at most TWO of the episode's stories: the lead story, "
         "plus a second only if it fits - never try to fit all of the day's stories into "
         "the title. Put the lead story's key name or term first, since cutoffs remove "
-        "the end. Not just the show name repeated.\n"
+        "the end. Join two stories with a comma, a semicolon, or \"as\" where one "
+        "reads naturally as the other's backdrop (e.g. \"X Hits Y as Z Pushes Back\") - "
+        "whichever reads most clearly. Not just the show name repeated.\n"
         "- captivate_notes: written as real HTML - Captivate's own show-notes editor "
         "is a styled-text editor, not plain text. Keep this concise, not a second "
         "version of the script: 1-2 sentences per story, enough to say what happened "
@@ -95,8 +99,8 @@ def build_system_prompt(show_name):
         "- aioseo_title / aioseo_description: written for search engines and social "
         "link previews, not duplicates of the Captivate fields. aioseo_title becomes "
         f"the website page's own title and must be at most {TITLE_MAX_CHARS} characters "
-        "(a hard limit - Google cuts titles off around 60), naming at most TWO stories, "
-        "the lead first - do not append the show name or any show/site "
+        "(a hard limit; Google starts cutting titles off around 60, so shorter is better), naming at most TWO stories, "
+        "the lead first, joined the same ways as captivate_title - do not append the show name or any show/site "
         f"name suffix to it (e.g. no \"... - {show_name}\" or \"... | {show_name}\"), even "
         "though that's a common general SEO convention - the site's own branding already "
         "establishes the show name elsewhere on the page.\n"
