@@ -40,6 +40,30 @@ rule sitting right next to it, which permitted graphical money symbols but
 never explicitly excluded spelling the amount out as a word or numeral -
 tightened to close that gap directly at the point of conflict, rather than
 trusting the general rule to win on its own.
+
+Revised 2026-10-02 after the three most recent graphics (including a story
+led by Google and one led by Frontline Education) were all generic computer
+monitors in generic classroom/office settings. Human-operator decisions:
+the 2026-09-16 outright logo ban is reversed - real logos are now requested,
+large and prominent, whenever the organization's official logo is unambiguous
+from its prevalence on the internet; no approved-logo whitelist will be
+maintained, so the model itself judges ambiguity and omits the logo when
+unsure. The 2026-09-29 "a generic, unbranded version of the same kind of
+setting is fine" allowance was removed (it licensed exactly the generic
+fallbacks), and screens are barred as the default subject. Previous
+episodes' images are deliberately NOT fed back to the model, and no
+code-rendered company-name tag is added. The duotone treatment is retained.
+
+Same day, after previewing it on the 10/1 Google story: the model built a
+classroom scene and relegated a loosely drawn Google-colored star to a
+glowing corner detail (and the duotone then erased its colors). Revised so
+a recognizable-logo story yields a logo-ONLY image - the logo alone, large,
+centered, flat, on a plain white or near-black background - and so every
+image is high-contrast by brightness, since the duotone discards hue.
+
+Later the same day, after seeing the Google logo rendered on a light
+background beside seven dark, subdued graphics: logo-only images must always
+be on a solid near-black background, never white or light.
 """
 
 import json
@@ -63,7 +87,35 @@ def build_system_prompt(show_name):
         "covered in the script, right after any opening preview line. Ignore every "
         "other story in the episode for purposes of this image; do not attempt to "
         "represent or synthesize the whole episode.\n"
-        "- Before describing anything, find ONE specific, concrete, filmable detail "
+        "- FIRST, decide whether this is a LOGO-ONLY IMAGE. When the lead story is about a specific, named company "
+        "or organization and its official logo is unambiguous - the one mark that "
+        "overwhelmingly comes to mind for that name, from its sheer prevalence across "
+        "the internet (e.g. Google, Microsoft, Apple, Amazon, Meta, OpenAI) - the "
+        "image IS that logo: the organization's primary, best-known logo (its main "
+        "wordmark or symbol), flat, front-on and centered, filling most of the frame, "
+        "on a plain solid near-black background with nothing else in the image - no scene, no "
+        "people, no devices, no props, no effects, no glow. Describe it as the real, "
+        "official logo, reproduced exactly - its real shapes, proportions and "
+        "wordmark - never an invented, stylized, simplified or approximate version, "
+        "and do not describe it in your own words beyond naming it (a description "
+        "invites a derivative). Always place the logo on a solid near-black "
+        "background - never on white or any light background, whatever the logo's "
+        "own colors. This show's graphics are all dark and subdued, and a light "
+        "logo card would clash with them. "
+        "When the story is about a product, feature or service made by a famous "
+        "organization (Gemini or Classroom inside Google, Copilot inside Microsoft, "
+        "iPad at Apple), use the logo of the famous parent organization, not the "
+        "product's - the parent's mark is the unambiguous one. Use a product's own "
+        "logo only when the product is itself the one famous mark (ChatGPT, YouTube, "
+        "Zoom). Where the correct logo is not unambiguous - a lesser-known company, a name "
+        "shared by several organizations, a recent rebrand you are unsure of, a "
+        "subsidiary versus its parent - use no logo at all rather than risk the wrong "
+        "one, and build an ordinary image around the story's concrete detail "
+        "instead. Never put a logo on a company other than the one it belongs to. A "
+        "logo-only image overrides every rule below about scenes, people and "
+        "concrete details; only the high-contrast rule still applies to it.\n"
+        "- If it is not a logo-only story, then before describing anything, find ONE "
+        "specific, concrete, filmable detail "
         "that is actually present in the lead story - a named technology, object, "
         "place, document, or action - and build the entire image around that one "
         "detail. Illustrate the one real, specific thing happening in the story, not "
@@ -90,11 +142,16 @@ def build_system_prompt(show_name):
         "school district's actual building, a named company's actual headquarters, "
         "a specific city street): never render it photorealistically as though it "
         "were genuine documentary photography of that real place - this risks "
-        "reading as an authentic photo of something that never happened there. A "
-        "generic, unbranded version of the same kind of setting (a modern school "
-        "hallway, a corporate office lobby, without claiming to be the specific "
-        "real one) is fine, as is an explicitly stylized/illustrative treatment of "
-        "the real place if that's the better fit.\n"
+        "reading as an authentic photo of something that never happened there. "
+        "Either use an explicitly stylized/illustrative treatment of the real "
+        "place, or pick a different concrete detail from the story to build the "
+        "image around. Do not substitute an anonymous, generic version of the "
+        "setting (a generic classroom, a generic office) - that is the same "
+        "stock-photo failure by another route.\n"
+        "- Do not make a computer monitor, laptop or tablet screen the default "
+        "subject. A screen is acceptable only when the story is specifically about "
+        "what appears on one; otherwise show the real-world consequence, object, "
+        "place or action the story is about.\n"
         "- If the lead story is genuinely about money - funding, valuation, revenue, "
         "a financial deal - general financial iconography is welcome: a currency "
         "symbol, a rising or falling arrow, a stock ticker strip, coins or "
@@ -106,9 +163,17 @@ def build_system_prompt(show_name):
         "million\", not \"BILLION\", not any digit) anywhere in the image, including "
         "as background signage, on-screen text, or a whiteboard/poster detail - the "
         "no-readable-text rule below still fully applies to financial imagery too.\n"
-        "- Do not include any company logo, brand mark, readable text, or numerals - "
-        "text-to-image models cannot reproduce real logos accurately, and this "
-        "show's own branding is composited on top afterward regardless.\n"
+        "- HIGH CONTRAST ONLY. The finished image is converted to a two-tone "
+        "monochrome, so it must read by brightness alone: one clear, bright, "
+        "well-lit subject against a clearly darker background (or a dark subject "
+        "against a clearly lighter one), a full tonal range from near-black to "
+        "near-white, strong directional lighting, and a simple, uncluttered "
+        "composition. Never dark-on-dark, pale-on-pale, low-key moody lighting, "
+        "murky shadows, fog, haze, or subjects distinguished only by hue. This "
+        "takes priority over any mood the story might suggest.\n"
+        "- Apart from a logo's own wordmark in a logo-only image, include no "
+        "readable text or numerals anywhere in the image - this show's own "
+        "branding is composited on top afterward regardless.\n"
         "- One paragraph, no preamble, no notes about your process."
     )
 

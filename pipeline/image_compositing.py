@@ -13,18 +13,20 @@ pipeline testable with zero external dependencies.
 import logging
 from io import BytesIO
 
-from PIL import Image, ImageChops, ImageEnhance, ImageOps
+from PIL import Image, ImageOps
 
 logger = logging.getLogger("net_gain.image_compositing")
 
-# The duotone algorithm's own fixed parameters (SPEC.md Section 7) - ported
-# directly from Net Gain Edtech's actual production design reference
-# (Duotone Guide.dc.html)'s "Values Quick Reference" table. Only the two
-# colors vary per show; this math does not.
-DUOTONE_CONTRAST = 1.4
-DUOTONE_BRIGHTNESS = 0.6
-DUOTONE_SHADOW_OPACITY = 0.95
-DUOTONE_HIGHLIGHT_OPACITY = 0.70
+# Duotone is a gradient map: the image's brightness range is stretched to
+# full (autocontrast, clipping this fraction of the darkest and lightest
+# pixels), then each brightness level is mapped onto a straight line between
+# the show's shadow color (black point) and highlight color (white point).
+# Replaced 2026-10-02: the earlier multiply/screen blend stack (ported from
+# the design reference's CSS) compressed a 0-255 image into a ~25-level band
+# (measured 62-83), so every graphic read as flat and murky regardless of how
+# contrasty the source was. The two colors are still the only per-show
+# parameters; the highlight color must therefore be a genuinely light tone.
+DUOTONE_AUTOCONTRAST_CUTOFF = 1
 
 # WebP has no hard cap (SPEC.md Section 7's table), but is still worth
 # optimizing for page-load performance/SEO - a soft, non-fatal target.
@@ -38,24 +40,17 @@ def _hex_to_rgb(hex_color):
 
 def apply_duotone(image, shadow_hex, highlight_hex):
     """
-    Greyscale -> contrast -> brightness -> shadow-color multiply blend ->
-    highlight-color screen blend. Mirrors the CSS reference implementation in
-    the duotone guide layer-for-layer: each color layer's "opacity" is an
-    Image.blend between the image before and after that blend-mode op,
-    matching how CSS mix-blend-mode + opacity composites a layer over
-    whatever is beneath it.
+    Grayscale -> autocontrast -> map brightness 0..255 linearly onto the
+    shadow color..highlight color gradient. Black becomes exactly the shadow
+    color and white exactly the highlight color.
     """
-    grey = ImageOps.grayscale(image).convert("RGB")
-    contrasted = ImageEnhance.Contrast(grey).enhance(DUOTONE_CONTRAST)
-    base = ImageEnhance.Brightness(contrasted).enhance(DUOTONE_BRIGHTNESS)
-
-    shadow_layer = Image.new("RGB", base.size, _hex_to_rgb(shadow_hex))
-    multiplied = ImageChops.multiply(base, shadow_layer)
-    after_shadow = Image.blend(base, multiplied, DUOTONE_SHADOW_OPACITY)
-
-    highlight_layer = Image.new("RGB", base.size, _hex_to_rgb(highlight_hex))
-    screened = ImageChops.screen(after_shadow, highlight_layer)
-    return Image.blend(after_shadow, screened, DUOTONE_HIGHLIGHT_OPACITY)
+    grey = ImageOps.autocontrast(ImageOps.grayscale(image), cutoff=DUOTONE_AUTOCONTRAST_CUTOFF)
+    shadow = _hex_to_rgb(shadow_hex)
+    highlight = _hex_to_rgb(highlight_hex)
+    channel_luts = [
+        [round(shadow[c] + (highlight[c] - shadow[c]) * v / 255) for v in range(256)] for c in range(3)
+    ]
+    return Image.merge("RGB", [grey.point(lut) for lut in channel_luts])
 
 
 def cover_resize(image, target_w, target_h):
