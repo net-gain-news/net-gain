@@ -4,8 +4,10 @@
  *
  * Available to an administrator and to the show's designated host, at any
  * point after the first audio upload. This class owns the synchronous half:
- * swapping the master attachment, repointing the website player, restarting a
- * running finalization countdown, and writing a replacement record. The
+ * swapping the master attachment, updating the page's structured-data audio
+ * URL, restarting a running finalization countdown, and writing a replacement
+ * record. (The website's player is Captivate's embed, so listeners on the
+ * site hear the new audio when Captivate's copy is swapped, not before.) The
  * asynchronous half (Captivate media swap; deleting and re-creating the
  * YouTube video) is carried out by the Python tick loop from that record -
  * the same one-execution-path rule as every other manual trigger (CLAUDE.md).
@@ -96,9 +98,9 @@ class Net_Gain_Audio_Replacement {
 			update_post_meta( $episode_id, 'ng_finalization', $finalization );
 		}
 
-		// The website's player and schema both read audio_file off the public
-		// post, a copy made at publish time - repoint it now so the page never
-		// serves the old recording.
+		// audio_file on the public post is a copy made at publish time that feeds
+		// only the page's schema.org contentUrl (the visible player is Captivate's
+		// embed) - keep it pointing at the current master.
 		$website_post_id = (int) get_post_meta( $episode_id, 'ng_website_post_id', true );
 		if ( $website_post_id ) {
 			update_post_meta( $website_post_id, 'audio_file', wp_get_attachment_url( $attachment_id ) );
@@ -246,11 +248,8 @@ class Net_Gain_Audio_Replacement {
 		$lines   = array( 'Replace this episode\'s audio file?' );
 		$effects = array();
 
-		if ( get_post_meta( $episode_id, 'ng_website_post_id', true ) ) {
-			$effects[] = '• The website player switches to the new file right away.';
-		}
 		if ( get_post_meta( $episode_id, 'ng_url_captivate', true ) ) {
-			$effects[] = '• Captivate: the audio is swapped. Nothing else about the episode there changes.';
+			$effects[] = '• Captivate: the audio is swapped. Nothing else about the episode there changes. The player on the website is Captivate\'s, so it follows.';
 		}
 		if ( get_post_meta( $episode_id, 'ng_youtube_video_id', true ) ) {
 			$effects[] = '• YouTube: the current video is DELETED and a new one is created from the new audio. It will be a different video at a different URL.';
@@ -265,7 +264,7 @@ class Net_Gain_Audio_Replacement {
 			$lines   = array_merge( $lines, $effects );
 		} else {
 			$lines[] = '';
-			$lines[] = 'It has not been published anywhere yet, so the new file will simply be used when it publishes.';
+			$lines[] = 'It has not been published to Captivate or YouTube yet, so the new file will simply be used when it publishes.';
 		}
 		$lines[] = '';
 		$lines[] = 'Images and metadata are not regenerated.';

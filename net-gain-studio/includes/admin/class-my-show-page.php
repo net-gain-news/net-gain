@@ -74,7 +74,7 @@ class Net_Gain_My_Show_Page {
 				</p>
 
 			<?php elseif ( 'finalized' === $state ) : ?>
-				<p>Finalized — queued, awaiting its scheduled publish time.</p>
+				<p><?php echo esc_html( self::finalized_message( $show_id, $episode->ID, $step_status ) ); ?></p>
 				<p><?php Net_Gain_Audio_Replacement::render_control( $episode->ID ); ?></p>
 
 			<?php else : /* pending or awaiting_replacement - script saved at least once, audio not yet received */ ?>
@@ -169,6 +169,58 @@ class Net_Gain_My_Show_Page {
 		<?php
 	}
 
+	/**
+	 * What to tell the host about a finalized episode. "Finalized" only means
+	 * the audio is locked in; by the time the host looks it has usually been
+	 * published, and saying it is still waiting for its scheduled time then is
+	 * wrong. Reports each destination's real state from the step statuses.
+	 * YouTube is only counted for shows that have a channel connected.
+	 */
+	private static function finalized_message( $show_id, $episode_id, $step_status ) {
+		$destinations = array(
+			'captivate_published' => 'Captivate',
+			'website_published'   => 'the website',
+		);
+		if ( Net_Gain_Secrets::exists( 'show', $show_id, 'youtube_oauth' ) ) {
+			$destinations['youtube_published'] = 'YouTube';
+		}
+
+		$published = array();
+		$pending   = array();
+		$failed    = array();
+		foreach ( $destinations as $step => $label ) {
+			$status = $step_status[ $step ]['status'] ?? 'pending';
+			if ( in_array( $status, array( 'done', 'degraded' ), true ) ) {
+				$published[] = $label;
+			} elseif ( 'failed' === $status ) {
+				$failed[] = $label;
+			} else {
+				$pending[] = $label; // pending, queued or in_progress.
+			}
+		}
+
+		if ( ! $published && ! $failed ) {
+			return 'Finalized — queued, awaiting its scheduled publish time.';
+		}
+
+		$message = $published ? 'Published to ' . self::join_names( $published ) . '.' : 'Finalized.';
+		if ( $pending ) {
+			$message .= ' Still to come: ' . self::join_names( $pending ) . '.';
+		}
+		if ( $failed ) {
+			$message .= ' Needs attention: ' . self::join_names( $failed ) . ' (an administrator has been alerted).';
+		}
+		return $message;
+	}
+
+	private static function join_names( array $names ) {
+		if ( count( $names ) <= 1 ) {
+			return implode( '', $names );
+		}
+		$last = array_pop( $names );
+		return implode( ', ', $names ) . ' and ' . $last;
+	}
+
 	private static function current_episode_for_show( $show_id ) {
 		$episodes = get_posts(
 			array(
@@ -200,7 +252,7 @@ class Net_Gain_My_Show_Page {
 				'aborted'                  => 'Aborted. Upload a replacement whenever you\'re ready.',
 				'published_now'            => 'Finalized immediately.',
 				'images_regenerate_queued' => 'Regeneration queued — the tick loop will pick this up on its next pass.',
-				'audio_replacement_queued'  => 'Audio replaced. Where this episode is already published, the new file is being sent along in the background over the next few minutes.',
+				'audio_replacement_queued'  => 'Audio replaced. Where this episode is already published (Captivate, YouTube), the new file is being sent along in the background over the next few minutes.',
 				'audio_replacement_retried' => 'Retrying the audio replacement on the next pass of the background job.',
 			);
 			$notice = sanitize_key( wp_unslash( $_GET['ng_notice'] ) );
