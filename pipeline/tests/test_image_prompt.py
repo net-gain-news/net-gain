@@ -5,7 +5,20 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from image_prompt import RESPONSE_SCHEMA, build_system_prompt, generate_image_prompt_for_episode
+from image_prompt import (
+    MAX_PROMPT_ATTEMPTS,
+    RESPONSE_SCHEMA,
+    ImagePromptError,
+    build_system_prompt,
+    find_prompt_problems,
+    generate_image_prompt_for_episode,
+)
+
+
+CLEAN = "A close-up of a teacher's hands holding an ID card beside a laptop camera, bright directional light, near-black background."
+# Real examples captured from live generations (2026-10-02).
+JUNK_TAIL_1 = CLEAN + "\u201d}  -- 1 valid JSON object only per instructions, correcting format below.  {"
+JUNK_TAIL_2 = CLEAN + "\u201d}on Hold the quotation marks; cleaner version needed without stray punctuation.}}',}) \uc774iderman);..{"
 
 
 class BuildSystemPromptTests(unittest.TestCase):
@@ -99,17 +112,73 @@ class GenerateImagePromptForEpisodeTests(unittest.TestCase):
             captured["user_content"] = user_content
             captured["tools"] = tools
             captured["response_schema"] = response_schema
-            return json.dumps({"image_prompt": "A concrete scene."})
+            return json.dumps({"image_prompt": CLEAN})
 
         result = generate_image_prompt_for_episode(
             fake_generate, "Net Gain Edtech", "2026-09-16", "Today's script text."
         )
 
-        self.assertEqual(result, "A concrete scene.")
+        self.assertEqual(result, CLEAN)
         self.assertEqual(captured["tools"], [])
         self.assertIs(captured["response_schema"], RESPONSE_SCHEMA)
         self.assertIn("Today's script text.", captured["user_content"])
         self.assertIn("2026-09-16", captured["user_content"])
+
+
+class FindPromptProblemsTests(unittest.TestCase):
+    def test_a_clean_prompt_has_no_problems(self):
+        self.assertEqual(find_prompt_problems(CLEAN), [])
+
+    def test_accents_curly_quotes_dashes_and_currency_symbols_are_fine(self):
+        self.assertEqual(find_prompt_problems(CLEAN + " A caf\u00e9 sign \u2014 \u201cOpen\u201d, priced in \u20ac and \u00a3."), [])
+
+    def test_rejects_both_real_junk_tails(self):
+        self.assertTrue(find_prompt_problems(JUNK_TAIL_1))
+        problems = find_prompt_problems(JUNK_TAIL_2)
+        self.assertIn("contains braces", problems)
+        self.assertIn("contains characters outside Latin text", problems)
+
+    def test_rejects_other_scripts_on_their_own(self):
+        self.assertIn("contains characters outside Latin text", find_prompt_problems(CLEAN + " \uc774"))
+
+    def test_rejects_json_talk_backticks_and_empty(self):
+        self.assertIn("mentions JSON", find_prompt_problems(CLEAN + " Return valid json."))
+        self.assertIn("contains a backtick", find_prompt_problems(CLEAN + " ```"))
+        self.assertIn("empty or too short", find_prompt_problems(""))
+        self.assertIn("empty or too short", find_prompt_problems(None))
+
+
+class GenerationGuardTests(unittest.TestCase):
+    def run_with(self, responses):
+        calls = []
+
+        def fake(system, user_content, tools, response_schema):
+            calls.append(1)
+            return responses[min(len(calls), len(responses)) - 1]
+
+        return calls, lambda: generate_image_prompt_for_episode(fake, "Net Gain Edtech", "2026-10-02", "script")
+
+    def test_a_clean_first_response_is_one_call(self):
+        calls, run = self.run_with([json.dumps({"image_prompt": CLEAN})])
+        self.assertEqual(run(), CLEAN)
+        self.assertEqual(len(calls), 1)
+
+    def test_junk_is_regenerated_and_the_clean_retry_is_returned(self):
+        calls, run = self.run_with([json.dumps({"image_prompt": JUNK_TAIL_1}), json.dumps({"image_prompt": CLEAN})])
+        self.assertEqual(run(), CLEAN)
+        self.assertEqual(len(calls), 2)
+
+    def test_a_malformed_response_is_retried_too(self):
+        calls, run = self.run_with(["not json at all", json.dumps({"image_prompt": CLEAN})])
+        self.assertEqual(run(), CLEAN)
+        self.assertEqual(len(calls), 2)
+
+    def test_gives_up_loudly_after_the_attempt_limit(self):
+        calls, run = self.run_with([json.dumps({"image_prompt": JUNK_TAIL_2})])
+        with self.assertRaises(ImagePromptError) as ctx:
+            run()
+        self.assertEqual(len(calls), MAX_PROMPT_ATTEMPTS)
+        self.assertIn("braces", str(ctx.exception))
 
 
 if __name__ == "__main__":

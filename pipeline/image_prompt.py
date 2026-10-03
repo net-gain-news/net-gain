@@ -61,12 +61,36 @@ a recognizable-logo story yields a logo-ONLY image - the logo alone, large,
 centered, flat, on a plain white or near-black background - and so every
 image is high-contrast by brightness, since the duotone discards hue.
 
+Guard added the same day (find_prompt_problems): generated prompts are
+validated and regenerated, up to MAX_PROMPT_ATTEMPTS, because about a third
+of them ended with stray model output appended inside the JSON string.
+
 Later the same day, after seeing the Google logo rendered on a light
 background beside seven dark, subdued graphics: logo-only images must always
 be on a solid near-black background, never white or light.
 """
 
 import json
+import logging
+import re
+
+logger = logging.getLogger("net_gain.image_prompt")
+
+# Total tries (first call plus retries) before giving up. The glitch this
+# guards against is intermittent, so a retry almost always clears it.
+MAX_PROMPT_ATTEMPTS = 3
+MIN_PROMPT_CHARS = 40
+MAX_PROMPT_CHARS = 3000
+
+# Latin text (including accents) and general punctuation/currency symbols are
+# normal in an image prompt; any other script (Korean, Chinese, Cyrillic...)
+# is the model's own output going wrong, not a description of a picture.
+_ALLOWED_CHARS = re.compile(r"[\u0000-\u024f\u2000-\u20cf]")
+
+
+class ImagePromptError(RuntimeError):
+    pass
+
 
 RESPONSE_SCHEMA = {
     "type": "object",
@@ -182,11 +206,61 @@ def build_user_message(episode_date, final_script):
     return f"Episode date: {episode_date}\n\nFinal script:\n\n{final_script}"
 
 
+def find_prompt_problems(prompt):
+    """
+    Reasons a generated prompt is not a clean one-paragraph picture
+    description, or [] if it is. Added 2026-10-02 after a live scan: roughly a
+    third of generated prompts ended with the model's own stray output
+    appended inside the JSON string - things like `no logos.\u201d}  -- 1 valid
+    JSON object only per instructions, correcting format below.  {` or a
+    run of unrelated Korean text. The image model mostly ignored it, but
+    nothing should be sending that to an image model. (The same scan found
+    none in the stored metadata fields, which are what gets published.)
+    """
+    problems = []
+    text = prompt if isinstance(prompt, str) else ""
+    if len(text.strip()) < MIN_PROMPT_CHARS:
+        problems.append("empty or too short")
+    if len(text) > MAX_PROMPT_CHARS:
+        problems.append("too long")
+    if "{" in text or "}" in text:
+        problems.append("contains braces")
+    if "`" in text:
+        problems.append("contains a backtick")
+    if re.search(r"json", text, re.IGNORECASE):
+        problems.append("mentions JSON")
+    if any(not _ALLOWED_CHARS.match(ch) for ch in text):
+        problems.append("contains characters outside Latin text")
+    return problems
+
+
 def generate_image_prompt_for_episode(anthropic_generate, show_name, episode_date, final_script):
-    text = anthropic_generate(
-        system=build_system_prompt(show_name),
-        user_content=build_user_message(episode_date, final_script),
-        tools=[],
-        response_schema=RESPONSE_SCHEMA,
+    last_problems = []
+    for attempt in range(1, MAX_PROMPT_ATTEMPTS + 1):
+        text = anthropic_generate(
+            system=build_system_prompt(show_name),
+            user_content=build_user_message(episode_date, final_script),
+            tools=[],
+            response_schema=RESPONSE_SCHEMA,
+        )
+        try:
+            prompt = json.loads(text)["image_prompt"]
+        except (ValueError, KeyError, TypeError) as exc:
+            last_problems = [f"response was not the expected JSON ({exc})"]
+            prompt = None
+        else:
+            last_problems = find_prompt_problems(prompt)
+            if not last_problems:
+                return prompt
+
+        logger.warning(
+            "Image prompt rejected (attempt %d of %d): %s | text: %.200r",
+            attempt, MAX_PROMPT_ATTEMPTS, "; ".join(last_problems), prompt if prompt is not None else text,
+        )
+
+    # Failing loudly sends the episode down the existing fallback-image path
+    # (degraded, with this message as the note) rather than rendering from a
+    # prompt known to be corrupted.
+    raise ImagePromptError(
+        f"No clean image prompt after {MAX_PROMPT_ATTEMPTS} attempts: {'; '.join(last_problems)}"
     )
-    return json.loads(text)["image_prompt"]
