@@ -5,7 +5,14 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from metadata_generation import RESPONSE_SCHEMA, build_system_prompt, generate_metadata_for_episode
+from metadata_generation import (
+    MAX_METADATA_ATTEMPTS,
+    RESPONSE_SCHEMA,
+    TITLE_MAX_CHARS,
+    build_system_prompt,
+    generate_metadata_for_episode,
+    overlong_titles,
+)
 
 
 class BuildSystemPromptTests(unittest.TestCase):
@@ -14,6 +21,18 @@ class BuildSystemPromptTests(unittest.TestCase):
         self.assertIn("Net Gain Edtech", prompt)
         self.assertIn("youtube_tags", prompt)
         self.assertIn("125 characters", prompt)
+
+    def test_caps_the_captivate_and_website_titles_at_two_stories_and_sixty_characters(self):
+        """Operator decision 2026-10-02: three-story, 65-90 character titles were hard to read and got
+        cut off in podcast apps and Google."""
+        prompt = build_system_prompt("Net Gain Edtech")
+        self.assertEqual(TITLE_MAX_CHARS, 60)
+        self.assertIn("at most 60", prompt)
+        self.assertIn("at most TWO", prompt)
+        self.assertIn("lead", prompt)
+
+    def test_youtube_title_rule_is_unchanged(self):
+        self.assertIn("youtube_title: under 100 characters", build_system_prompt("Net Gain Edtech"))
 
 
 class GenerateMetadataForEpisodeTests(unittest.TestCase):
@@ -47,6 +66,49 @@ class GenerateMetadataForEpisodeTests(unittest.TestCase):
         self.assertIs(captured["response_schema"], RESPONSE_SCHEMA)
         self.assertIn("Today's script text.", captured["user_content"])
         self.assertIn("2026-09-07", captured["user_content"])
+
+
+class TitleLimitGuardTests(unittest.TestCase):
+    def _meta(self, captivate="Short title", aioseo="Short SEO title"):
+        return {
+            "captivate_title": captivate, "captivate_notes": "n", "aioseo_title": aioseo,
+            "aioseo_description": "d", "website_excerpt": "e", "youtube_title": "y" * 95,
+            "youtube_description": "yd", "youtube_tags": ["t"],
+        }
+
+    def _run(self, metas):
+        calls = []
+
+        def fake(system, user_content, tools, response_schema):
+            calls.append(1)
+            return json.dumps(metas[min(len(calls), len(metas)) - 1])
+
+        return calls, generate_metadata_for_episode(fake, "Net Gain Edtech", "2026-10-02", "script")
+
+    def test_exactly_sixty_characters_is_allowed(self):
+        self.assertEqual(overlong_titles(self._meta(captivate="x" * 60, aioseo="y" * 60)), {})
+        self.assertEqual(overlong_titles(self._meta(captivate="x" * 61)), {"captivate_title": 61})
+
+    def test_the_youtube_title_is_not_subject_to_the_sixty_character_limit(self):
+        calls, result = self._run([self._meta()])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(result["youtube_title"]), 95)
+
+    def test_an_over_limit_title_is_regenerated_and_the_compliant_attempt_returned(self):
+        calls, result = self._run([self._meta(captivate="x" * 80), self._meta(captivate="Fits fine")])
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(result["captivate_title"], "Fits fine")
+
+    def test_when_no_attempt_complies_each_title_takes_its_shortest_attempt(self):
+        metas = [
+            self._meta(captivate="c" * 90, aioseo="a" * 70),
+            self._meta(captivate="c" * 70, aioseo="a" * 85),
+            self._meta(captivate="c" * 80, aioseo="a" * 75),
+        ]
+        calls, result = self._run(metas)
+        self.assertEqual(len(calls), MAX_METADATA_ATTEMPTS)
+        self.assertEqual(len(result["captivate_title"]), 70)
+        self.assertEqual(len(result["aioseo_title"]), 70)
 
 
 if __name__ == "__main__":
