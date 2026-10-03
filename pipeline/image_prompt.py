@@ -78,7 +78,7 @@ logger = logging.getLogger("net_gain.image_prompt")
 
 # Total tries (first call plus retries) before giving up. The glitch this
 # guards against is intermittent, so a retry almost always clears it.
-MAX_PROMPT_ATTEMPTS = 3
+MAX_PROMPT_ATTEMPTS = 5
 MIN_PROMPT_CHARS = 40
 MAX_PROMPT_CHARS = 3000
 
