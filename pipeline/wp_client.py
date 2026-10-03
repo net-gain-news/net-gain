@@ -178,6 +178,17 @@ class WPClient:
             json={"status": status, "note": note},
         )
 
+    def update_audio_replacement(self, episode_id, destination, status, note="", data=None):
+        """Reports one destination's progress on an episode's pending audio
+        replacement (class-rest-audio-replacement.php). `data` merges extra
+        facts into that destination's record (e.g. the Captivate media_id
+        already uploaded, so a retry never uploads twice)."""
+        return self._request(
+            "PATCH",
+            f"/wp-json/net-gain/v1/episodes/{episode_id}/audio-replacement",
+            json={"destination": destination, "status": status, "note": note, "data": data or {}},
+        )
+
     def publish_website(self, episode_id):
         return self._request("POST", f"/wp-json/net-gain/v1/episodes/{episode_id}/publish-website")
 

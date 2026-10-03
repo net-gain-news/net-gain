@@ -64,6 +64,9 @@ class Net_Gain_REST_Tick_Context {
 				'youtube_description_boilerplate' => get_post_meta( $show->ID, 'ng_youtube_description_boilerplate', true ),
 				'effective_talent_today' => Net_Gain_Talent_Assignments::get_effective_talent( $show->ID, $today ),
 				'in_flight_episodes'  => $this->in_flight_episodes( $show->ID ),
+				// Separate from in_flight_episodes: a replaced episode is usually fully
+				// published (settled), so it would never appear in that list.
+				'audio_replacements'  => Net_Gain_Audio_Replacement::pending_for_show( $show->ID ),
 			);
 		}
 

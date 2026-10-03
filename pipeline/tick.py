@@ -40,6 +40,7 @@ import edtech_index
 import youtube_client as yt
 from anthropic_client import generate as anthropic_generate
 from audio_conversion import convert_to_captivate_bitrate
+from audio_replacement import process_audio_replacements
 from captivate_client import CaptivateClient
 from config import ConfigError, load_config
 from image_generation import FALLBACK_META_KEYS, IMAGE_META_KEYS, build_vertex_client, render_images_for_episode
@@ -983,6 +984,14 @@ def process_youtube_publishes(wp, client, config, show):
 
 
 def process_show(wp, client, captivate, vertex_client, config, show):
+    # First, so a replaced episode's destinations are settled (Captivate
+    # re-pointed, old YouTube video deleted and its step reset) before this
+    # same pass's publish steps look at them. SPEC.md Section 8.4.
+    try:
+        process_audio_replacements(wp, captivate, config, show, notify_failure)
+    except Exception:
+        logger.exception("Error processing audio replacements for %s", show["name"])
+
     try:
         check_finalizations(wp, show)
     except Exception:

@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.6.15
+ * Version:           0.7.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -27,7 +27,7 @@ if ( ! isset( $_SERVER['HTTP_AUTHORIZATION'] ) && isset( $_SERVER['REDIRECT_HTTP
 	$_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
 }
 
-define( 'NET_GAIN_VERSION', '0.6.1' );
+define( 'NET_GAIN_VERSION', '0.7.0' );
 define( 'NET_GAIN_PLUGIN_FILE', __FILE__ );
 define( 'NET_GAIN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -41,11 +41,13 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/class-cpt-show.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-cpt-episode.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-attachment-guard.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-guidelines.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/class-audio-replacement.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-permissions.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-tick-context.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-show-actions.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-show-talent.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-episode-steps.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-audio-replacement.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-secrets.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-website-publish.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-index-snapshot.php';
@@ -85,6 +87,7 @@ add_action(
 		( new Net_Gain_REST_Show_Actions() )->register_routes();
 		( new Net_Gain_REST_Show_Talent() )->register_routes();
 		( new Net_Gain_REST_Episode_Steps() )->register_routes();
+		( new Net_Gain_REST_Audio_Replacement() )->register_routes();
 		( new Net_Gain_REST_Secrets() )->register_routes();
 		( new Net_Gain_REST_Website_Publish() )->register_routes();
 		( new Net_Gain_REST_Index_Snapshot() )->register_routes();

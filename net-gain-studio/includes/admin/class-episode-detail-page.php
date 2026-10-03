@@ -56,7 +56,11 @@ class Net_Gain_Episode_Detail_Page {
 
 			<h2>Audio</h2>
 			<?php if ( $audio_id ) : ?>
-				<p><a href="<?php echo esc_url( wp_get_attachment_url( $audio_id ) ); ?>" target="_blank" rel="noopener">Listen to master audio file</a></p>
+				<p>
+					<a href="<?php echo esc_url( wp_get_attachment_url( $audio_id ) ); ?>" target="_blank" rel="noopener">Listen to master audio file</a>
+					&nbsp;
+					<?php Net_Gain_Audio_Replacement::render_control( $episode_id ); ?>
+				</p>
 			<?php else : ?>
 				<p>No audio uploaded yet — talent uploads from the My Show screen.</p>
 			<?php endif; ?>
@@ -150,8 +154,13 @@ class Net_Gain_Episode_Detail_Page {
 	}
 
 	private static function render_notices() {
-		if ( isset( $_GET['ng_notice'] ) && 'action_queued' === $_GET['ng_notice'] ) {
+		$notice = isset( $_GET['ng_notice'] ) ? sanitize_key( wp_unslash( $_GET['ng_notice'] ) ) : '';
+		if ( 'action_queued' === $notice ) {
 			echo '<div class="notice notice-success is-dismissible"><p>Queued — the tick loop will pick this up on its next pass.</p></div>';
+		} elseif ( 'audio_replacement_queued' === $notice ) {
+			echo '<div class="notice notice-success is-dismissible"><p>Audio replaced. Captivate and YouTube (where this episode is already published) are being brought up to date by the background job over the next few minutes.</p></div>';
+		} elseif ( 'audio_replacement_retried' === $notice ) {
+			echo '<div class="notice notice-success is-dismissible"><p>Retrying the audio replacement on the next pass of the background job.</p></div>';
 		}
 	}
 }

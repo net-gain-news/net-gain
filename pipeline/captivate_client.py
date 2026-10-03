@@ -12,6 +12,8 @@ Captivate-failure tooltip should point at the logged raw response first.
 """
 
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -174,3 +176,50 @@ class CaptivateClient:
             return response.json()
         except ValueError:
             raise CaptivateError(f"{method} {path} returned a non-JSON response: {response.text[:1000]}")
+
+
+# --- shared by the audio-replacement facility (audio_replacement.py) -----------
+# (fix_captivate_bitrate.py, a one-off from before this existed, carries its
+# own older copies of the first two - left alone deliberately.)
+
+CAPTIVATE_ACCOUNT_TIMEZONE = ZoneInfo("America/Los_Angeles")
+
+
+def parse_captivate_timestamp(value):
+    """Captivate returns published_date in two shapes depending on how the
+    record was last written: "2026-09-18T15:18:00.000Z" (UTC, POST-created) or
+    "2026/09/18 08:18:00" (account-local wall clock, PUT-updated) - confirmed
+    live. Parses either into a timezone-aware datetime."""
+    if not value:
+        return None
+    if value.endswith("Z"):
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    naive = datetime.strptime(value, "%Y/%m/%d %H:%M:%S")
+    return naive.replace(tzinfo=CAPTIVATE_ACCOUNT_TIMEZONE)
+
+
+def episode_update_payload(episode, captivate_show_id, media_id):
+    """
+    Full-field PUT /episodes/{id} body: every documented field resent from the
+    episode's CURRENT values, with only media_id taking a new value. The
+    endpoint accepts the same full field set as create and has no confirmed
+    partial-update guarantee, so never send a partial body. Fields the read
+    response has no value for are omitted rather than guessed.
+    """
+    published = parse_captivate_timestamp(episode["published_date"])
+    return {
+        "shows_id": captivate_show_id,
+        "title": episode["title"],
+        "itunes_title": episode.get("itunes_title") or "",
+        "media_id": media_id,
+        "date": published.astimezone(CAPTIVATE_ACCOUNT_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S"),
+        "status": episode["status"],
+        "shownotes": episode.get("shownotes") or "",
+        "summary": episode.get("summary") or "",
+        "itunes_subtitle": episode.get("itunes_subtitle") or "",
+        "episode_art": episode.get("episode_art") or "",
+        "explicit": episode.get("explicit") or "",
+        "episode_type": episode.get("episode_type") or "",
+        "episode_number": episode["episode_number"],
+        "itunes_block": episode.get("itunes_block") or "false",
+    }

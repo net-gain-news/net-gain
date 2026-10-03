@@ -115,6 +115,26 @@ def set_thumbnail(service, video_id, image_path):
     _execute_with_retry(service.thumbnails().set(videoId=video_id, media_body=media))
 
 
+def delete_video(service, video_id):
+    """
+    Deletes one of our own videos (needs the youtube.force-ssl scope, which the
+    OAuth connect flow already requests). Returns True if it was deleted now,
+    False if YouTube says it no longer exists - so a retry after a crash that
+    happened between the delete and our own bookkeeping is safe, not an error.
+    Not wrapped in call_with_retries: a 5xx on a delete is ambiguous (it may
+    have succeeded), and the caller's own retry-next-tick handles that through
+    the 404-means-already-gone path above.
+    """
+    try:
+        service.videos().delete(id=video_id).execute()
+        return True
+    except HttpError as exc:
+        status_code = exc.resp.status if getattr(exc, "resp", None) else None
+        if status_code == 404:
+            return False
+        raise YouTubeError(f"videos.delete failed for {video_id}: {_http_error_body(exc)}") from exc
+
+
 def get_video_state(service, video_id):
     """
     Normalized snapshot of a video's processing/publish state. An empty

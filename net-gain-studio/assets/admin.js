@@ -96,6 +96,40 @@
 			frame.open();
 		} );
 
+		// Replace the audio of an already-recorded episode (Spec Section 8.4):
+		// confirm what it will do to THIS episode (text built server-side from the
+		// episode's actual state), pick the new file, then hand off to the server.
+		$( document ).on( 'click', '.ng-replace-audio', function ( e ) {
+			e.preventDefault();
+			var episodeId = $( this ).data( 'episode-id' );
+			if ( ! window.confirm( $( this ).attr( 'data-confirm' ) ) ) {
+				return;
+			}
+
+			var frame = wp.media( {
+				title: 'Select or Upload the Replacement Audio',
+				button: { text: 'Use this file' },
+				library: { type: 'audio' },
+				multiple: false,
+			} );
+
+			frame.on( 'select', function () {
+				var attachment = frame.state().get( 'selection' ).first().toJSON();
+				ngRestPost( '/episodes/' + episodeId + '/replace-audio', { attachment_id: attachment.id } )
+					.done( function () { ngReloadWithNotice( 'audio_replacement_queued' ); } )
+					.fail( ngShowError );
+			} );
+
+			frame.open();
+		} );
+
+		$( document ).on( 'click', '.ng-retry-audio-replacement', function () {
+			var episodeId = $( this ).data( 'episode-id' );
+			ngRestPost( '/episodes/' + episodeId + '/replace-audio/retry', {} )
+				.done( function () { ngReloadWithNotice( 'audio_replacement_retried' ); } )
+				.fail( ngShowError );
+		} );
+
 		$( document ).on( 'click', '.ng-abort, .ng-publish-now', function () {
 			var episodeId = $( this ).data( 'episode-id' );
 			var isAbort = $( this ).hasClass( 'ng-abort' );

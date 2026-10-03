@@ -75,6 +75,7 @@ class Net_Gain_My_Show_Page {
 
 			<?php elseif ( 'finalized' === $state ) : ?>
 				<p>Finalized — queued, awaiting its scheduled publish time.</p>
+				<p><?php Net_Gain_Audio_Replacement::render_control( $episode->ID ); ?></p>
 
 			<?php else : /* pending or awaiting_replacement - script saved at least once, audio not yet received */ ?>
 				<?php if ( 'awaiting_replacement' === $state ) : ?>
@@ -115,7 +116,56 @@ class Net_Gain_My_Show_Page {
 				</div>
 				<button type="button" class="button ng-regenerate-images" data-episode-id="<?php echo esc_attr( $episode->ID ); ?>" data-show-id="<?php echo esc_attr( $show_id ); ?>">Regenerate Images</button>
 			<?php endif; ?>
+
+			<?php self::render_earlier_episodes( $show_id, $episode ? $episode->ID : 0 ); ?>
 		</div>
+		<?php
+	}
+
+	/**
+	 * Recent episodes other than the one the card above is about, collapsed by
+	 * default - the host's way to reach an already-published episode to
+	 * replace its audio (Spec Section 8.4) without crowding the daily view.
+	 */
+	private static function render_earlier_episodes( $show_id, $current_episode_id ) {
+		$episodes = get_posts(
+			array(
+				'post_type'      => Net_Gain_CPT_Episode::POST_TYPE,
+				'post_parent'    => $show_id,
+				'posts_per_page' => 11,
+				'orderby'        => 'date',
+				'order'          => 'desc',
+			)
+		);
+		$rows = array();
+		foreach ( $episodes as $earlier ) {
+			if ( (int) $earlier->ID === (int) $current_episode_id ) {
+				continue;
+			}
+			if ( ! get_post_meta( $earlier->ID, 'ng_audio_attachment_id', true ) ) {
+				continue; // nothing recorded yet, so nothing to replace.
+			}
+			$rows[] = $earlier;
+		}
+		if ( ! $rows ) {
+			return;
+		}
+		?>
+		<hr>
+		<details>
+			<summary style="cursor:pointer;">Earlier episodes — replace an audio file</summary>
+			<table class="widefat striped" style="margin-top:10px;">
+				<tbody>
+				<?php foreach ( array_slice( $rows, 0, 10 ) as $earlier ) : ?>
+					<tr>
+						<td style="white-space:nowrap;"><?php echo esc_html( get_post_meta( $earlier->ID, 'ng_episode_date', true ) ); ?></td>
+						<td><?php echo esc_html( $earlier->post_title ); ?></td>
+						<td><?php Net_Gain_Audio_Replacement::render_control( $earlier->ID ); ?></td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+		</details>
 		<?php
 	}
 
@@ -150,6 +200,8 @@ class Net_Gain_My_Show_Page {
 				'aborted'                  => 'Aborted. Upload a replacement whenever you\'re ready.',
 				'published_now'            => 'Finalized immediately.',
 				'images_regenerate_queued' => 'Regeneration queued — the tick loop will pick this up on its next pass.',
+				'audio_replacement_queued'  => 'Audio replaced. Where this episode is already published, the new file is being sent along in the background over the next few minutes.',
+				'audio_replacement_retried' => 'Retrying the audio replacement on the next pass of the background job.',
 			);
 			$notice = sanitize_key( wp_unslash( $_GET['ng_notice'] ) );
 			if ( isset( $messages[ $notice ] ) ) {
