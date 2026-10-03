@@ -62,7 +62,13 @@ class VerifyCaptivateSwapTests(unittest.TestCase):
         before = captivate_episode()
         problems = ar.verify_captivate_swap(before, captivate_episode(), "new-media")
         self.assertTrue(any("media_id" in p for p in problems))
-        self.assertTrue(any("media_url" in p for p in problems))
+
+    def test_an_unchanged_media_url_is_not_a_failure(self):
+        """Live finding (2026-10-02): Captivate's media_url is keyed to the episode id, so it never changes
+        on a media swap. The first version demanded it change and falsely failed a swap that had worked."""
+        before = captivate_episode(media_url="https://episodes.captivate.fm/episode/cap-1.mp3")
+        after = captivate_episode(media_id="new-media", media_url="https://episodes.captivate.fm/episode/cap-1.mp3")
+        self.assertEqual(ar.verify_captivate_swap(before, after, "new-media"), [])
 
     def test_flags_the_publish_date_moving(self):
         before = captivate_episode()
@@ -78,7 +84,7 @@ class SwapCaptivateAudioTests(unittest.TestCase):
         self.captivate = mock.Mock()
         self.captivate.upload_media.return_value = "new-media"
         self.before = captivate_episode()
-        self.after = captivate_episode(media_id="new-media", media_url="https://x/new.mp3")
+        self.after = captivate_episode(media_id="new-media")
         self.captivate.get_episode.side_effect = [{"episode": self.before}, {"episode": self.after}]
         self.show = {"id": 16, "captivate_show_id": "show-1"}
         self.meta = {"ng_url_captivate": "https://player.captivate.fm/episode/cap-1"}

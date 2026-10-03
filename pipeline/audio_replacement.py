@@ -55,10 +55,13 @@ def _unwrap_episode(response):
 def verify_captivate_swap(before, after, new_media_id):
     """Returns a list of problems (empty = the swap changed only the media)."""
     problems = []
+    # media_id is the proof the swap took. media_url is NOT checked: Captivate
+    # keys it to the EPISODE id (episodes.captivate.fm/episode/{episode-id}.mp3),
+    # so it stays identical after a media swap - an earlier version of this check
+    # demanded it change and falsely failed a swap that had worked (live,
+    # 2026-10-02).
     if str(after.get("media_id")) != str(new_media_id):
         problems.append(f"media_id is {after.get('media_id')!r}, expected {new_media_id!r}")
-    if after.get("media_url") == before.get("media_url"):
-        problems.append("media_url did not change")
     for field in CAPTIVATE_UNCHANGED_FIELDS:
         if (before.get(field) or "") != (after.get(field) or ""):
             problems.append(f"{field} changed: was {before.get(field)!r}, now {after.get(field)!r}")
