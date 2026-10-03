@@ -92,6 +92,14 @@ class SwapCaptivateAudioTests(unittest.TestCase):
         self.assertEqual(status, "skipped")
         self.captivate.upload_media.assert_not_called()
 
+    def test_signs_in_to_captivate_before_any_call(self):
+        """Live bug (2026-10-02): the client authenticates lazily, and this path skipped it, so the
+        very first upload was a 401 Unauthorized."""
+        self.run_swap({"new_attachment_id": 9, "destinations": {"captivate": {"status": "pending"}}})
+        names = [c[0] for c in self.captivate.method_calls]
+        self.assertEqual(names[0], "ensure_authenticated")
+        self.assertLess(names.index("ensure_authenticated"), names.index("upload_media"))
+
     def test_uploads_converted_audio_then_updates_and_verifies(self):
         status, note, data = self.run_swap({"new_attachment_id": 9, "destinations": {"captivate": {"status": "pending"}}})
         self.assertEqual(status, "done")

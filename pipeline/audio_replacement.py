@@ -76,6 +76,11 @@ def swap_captivate_audio(wp, captivate, show, episode_id, meta, record):
     if not cap_id:
         return "skipped", "Not on Captivate yet - it will use the new audio when it publishes.", {}
 
+    # The client signs in lazily, once per process (publish_to_captivate does
+    # the same). Without this the first call below is an unauthenticated 401 -
+    # found live on the first real replacement (2026-10-02).
+    captivate.ensure_authenticated()
+
     destination = (record.get("destinations") or {}).get("captivate") or {}
     new_attachment_id = record["new_attachment_id"]
     media_id = destination.get("media_id")
