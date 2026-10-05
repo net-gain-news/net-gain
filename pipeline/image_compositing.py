@@ -17,16 +17,17 @@ from PIL import Image, ImageOps
 
 logger = logging.getLogger("net_gain.image_compositing")
 
-# Duotone is a gradient map: the image's brightness range is stretched to
-# full (autocontrast, clipping this fraction of the darkest and lightest
-# pixels), then each brightness level is mapped onto a straight line between
-# the show's shadow color (black point) and highlight color (white point).
-# Replaced 2026-10-02: the earlier multiply/screen blend stack (ported from
-# the design reference's CSS) compressed a 0-255 image into a ~25-level band
-# (measured 62-83), so every graphic read as flat and murky regardless of how
-# contrasty the source was. The two colors are still the only per-show
-# parameters; the highlight color must therefore be a genuinely light tone.
-DUOTONE_AUTOCONTRAST_CUTOFF = 1
+# Duotone is a gradient map: brightness is scaled so the image's near-brightest
+# pixels (this percentile) reach the show's highlight color, then every
+# brightness level is mapped linearly between the shadow color and highlight
+# color. The BLACK end is deliberately NOT stretched (2026-10-05): an earlier
+# full autocontrast pulled an image's darkest pixels to exactly the shadow
+# color, which is also the overlay bar's color - so a dark background merged
+# into the bar no matter how the image was prompted. Now a background that is
+# mid-dark in the source stays visibly lighter than the bar. (History: the
+# original multiply/screen blend stack, replaced 2026-10-02, compressed images
+# into a ~25-level band and read as flat.)
+DUOTONE_WHITE_POINT_PERCENTILE = 99
 
 # WebP has no hard cap (SPEC.md Section 7's table), but is still worth
 # optimizing for page-load performance/SEO - a soft, non-fatal target.
@@ -40,17 +41,29 @@ def _hex_to_rgb(hex_color):
 
 def apply_duotone(image, shadow_hex, highlight_hex):
     """
-    Grayscale -> autocontrast -> map brightness 0..255 linearly onto the
-    shadow color..highlight color gradient. Black becomes exactly the shadow
-    color and white exactly the highlight color.
+    Grayscale -> scale so the bright end reaches full -> map brightness 0..255
+    linearly onto the shadow color..highlight color gradient. Pure black stays
+    exactly the shadow color; mid-darks stay proportionally above it.
     """
-    grey = ImageOps.autocontrast(ImageOps.grayscale(image), cutoff=DUOTONE_AUTOCONTRAST_CUTOFF)
+    grey = ImageOps.grayscale(image)
+    histogram = grey.histogram()
+    total = sum(histogram)
+    white_point, seen = 255, 0
+    for level in range(255, -1, -1):
+        seen += histogram[level]
+        if seen >= total * (100 - DUOTONE_WHITE_POINT_PERCENTILE) / 100:
+            white_point = level
+            break
+    # A nearly-black image has no meaningful white point to scale up to.
+    white_point = max(white_point, 32)
+    scaled = grey.point([min(255, round(v * 255 / white_point)) for v in range(256)])
+
     shadow = _hex_to_rgb(shadow_hex)
     highlight = _hex_to_rgb(highlight_hex)
     channel_luts = [
         [round(shadow[c] + (highlight[c] - shadow[c]) * v / 255) for v in range(256)] for c in range(3)
     ]
-    return Image.merge("RGB", [grey.point(lut) for lut in channel_luts])
+    return Image.merge("RGB", [scaled.point(lut) for lut in channel_luts])
 
 
 def cover_resize(image, target_w, target_h):

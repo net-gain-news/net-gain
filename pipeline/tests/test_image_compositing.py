@@ -23,13 +23,22 @@ class ApplyDuotoneTests(unittest.TestCase):
         self.assertEqual(result.getpixel((0, 0)), (0x1E, 0x26, 0x20))
         self.assertEqual(result.getpixel((255, 0)), (0xA9, 0xCB, 0xA0))
 
-    def test_stretches_a_low_contrast_source_to_the_full_color_range(self):
-        flat = Image.new("RGB", (256, 1))
-        flat.putdata([(100 + v // 8, 100 + v // 8, 100 + v // 8) for v in range(256)])
-        result = apply_duotone(flat, "#000000", "#ffffff")
-        values = [result.getpixel((x, 0))[0] for x in range(256)]
-        self.assertLess(min(values), 10)
-        self.assertGreater(max(values), 245)
+    def test_the_bright_end_is_scaled_up_to_the_highlight_color(self):
+        dim = Image.new("RGB", (256, 1))
+        dim.putdata([(v // 2, v // 2, v // 2) for v in range(256)])  # brightest pixel is only 127
+        result = apply_duotone(dim, "#000000", "#ffffff")
+        self.assertGreater(max(result.getpixel((x, 0))[0] for x in range(256)), 245)
+
+    def test_the_black_end_is_not_stretched_so_a_mid_dark_ground_stays_above_the_shadow_color(self):
+        """Live finding (2026-10-05): autocontrast pulled a dark background to exactly the shadow color,
+        which is also the overlay bar's color, so the two merged. A ground that is mid-dark in the source
+        (about one third brightness) must stay visibly lighter than the bar."""
+        image = Image.new("RGB", (100, 2), (85, 85, 85))      # the ground, ~1/3 brightness
+        image.paste((235, 235, 235), (0, 0, 100, 1))          # a bright subject row
+        result = apply_duotone(image, "#1e2620", "#3d6b4a")
+        ground, shadow = result.getpixel((50, 1)), (0x1E, 0x26, 0x20)
+        self.assertGreater(ground[1], shadow[1] + 15)         # clearly distinct from the bar colour
+        self.assertGreater(result.getpixel((50, 0))[1], ground[1])  # subject still lighter than ground
 
     def test_midtones_are_strictly_between_the_two_colors(self):
         result = apply_duotone(self._gradient(), "#1e2620", "#a9cba0")

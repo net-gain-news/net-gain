@@ -68,6 +68,17 @@ of them ended with stray model output appended inside the JSON string.
 Later the same day, after seeing the Google logo rendered on a light
 background beside seven dark, subdued graphics: logo-only images must always
 be on a solid near-black background, never white or light.
+
+2026-10-05, after YouTube auto-labeled photorealistic episode art as
+AI-generated despite an explicit "not synthetic" declaration (the operator
+asserts the content is not AI to listeners): the "prefer photorealistic"
+preference is REMOVED. The model now writes only a subject description and the
+code appends one hardcoded house art style (ART_STYLE: handmade cut-paper
+collage) for every show - shows differ only by duotone palette. Logo-only
+images get the same style (logo cut from paper), not a flat exemption. The logo-only
+background became mid-dark charcoal rather than near-black (a black ground
+rendered the same colour as the overlay bar), and the high-contrast rule was
+replaced by a tone rule since the art style now owns the background tone.
 """
 
 import json
@@ -94,10 +105,61 @@ class ImagePromptError(RuntimeError):
 
 RESPONSE_SCHEMA = {
     "type": "object",
-    "properties": {"image_prompt": {"type": "string"}},
-    "required": ["image_prompt"],
+    "properties": {"image_prompt": {"type": "string"}, "logo_only": {"type": "boolean"}},
+    "required": ["image_prompt", "logo_only"],
     "additionalProperties": False,
 }
+
+# The house art style, hardcoded for every show and vertical on purpose
+# (operator decision 2026-10-05): shows differ only by their duotone palette,
+# so every graphic is uniform. Appended in code to the subject description
+# the model writes - never left to the model to restate. Applied to logo-only
+# images too (operator decision 2026-10-05) so every graphic is uniform; the logo
+# variant only changes the no-text sentence to permit the real logo.
+#
+# Why each part is there: "cut paper" (not photographic) because YouTube
+# auto-labels photorealistic AI imagery as AI-generated, which the show's
+# human-recorded, human-edited content must not carry; a dark charcoal
+# ground (about a quarter brightness, never black) because the duotone maps black to the shadow color,
+# which is also the overlay bar's color, so a black ground merges into the bar;
+# and the safe-area sentence because the bottom fifth is covered by the
+# overlay (best-effort only - minor intrusion there is accepted, no retry).
+_ART_STYLE_CORE = (
+    "Handmade cut-paper collage, photographed flat from directly above (orthographic "
+    "view, no perspective). Every shape is visibly cut from paper: fibre grain and "
+    "slight tooth on each sheet, crisp knife-cut edges showing a thin paper "
+    "thickness, tiny hand-cut imperfections, the occasional lifted corner or curl. "
+    "Three to five stacked layers with soft contact shadows only directly beneath "
+    "each layer's edge, each layer a different paper tone from light to dark, with "
+    "subtle colour variation within each sheet; lit softly from above and slightly "
+    "left, like a craft table. Simplified iconic forms, one focal subject. The "
+    "background layer is a single sheet of dark charcoal-grey paper filling the entire "
+    "frame, about one-quarter brightness: clearly dark and noticeably darker than "
+    "mid-grey, but not black; the subject is built from noticeably lighter paper tones "
+    "so it stands out clearly from the ground. No gradients, glow, lens blur, depth of "
+    "field, realistic lighting, reflections, 3D rendering, or smooth plastic or metal "
+    "surfaces."
+)
+_ART_STYLE_NO_TEXT = " Absolutely no text, letters, numerals or logos."
+_ART_STYLE_LOGO_TEXT = (
+    " The only text or marks anywhere in the image are the organisation's real logo "
+    "itself, reproduced exactly in its real shapes, proportions and wordmark but cut "
+    "from paper; no other text, letters or numerals."
+)
+_ART_STYLE_SAFE_AREA = (
+    " Safe area: place the whole subject, every layer and detail, within the top 65 "
+    "percent of the frame, centered horizontally; the bottom 35 percent is plain "
+    "background paper only, because an overlay covers the bottom fifth."
+)
+ART_STYLE = _ART_STYLE_CORE + _ART_STYLE_NO_TEXT + _ART_STYLE_SAFE_AREA
+ART_STYLE_LOGO = _ART_STYLE_CORE + _ART_STYLE_LOGO_TEXT + _ART_STYLE_SAFE_AREA
+
+
+def compose_image_prompt(subject, logo_only):
+    """The text actually sent to the image model: the model-written subject plus
+    the house style. Logo-only images get the same style, with the one change
+    that the logo itself is the permitted mark."""
+    return f"{subject.strip()} {ART_STYLE_LOGO if logo_only else ART_STYLE}"
 
 
 def build_system_prompt(show_name):
@@ -117,16 +179,14 @@ def build_system_prompt(show_name):
         "the internet (e.g. Google, Microsoft, Apple, Amazon, Meta, OpenAI) - the "
         "image IS that logo: the organization's primary, best-known logo (its main "
         "wordmark or symbol), flat, front-on and centered, filling most of the frame, "
-        "on a plain solid near-black background with nothing else in the image - no scene, no "
+        "on its plain ground with nothing else in the image - no scene, no "
         "people, no devices, no props, no effects, no glow. Describe it as the real, "
         "official logo, reproduced exactly - its real shapes, proportions and "
         "wordmark - never an invented, stylized, simplified or approximate version, "
         "and do not describe it in your own words beyond naming it (a description "
-        "invites a derivative). Always place the logo on a solid near-black "
-        "background - never on white or any light background, whatever the logo's "
-        "own colors. This show's graphics are all dark and subdued, and a light "
-        "logo card would clash with them. "
-        "When the story is about a product, feature or service made by a famous "
+        "invites a derivative). Say nothing about the background or the material: the "
+        "house art style supplies a dark charcoal ground and renders the logo as cut "
+        "paper. ""When the story is about a product, feature or service made by a famous "
         "organization (Gemini or Classroom inside Google, Copilot inside Microsoft, "
         "iPad at Apple), use the logo of the famous parent organization, not the "
         "product's - the parent's mark is the unambiguous one. Use a product's own "
@@ -137,41 +197,40 @@ def build_system_prompt(show_name):
         "one, and build an ordinary image around the story's concrete detail "
         "instead. Never put a logo on a company other than the one it belongs to. A "
         "logo-only image overrides every rule below about scenes, people and "
-        "concrete details; only the high-contrast rule still applies to it.\n"
+        "concrete details, and the house art style is applied to it just as to any "
+        "other image.\n"
         "- If it is not a logo-only story, then before describing anything, find ONE "
-        "specific, concrete, filmable detail "
+        "specific, concrete, depictable detail "
         "that is actually present in the lead story - a named technology, object, "
         "place, document, or action - and build the entire image around that one "
         "detail. Illustrate the one real, specific thing happening in the story, not "
         "the general category or topic it belongs to.\n"
-        "- Purely visual and compositional: subject, setting, mood, palette, and "
-        "style, as if briefing a photo/illustration editor for a news thumbnail. Let "
-        "the lead story's own actual nature dictate the mood - do not impose an "
-        "artificial tone. Never default to generic stock-photo scenes - anonymous "
-        "people shaking hands, a group seated around a conference table, a vague "
-        "chart or dashboard glowing on a screen behind them - unless the story is "
-        "literally, specifically about that exact moment.\n"
-        "- Prefer a photorealistic style wherever the concrete detail you found "
-        "supports it (a real-world scene, object, setting, or product). Fall back to "
-        "a stylized or illustrative treatment only when that detail is genuinely "
-        "abstract with no sensible photorealistic depiction - but a stylized image "
-        "still has to visualize that same specific detail as a real symbol or "
-        "metaphor, not fall back to generic iconography either.\n"
+        "- Describe ONLY the subject and its composition: what the one focal object "
+        "or symbol is, what it is doing, and how it is arranged - an editorial "
+        "illustrator's brief for one iconic, simplified, instantly readable image, not "
+        "a detailed scene. Do NOT specify any art style, medium, material, lighting, "
+        "camera, lens, color palette or mood: a fixed house art style (handmade "
+        "cut-paper illustration) is added to your description automatically, and "
+        "anything you say about style would fight it. Never default to generic "
+        "stock-photo scenes - anonymous people shaking hands, a group seated around a "
+        "conference table, a vague chart or dashboard glowing on a screen behind them "
+        "- unless the story is literally, specifically about that exact moment.\n"
         "- Do not depict real, identifiable people (public figures or specific "
-        "individuals) - describe generic, stylized figures instead, and only include "
+        "individuals) - describe faceless, simplified figures instead, and only include "
         "a person at all when one is genuinely part of the concrete detail you found "
         "(e.g. a student holding a tablet, a technician at a server rack) - never as "
         "an anonymous professional populating a meeting or handshake scene.\n"
-        "- The same rule applies to real, specific, named places (a particular "
-        "school district's actual building, a named company's actual headquarters, "
-        "a specific city street): never render it photorealistically as though it "
-        "were genuine documentary photography of that real place - this risks "
-        "reading as an authentic photo of something that never happened there. "
-        "Either use an explicitly stylized/illustrative treatment of the real "
-        "place, or pick a different concrete detail from the story to build the "
-        "image around. Do not substitute an anonymous, generic version of the "
-        "setting (a generic classroom, a generic office) - that is the same "
-        "stock-photo failure by another route.\n"
+        "- The same goes for real, specific, named places (a particular school "
+        "district's building, a company's headquarters, a city street): do not try to "
+        "reproduce the actual place - use a simple iconic building, or pick a "
+        "different concrete detail from the story. Avoid generic stock settings (a "
+        "generic classroom, a generic office); a specific object is better.\n"
+        "- Avoid subjects that invite lettering. The image model renders any word it is "
+        "told about - an \"off\" label beside a switch, a sign, a banner, a labeled "
+        "button, a screen showing words, a calendar, a price tag - and the image must "
+        "contain no text at all. Convey meaning through shape and arrangement (a "
+        "crossed-out icon, a cracked padlock, an arrow) and never describe an on/off "
+        "toggle or any labeled control; use an icon or symbol instead.\n"
         "- Do not make a computer monitor, laptop or tablet screen the default "
         "subject. A screen is acceptable only when the story is specifically about "
         "what appears on one; otherwise show the real-world consequence, object, "
@@ -187,18 +246,15 @@ def build_system_prompt(show_name):
         "million\", not \"BILLION\", not any digit) anywhere in the image, including "
         "as background signage, on-screen text, or a whiteboard/poster detail - the "
         "no-readable-text rule below still fully applies to financial imagery too.\n"
-        "- HIGH CONTRAST ONLY. The finished image is converted to a two-tone "
-        "monochrome, so it must read by brightness alone: one clear, bright, "
-        "well-lit subject against a clearly darker background (or a dark subject "
-        "against a clearly lighter one), a full tonal range from near-black to "
-        "near-white, strong directional lighting, and a simple, uncluttered "
-        "composition. Never dark-on-dark, pale-on-pale, low-key moody lighting, "
-        "murky shadows, fog, haze, or subjects distinguished only by hue. This "
-        "takes priority over any mood the story might suggest.\n"
+        "- TONE. The finished image is converted to a two-colour palette, so the "
+        "subject must stand apart from its background by brightness, not hue. The "
+        "house art style already sets the background tone (mid-dark) - do not ask "
+        "for a black or very light background, glow, fog or lighting effects.\n"
         "- Apart from a logo's own wordmark in a logo-only image, include no "
         "readable text or numerals anywhere in the image - this show's own "
         "branding is composited on top afterward regardless.\n"
-        "- One paragraph, no preamble, no notes about your process."
+        "- Return image_prompt as one paragraph with no preamble and no notes about your "
+        "process, and set logo_only to true only if this is a logo-only image."
     )
 
 
@@ -235,6 +291,9 @@ def find_prompt_problems(prompt):
 
 
 def generate_image_prompt_for_episode(anthropic_generate, show_name, episode_date, final_script):
+    """Returns the FINAL prompt for the image model: the model-written subject
+    description with the house art style appended (or the logo-only description
+    unchanged)."""
     last_problems = []
     for attempt in range(1, MAX_PROMPT_ATTEMPTS + 1):
         text = anthropic_generate(
@@ -244,14 +303,16 @@ def generate_image_prompt_for_episode(anthropic_generate, show_name, episode_dat
             response_schema=RESPONSE_SCHEMA,
         )
         try:
-            prompt = json.loads(text)["image_prompt"]
-        except (ValueError, KeyError, TypeError) as exc:
+            data = json.loads(text)
+            prompt = data["image_prompt"]
+            logo_only = bool(data.get("logo_only"))
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
             last_problems = [f"response was not the expected JSON ({exc})"]
             prompt = None
         else:
             last_problems = find_prompt_problems(prompt)
             if not last_problems:
-                return prompt
+                return compose_image_prompt(prompt, logo_only)
 
         logger.warning(
             "Image prompt rejected (attempt %d of %d): %s | text: %.200r",

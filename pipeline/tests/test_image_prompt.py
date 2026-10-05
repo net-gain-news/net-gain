@@ -6,13 +6,20 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from image_prompt import (
+    ART_STYLE,
+    ART_STYLE_LOGO,
     MAX_PROMPT_ATTEMPTS,
     RESPONSE_SCHEMA,
     ImagePromptError,
     build_system_prompt,
+    compose_image_prompt,
     find_prompt_problems,
     generate_image_prompt_for_episode,
 )
+
+
+def resp(prompt, logo_only=False):
+    return json.dumps({"image_prompt": prompt, "logo_only": logo_only})
 
 
 CLEAN = "A close-up of a teacher's hands holding an ID card beside a laptop camera, bright directional light, near-black background."
@@ -60,11 +67,14 @@ class BuildSystemPromptTests(unittest.TestCase):
         prompt = build_system_prompt("Net Gain Edtech")
         self.assertLess(prompt.index("LOGO-ONLY IMAGE"), prompt.index("find ONE"))
 
-    def test_logos_are_always_on_a_dark_background(self):
-        """2026-10-02: a logo on white clashed with the show's dark graphics."""
+    def test_logo_images_take_their_ground_and_material_from_the_house_style(self):
+        """2026-10-02: a logo on white clashed with the dark graphics. 2026-10-05: the logo now gets the same
+        house style as every other image (a dark charcoal ground, cut paper), so the prompt-writer says nothing
+        about background or material."""
         prompt = build_system_prompt("Net Gain Edtech")
-        self.assertIn("solid near-black background", prompt)
-        self.assertIn("never on white or any light background", prompt)
+        self.assertIn("Say nothing about the background or the material", prompt)
+        self.assertIn("renders the logo as cut paper", prompt)
+        self.assertIn("applied to it just as to any other image", prompt)
         self.assertNotIn("solid white", prompt)
 
     def test_generic_setting_allowance_is_gone(self):
@@ -72,12 +82,28 @@ class BuildSystemPromptTests(unittest.TestCase):
         fallbacks the human operator was unhappy with."""
         prompt = build_system_prompt("Net Gain Edtech")
         self.assertNotIn("is fine, as is", prompt)
-        self.assertIn("Do not substitute an anonymous, generic version", prompt)
+        self.assertIn("Avoid generic stock settings", prompt)
 
-    def test_requires_high_contrast_for_the_duotone(self):
+    def test_the_model_describes_only_the_subject_and_the_photorealism_preference_is_gone(self):
+        """2026-10-05: YouTube auto-labels photorealistic AI imagery, so style is no longer the model's call."""
         prompt = build_system_prompt("Net Gain Edtech")
-        self.assertIn("HIGH CONTRAST ONLY", prompt)
-        self.assertIn("brightness", prompt)
+        self.assertNotIn("Prefer a photorealistic", prompt)
+        self.assertNotIn("photo/illustration editor", prompt)
+        self.assertIn("Describe ONLY the subject and its composition", prompt)
+        self.assertIn("Do NOT specify any art style", prompt)
+
+    def test_tone_rule_replaces_the_old_high_contrast_rule(self):
+        prompt = build_system_prompt("Net Gain Edtech")
+        self.assertNotIn("HIGH CONTRAST ONLY", prompt)
+        self.assertIn("TONE.", prompt)
+        self.assertIn("do not ask for a black or very light background", prompt)
+
+    def test_avoids_subjects_that_invite_lettering(self):
+        """Live finding (2026-10-05): a prompt describing a toggle switched 'off' produced two rendered 'off'
+        labels despite the style's no-text rule."""
+        prompt = build_system_prompt("Net Gain Edtech")
+        self.assertIn("Avoid subjects that invite lettering", prompt)
+        self.assertIn("never describe an on/off toggle", prompt)
 
     def test_screens_are_not_the_default_subject(self):
         prompt = build_system_prompt("Net Gain Edtech")
@@ -112,17 +138,49 @@ class GenerateImagePromptForEpisodeTests(unittest.TestCase):
             captured["user_content"] = user_content
             captured["tools"] = tools
             captured["response_schema"] = response_schema
-            return json.dumps({"image_prompt": CLEAN})
+            return resp(CLEAN)
 
         result = generate_image_prompt_for_episode(
             fake_generate, "Net Gain Edtech", "2026-09-16", "Today's script text."
         )
 
-        self.assertEqual(result, CLEAN)
+        self.assertEqual(result, f"{CLEAN} {ART_STYLE}")
         self.assertEqual(captured["tools"], [])
         self.assertIs(captured["response_schema"], RESPONSE_SCHEMA)
         self.assertIn("Today's script text.", captured["user_content"])
         self.assertIn("2026-09-16", captured["user_content"])
+
+
+class ArtStyleTests(unittest.TestCase):
+    def test_is_cut_paper_on_a_dark_charcoal_ground_about_a_quarter_brightness_but_not_black(self):
+        """Operator, 2026-10-05: ground darkened to 25-30% (the model overshoots a request for one third)."""
+        self.assertIn("cut-paper collage", ART_STYLE)
+        self.assertIn("dark charcoal-grey paper", ART_STYLE)
+        self.assertIn("about one-quarter brightness", ART_STYLE)
+        self.assertIn("but not black", ART_STYLE)
+
+    def test_avoids_every_photographic_cue_and_all_text(self):
+        for phrase in ("No gradients", "lens blur", "depth of field", "3D rendering", "Absolutely no text"):
+            self.assertIn(phrase, ART_STYLE)
+
+    def test_keeps_the_subject_out_of_the_overlay_zone(self):
+        for style in (ART_STYLE, ART_STYLE_LOGO):
+            self.assertIn("top 65 percent", style)
+            self.assertIn("overlay covers the bottom fifth", style)
+
+    def test_is_appended_to_an_ordinary_subject(self):
+        self.assertEqual(compose_image_prompt(CLEAN, logo_only=False), f"{CLEAN} {ART_STYLE}")
+
+    def test_is_applied_to_logo_only_images_too_with_the_logo_permitted(self):
+        """Operator decision 2026-10-05: uniform look, so logos are cut paper on the same ground."""
+        composed = compose_image_prompt("Official Google logo.", logo_only=True)
+        self.assertEqual(composed, f"Official Google logo. {ART_STYLE_LOGO}")
+        self.assertIn("cut-paper collage", composed)
+        self.assertIn("real logo itself", composed)
+        self.assertNotIn("no text, letters, numerals or logos", composed)
+
+    def test_ordinary_images_still_forbid_logos_and_text(self):
+        self.assertIn("Absolutely no text, letters, numerals or logos", ART_STYLE)
 
 
 class FindPromptProblemsTests(unittest.TestCase):
@@ -159,22 +217,26 @@ class GenerationGuardTests(unittest.TestCase):
         return calls, lambda: generate_image_prompt_for_episode(fake, "Net Gain Edtech", "2026-10-02", "script")
 
     def test_a_clean_first_response_is_one_call(self):
-        calls, run = self.run_with([json.dumps({"image_prompt": CLEAN})])
-        self.assertEqual(run(), CLEAN)
+        calls, run = self.run_with([resp(CLEAN)])
+        self.assertEqual(run(), f"{CLEAN} {ART_STYLE}")
         self.assertEqual(len(calls), 1)
 
     def test_junk_is_regenerated_and_the_clean_retry_is_returned(self):
-        calls, run = self.run_with([json.dumps({"image_prompt": JUNK_TAIL_1}), json.dumps({"image_prompt": CLEAN})])
-        self.assertEqual(run(), CLEAN)
+        calls, run = self.run_with([resp(JUNK_TAIL_1), resp(CLEAN)])
+        self.assertEqual(run(), f"{CLEAN} {ART_STYLE}")
         self.assertEqual(len(calls), 2)
 
     def test_a_malformed_response_is_retried_too(self):
-        calls, run = self.run_with(["not json at all", json.dumps({"image_prompt": CLEAN})])
-        self.assertEqual(run(), CLEAN)
+        calls, run = self.run_with(["not json at all", resp(CLEAN)])
+        self.assertEqual(run(), f"{CLEAN} {ART_STYLE}")
         self.assertEqual(len(calls), 2)
 
+    def test_a_logo_only_response_gets_the_logo_variant_of_the_house_style(self):
+        calls, run = self.run_with([resp("The official Google logo, flat and centered.", logo_only=True)])
+        self.assertEqual(run(), f"The official Google logo, flat and centered. {ART_STYLE_LOGO}")
+
     def test_gives_up_loudly_after_the_attempt_limit(self):
-        calls, run = self.run_with([json.dumps({"image_prompt": JUNK_TAIL_2})])
+        calls, run = self.run_with([resp(JUNK_TAIL_2)])
         with self.assertRaises(ImagePromptError) as ctx:
             run()
         self.assertEqual(len(calls), MAX_PROMPT_ATTEMPTS)
