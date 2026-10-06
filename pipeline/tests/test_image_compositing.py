@@ -6,7 +6,9 @@ from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from image_compositing import apply_duotone
+from io import BytesIO
+
+from image_compositing import apply_duotone, composite_and_encode, fit_to_visible_window, visible_window
 
 
 class ApplyDuotoneTests(unittest.TestCase):
@@ -46,6 +48,64 @@ class ApplyDuotoneTests(unittest.TestCase):
         for channel, lo, hi in zip(mid, (0x1E, 0x26, 0x20), (0xA9, 0xCB, 0xA0)):
             self.assertGreater(channel, lo)
             self.assertLess(channel, hi)
+
+
+def make_frame(width, height, window_top, window_bottom):
+    """An opaque frame with a fully transparent horizontal window, like the real ones (a bar covers the bottom)."""
+    frame = Image.new("RGBA", (width, height), (30, 38, 32, 255))
+    frame.paste((0, 0, 0, 0), (0, window_top, width, window_bottom))
+    buf = BytesIO()
+    frame.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+class VisibleWindowTests(unittest.TestCase):
+    def test_measures_the_transparent_window_in_output_coordinates(self):
+        frame = make_frame(1280, 720, 8, 584)  # the real 16:9 frame
+        self.assertEqual(visible_window(frame, 1280, 720), (0, 8, 1280, 584))
+
+    def test_scales_the_window_when_the_frame_is_smaller_than_the_output(self):
+        """The real square frame is 2560 px but the output is 3000 px."""
+        frame = make_frame(2560, 2560, 21, 2232)
+        left, top, right, bottom = visible_window(frame, 3000, 3000)
+        self.assertEqual((left, right), (0, 3000))
+        self.assertEqual(top, round(21 * 3000 / 2560))
+        self.assertEqual(bottom, round(2232 * 3000 / 2560))
+
+    def test_a_frame_with_no_transparent_area_falls_back_to_the_whole_output(self):
+        opaque = Image.new("RGBA", (100, 50), (1, 2, 3, 255))
+        buf = BytesIO()
+        opaque.save(buf, format="PNG")
+        self.assertEqual(visible_window(buf.getvalue(), 100, 50), (0, 0, 100, 50))
+
+
+class FitToVisibleWindowTests(unittest.TestCase):
+    def test_the_whole_base_image_lands_inside_the_visible_window(self):
+        """2026-10-05: the base used to be fitted to the full output and the frame painted over its bottom, so
+        a third of a subject could be hidden. Now the base's top and bottom edges are the window's edges."""
+        frame = make_frame(1280, 720, 8, 584)
+        base = Image.new("RGB", (2100, 900), (0, 0, 255))
+        base.paste((255, 0, 0), (0, 0, 2100, 40))          # red band along the TOP edge of the base
+        base.paste((0, 255, 0), (0, 860, 2100, 900))       # green band along the BOTTOM edge
+        out = fit_to_visible_window(base, frame, 1280, 720)
+        self.assertEqual(out.getpixel((640, 9)), (255, 0, 0))       # base top = first visible row
+        self.assertEqual(out.getpixel((640, 582)), (0, 255, 0))     # base bottom = last visible row
+
+    def test_the_subject_is_centered_in_the_visible_window_not_the_whole_output(self):
+        frame = make_frame(1280, 720, 8, 584)
+        base = Image.new("RGB", (2100, 900), (10, 10, 10))
+        base.paste((250, 250, 250), (1000, 400, 1100, 500))   # a small bright subject at the base's centre
+        out = fit_to_visible_window(base, frame, 1280, 720)
+        bright = [(x, y) for y in range(8, 584, 2) for x in range(0, 1280, 2) if out.getpixel((x, y))[0] > 200]
+        ys = [y for _, y in bright]
+        self.assertAlmostEqual((min(ys) + max(ys)) / 2, (8 + 584) / 2, delta=12)   # centre of the window, not of 720
+
+    def test_composite_and_encode_uses_the_window(self):
+        frame = make_frame(1200, 630, 8, 510)
+        spec = {"width": 1200, "height": 630, "format": "WEBP", "mime": "image/webp", "max_bytes": None}
+        data, name = composite_and_encode(Image.new("RGB", (2100, 900), (200, 50, 50)), frame, spec, "show", "2026-10-05", "1200x630")
+        self.assertTrue(name.endswith(".webp"))
+        self.assertGreater(len(data), 100)
 
 
 if __name__ == "__main__":

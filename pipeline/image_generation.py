@@ -32,13 +32,15 @@ from retry import call_with_retries
 
 logger = logging.getLogger("net_gain.image_generation")
 
-# Google's generative image models' aspect-ratio presets don't include an
-# exact match for website art's 1200x630 (~1.91:1) - "16:9" is the widest
-# preset generally offered, so the base image is generated at that ratio
-# (minimizing how much gets cropped away for every output) and cover_resize
-# handles the exact final pixel dimensions per spec regardless of the small
-# remaining mismatch.
-BASE_IMAGE_ASPECT_RATIO = "16:9"
+# The base image is generated to match the VISIBLE window of the frames, not the
+# whole output (2026-10-05): the overlay covers the bottom of each output, so the
+# 16:9 frame shows a 1280x576 window (2.22:1) and the 1200x630 frame a 1200x502
+# one (2.39:1). Google's image models only offer preset aspect ratios; "21:9"
+# (2.33:1) is the closest to both. image_compositing.fit_to_visible_window then
+# cover-fits the base into each frame's real window (the square's is 1.16:1, so
+# its sides are cropped - which is why the house style asks for a compact,
+# centered subject).
+BASE_IMAGE_ASPECT_RATIO = "21:9"
 
 OUTPUT_SPECS = {
     "square":   {"width": 3000, "height": 3000, "format": "JPEG", "mime": "image/jpeg", "max_bytes": 500 * 1024},

@@ -69,9 +69,8 @@ def apply_duotone(image, shadow_hex, highlight_hex):
 def cover_resize(image, target_w, target_h):
     """
     Standard 'object-fit: cover' - scale to fully cover (target_w, target_h)
-    preserving aspect ratio, then center-crop the overflow. The base image is
-    generated at the widest of the three target ratios (SPEC.md Section 7),
-    so this is always an inward crop, never a pad/outpaint.
+    preserving aspect ratio, then center-crop the overflow - always an inward
+    crop, never a pad/outpaint.
     """
     src_w, src_h = image.size
     scale = max(target_w / src_w, target_h / src_h)
@@ -133,8 +132,42 @@ def encode_with_size_cap(image, fmt, max_bytes):
     return buf.getvalue()
 
 
+def visible_window(frame_png_bytes, out_w, out_h):
+    """
+    The rectangle (left, top, right, bottom), in OUTPUT pixel coordinates, of
+    the frame's fully transparent cutout - the part of the picture a viewer
+    actually sees. Measured from the frame itself, so it follows whatever each
+    show's frames look like (the three formats differ: 16:9 shows 576 of 720
+    rows, the square about 86% of its height, 1200x630 about 80%). Falls back
+    to the whole output if the frame has no fully transparent area.
+    """
+    frame = Image.open(BytesIO(frame_png_bytes)).convert("RGBA")
+    bbox = frame.split()[3].point(lambda v: 255 if v < 8 else 0).getbbox()
+    if not bbox:
+        return (0, 0, out_w, out_h)
+    sx, sy = out_w / frame.width, out_h / frame.height
+    left, top, right, bottom = bbox
+    return (round(left * sx), round(top * sy), round(right * sx), round(bottom * sy))
+
+
+def fit_to_visible_window(base_image, frame_png_bytes, out_w, out_h):
+    """
+    Lays the base image into the frame's VISIBLE window - cover-fitted to the
+    window, not to the whole output - so composition is balanced on what is
+    actually seen and nothing is designed for the strip the overlay covers.
+    (2026-10-05: the old approach cover-fitted the base to the full output and
+    let the frame paint over its bottom, which left subjects off-centre in the
+    visible area.) A full-output copy stays underneath only so no pixel behind
+    the frame is ever empty.
+    """
+    canvas = cover_resize(base_image, out_w, out_h)
+    left, top, right, bottom = visible_window(frame_png_bytes, out_w, out_h)
+    canvas.paste(cover_resize(base_image, right - left, bottom - top), (left, top))
+    return canvas
+
+
 def composite_and_encode(base_image, frame_png_bytes, output_spec, show_slug, episode_date, spec_name):
-    cropped = cover_resize(base_image, output_spec["width"], output_spec["height"])
+    cropped = fit_to_visible_window(base_image, frame_png_bytes, output_spec["width"], output_spec["height"])
     composited = composite_frame(cropped, frame_png_bytes)
     encoded = encode_with_size_cap(composited, output_spec["format"], output_spec["max_bytes"])
     ext = "jpg" if output_spec["format"] == "JPEG" else "webp"

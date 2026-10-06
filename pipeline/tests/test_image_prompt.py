@@ -77,6 +77,13 @@ class BuildSystemPromptTests(unittest.TestCase):
         self.assertIn("applied to it just as to any other image", prompt)
         self.assertNotIn("solid white", prompt)
 
+    def test_logos_stay_compact_so_the_square_crop_never_clips_them(self):
+        """Live finding (2026-10-05): the Google wordmark, told to fill most of the frame, was wider than the
+        podcast square's visible slice and was clipped."""
+        prompt = build_system_prompt("Net Gain Edtech")
+        self.assertIn("no wider than about 40 percent of the frame's width", prompt)
+        self.assertNotIn("filling most of the frame", prompt)
+
     def test_generic_setting_allowance_is_gone(self):
         """Removed 2026-10-02: it licensed the generic classroom/office
         fallbacks the human operator was unhappy with."""
@@ -163,10 +170,14 @@ class ArtStyleTests(unittest.TestCase):
         for phrase in ("No gradients", "lens blur", "depth of field", "3D rendering", "Absolutely no text"):
             self.assertIn(phrase, ART_STYLE)
 
-    def test_keeps_the_subject_out_of_the_overlay_zone(self):
+    def test_asks_for_a_compact_centered_subject_not_a_bottom_fifth_safe_area(self):
+        """2026-10-05: the image is now generated for the VISIBLE window, so the old 'bottom fifth is covered'
+        instruction is gone and balance within the whole picture is requested instead."""
         for style in (ART_STYLE, ART_STYLE_LOGO):
-            self.assertIn("top 65 percent", style)
-            self.assertIn("overlay covers the bottom fifth", style)
+            self.assertIn("the whole picture is the visible area", style)
+            self.assertIn("middle 40 percent of the width", style)
+            self.assertNotIn("overlay", style)
+            self.assertNotIn("bottom fifth", style)
 
     def test_is_appended_to_an_ordinary_subject(self):
         self.assertEqual(compose_image_prompt(CLEAN, logo_only=False), f"{CLEAN} {ART_STYLE}")

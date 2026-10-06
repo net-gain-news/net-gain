@@ -147,9 +147,10 @@ _ART_STYLE_LOGO_TEXT = (
     "from paper; no other text, letters or numerals."
 )
 _ART_STYLE_SAFE_AREA = (
-    " Safe area: place the whole subject, every layer and detail, within the top 65 "
-    "percent of the frame, centered horizontally; the bottom 35 percent is plain "
-    "background paper only, because an overlay covers the bottom fifth."
+    " Composition: the whole picture is the visible area, so balance it. Center the "
+    "subject, keep it compact (roughly the middle 40 percent of the width and no more "
+    "than 70 percent of the height), and leave generous empty background paper on all "
+    "four sides, because the picture is cropped differently for different formats."
 )
 ART_STYLE = _ART_STYLE_CORE + _ART_STYLE_NO_TEXT + _ART_STYLE_SAFE_AREA
 ART_STYLE_LOGO = _ART_STYLE_CORE + _ART_STYLE_LOGO_TEXT + _ART_STYLE_SAFE_AREA
@@ -178,8 +179,9 @@ def build_system_prompt(show_name):
         "overwhelmingly comes to mind for that name, from its sheer prevalence across "
         "the internet (e.g. Google, Microsoft, Apple, Amazon, Meta, OpenAI) - the "
         "image IS that logo: the organization's primary, best-known logo (its main "
-        "wordmark or symbol), flat, front-on and centered, filling most of the frame, "
-        "on its plain ground with nothing else in the image - no scene, no "
+        "wordmark or symbol), flat, front-on and centered, large but compact - no wider "
+        "than about 40 percent of the frame's width, so it is never clipped when the "
+        "picture is cropped to a square - on its plain ground with nothing else in the image - no scene, no "
         "people, no devices, no props, no effects, no glow. Describe it as the real, "
         "official logo, reproduced exactly - its real shapes, proportions and "
         "wordmark - never an invented, stylized, simplified or approximate version, "
