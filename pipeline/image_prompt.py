@@ -157,12 +157,17 @@ _ART_STYLE_SAFE_AREA = (
     "four sides, because the picture is cropped differently for different formats."
 )
 _ART_STYLE_LOGO_COMPOSITION = (
-    " Composition: the whole picture is the visible area. Center the logo; its total "
-    "width is no more than 38 percent of the picture's width and its height no more "
-    "than 40 percent of the picture's height, with wide empty background paper on "
-    "both sides and above and below, because the picture is cropped to a narrow "
-    "square for some formats and a wider logo would be clipped."
+    " Composition: the logo is SMALL - a small badge in the exact middle of a very "
+    "large, empty sheet of charcoal paper. Frame it from far away so that the empty "
+    "paper on each side of the logo is at least as wide as the logo itself. The logo "
+    "occupies only the central third of the picture's width, because the picture is "
+    "cropped to a narrow square for some formats and a wider logo would be clipped."
 )
+# Measured 2026-10-05 on real renders of the Google wordmark (share of the base
+# image's width): this "small badge" phrasing gave 34% and 28%; a numeric "no wider
+# than 38 percent" gave 54% and 71%, and "far away / tiny" gave 46% and 22%. The
+# square crop shows only the middle ~50% of the base, so the first is the one that
+# reliably fits. Image models obey described scale far better than percentages.
 ART_STYLE = _ART_STYLE_CORE + _ART_STYLE_NO_TEXT + _ART_STYLE_SAFE_AREA
 ART_STYLE_LOGO = _ART_STYLE_CORE + _ART_STYLE_LOGO_TEXT + _ART_STYLE_LOGO_COMPOSITION
 

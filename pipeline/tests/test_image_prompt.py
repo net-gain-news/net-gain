@@ -193,7 +193,9 @@ class ArtStyleTests(unittest.TestCase):
         self.assertNotIn("no text, letters, numerals or logos", composed)
 
     def test_the_logo_is_held_to_a_narrow_width_so_the_square_crop_cannot_clip_it(self):
-        self.assertIn("no more than 38 percent of the picture's width", ART_STYLE_LOGO)
+        self.assertIn("the logo is SMALL - a small badge in the exact middle", ART_STYLE_LOGO)
+        self.assertIn("central third of the picture's width", ART_STYLE_LOGO)
+        self.assertNotIn("38 percent", ART_STYLE_LOGO)  # percentages measured 54-71% wide; the badge wording 28-34%
 
     def test_a_short_logo_placeholder_is_not_rejected_for_length(self):
         self.assertEqual(find_prompt_problems("Logo.", min_chars=1), [])
