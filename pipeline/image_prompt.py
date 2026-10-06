@@ -105,8 +105,12 @@ class ImagePromptError(RuntimeError):
 
 RESPONSE_SCHEMA = {
     "type": "object",
-    "properties": {"image_prompt": {"type": "string"}, "logo_only": {"type": "boolean"}},
-    "required": ["image_prompt", "logo_only"],
+    "properties": {
+        "image_prompt": {"type": "string"},
+        "logo_only": {"type": "boolean"},
+        "logo_organization": {"type": "string"},
+    },
+    "required": ["image_prompt", "logo_only", "logo_organization"],
     "additionalProperties": False,
 }
 
@@ -152,15 +156,31 @@ _ART_STYLE_SAFE_AREA = (
     "than 70 percent of the height), and leave generous empty background paper on all "
     "four sides, because the picture is cropped differently for different formats."
 )
+_ART_STYLE_LOGO_COMPOSITION = (
+    " Composition: the whole picture is the visible area. Center the logo; its total "
+    "width is no more than 38 percent of the picture's width and its height no more "
+    "than 40 percent of the picture's height, with wide empty background paper on "
+    "both sides and above and below, because the picture is cropped to a narrow "
+    "square for some formats and a wider logo would be clipped."
+)
 ART_STYLE = _ART_STYLE_CORE + _ART_STYLE_NO_TEXT + _ART_STYLE_SAFE_AREA
-ART_STYLE_LOGO = _ART_STYLE_CORE + _ART_STYLE_LOGO_TEXT + _ART_STYLE_SAFE_AREA
+ART_STYLE_LOGO = _ART_STYLE_CORE + _ART_STYLE_LOGO_TEXT + _ART_STYLE_LOGO_COMPOSITION
 
 
-def compose_image_prompt(subject, logo_only):
+def compose_image_prompt(subject, logo_only, logo_organization=""):
     """The text actually sent to the image model: the model-written subject plus
-    the house style. Logo-only images get the same style, with the one change
-    that the logo itself is the permitted mark."""
-    return f"{subject.strip()} {ART_STYLE_LOGO if logo_only else ART_STYLE}"
+    the house style. For a logo-only image the model's own text is NOT used at
+    all - the code writes the whole description from the organisation's name
+    (2026-10-05: the model kept adding "filling most of the frame", which the
+    image model obeyed over the style's size limit and clipped the wordmark in
+    the square crop). Logo images get the same style with the logo permitted."""
+    if logo_only:
+        subject = (
+            f"The official {logo_organization.strip()} logo, reproduced exactly in its real shapes, "
+            "proportions and wordmark, flat, front-on and centered, alone on its plain ground."
+        )
+        return f"{subject} {ART_STYLE_LOGO}"
+    return f"{subject.strip()} {ART_STYLE}"
 
 
 def build_system_prompt(show_name):
@@ -179,16 +199,12 @@ def build_system_prompt(show_name):
         "overwhelmingly comes to mind for that name, from its sheer prevalence across "
         "the internet (e.g. Google, Microsoft, Apple, Amazon, Meta, OpenAI) - the "
         "image IS that logo: the organization's primary, best-known logo (its main "
-        "wordmark or symbol), flat, front-on and centered, large but compact - no wider "
-        "than about 40 percent of the frame's width, so it is never clipped when the "
-        "picture is cropped to a square - on its plain ground with nothing else in the image - no scene, no "
-        "people, no devices, no props, no effects, no glow. Describe it as the real, "
-        "official logo, reproduced exactly - its real shapes, proportions and "
-        "wordmark - never an invented, stylized, simplified or approximate version, "
-        "and do not describe it in your own words beyond naming it (a description "
-        "invites a derivative). Say nothing about the background or the material: the "
-        "house art style supplies a dark charcoal ground and renders the logo as cut "
-        "paper. ""When the story is about a product, feature or service made by a famous "
+        "wordmark or symbol) - alone, with nothing else in the image - no scene, no "
+        "people, no devices, no props, no effects, no glow. For a logo-only image you "
+        "supply only the organization's name in logo_organization (e.g. \"Google\"); "
+        "the code writes the whole logo description, size, framing, ground and "
+        "material, so say nothing about any of those anywhere - not in image_prompt "
+        "either (give it one short placeholder sentence). ""When the story is about a product, feature or service made by a famous "
         "organization (Gemini or Classroom inside Google, Copilot inside Microsoft, "
         "iPad at Apple), use the logo of the famous parent organization, not the "
         "product's - the parent's mark is the unambiguous one. Use a product's own "
@@ -256,7 +272,8 @@ def build_system_prompt(show_name):
         "readable text or numerals anywhere in the image - this show's own "
         "branding is composited on top afterward regardless.\n"
         "- Return image_prompt as one paragraph with no preamble and no notes about your "
-        "process, and set logo_only to true only if this is a logo-only image."
+        "process; set logo_only to true only if this is a logo-only image, and set "
+        "logo_organization to that organization's name (otherwise an empty string)."
     )
 
 
@@ -264,7 +281,7 @@ def build_user_message(episode_date, final_script):
     return f"Episode date: {episode_date}\n\nFinal script:\n\n{final_script}"
 
 
-def find_prompt_problems(prompt):
+def find_prompt_problems(prompt, min_chars=MIN_PROMPT_CHARS):
     """
     Reasons a generated prompt is not a clean one-paragraph picture
     description, or [] if it is. Added 2026-10-02 after a live scan: roughly a
@@ -277,7 +294,7 @@ def find_prompt_problems(prompt):
     """
     problems = []
     text = prompt if isinstance(prompt, str) else ""
-    if len(text.strip()) < MIN_PROMPT_CHARS:
+    if len(text.strip()) < min_chars:
         problems.append("empty or too short")
     if len(text) > MAX_PROMPT_CHARS:
         problems.append("too long")
@@ -308,13 +325,18 @@ def generate_image_prompt_for_episode(anthropic_generate, show_name, episode_dat
             data = json.loads(text)
             prompt = data["image_prompt"]
             logo_only = bool(data.get("logo_only"))
+            logo_organization = str(data.get("logo_organization") or "")
         except (ValueError, KeyError, TypeError, AttributeError) as exc:
             last_problems = [f"response was not the expected JSON ({exc})"]
             prompt = None
         else:
-            last_problems = find_prompt_problems(prompt)
+            # A logo-only response's image_prompt is an unused placeholder (the code writes
+            # the logo description from the organization's name), so it only has to be clean.
+            last_problems = find_prompt_problems(prompt, min_chars=1 if logo_only else MIN_PROMPT_CHARS)
+            if logo_only and not logo_organization.strip():
+                last_problems = last_problems + ["logo_only was set but no organization was named"]
             if not last_problems:
-                return compose_image_prompt(prompt, logo_only)
+                return compose_image_prompt(prompt, logo_only, logo_organization)
 
         logger.warning(
             "Image prompt rejected (attempt %d of %d): %s | text: %.200r",

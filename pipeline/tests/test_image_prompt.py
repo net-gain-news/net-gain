@@ -18,8 +18,8 @@ from image_prompt import (
 )
 
 
-def resp(prompt, logo_only=False):
-    return json.dumps({"image_prompt": prompt, "logo_only": logo_only})
+def resp(prompt, logo_only=False, org=""):
+    return json.dumps({"image_prompt": prompt, "logo_only": logo_only, "logo_organization": org})
 
 
 CLEAN = "A close-up of a teacher's hands holding an ID card beside a laptop camera, bright directional light, near-black background."
@@ -67,13 +67,11 @@ class BuildSystemPromptTests(unittest.TestCase):
         prompt = build_system_prompt("Net Gain Edtech")
         self.assertLess(prompt.index("LOGO-ONLY IMAGE"), prompt.index("find ONE"))
 
-    def test_logo_images_take_their_ground_and_material_from_the_house_style(self):
-        """2026-10-02: a logo on white clashed with the dark graphics. 2026-10-05: the logo now gets the same
-        house style as every other image (a dark charcoal ground, cut paper), so the prompt-writer says nothing
-        about background or material."""
+    def test_logo_images_take_their_description_ground_and_material_from_the_code(self):
+        """2026-10-02: a logo on white clashed with the dark graphics. 2026-10-05: the logo gets the same house
+        style as every other image, and the prompt-writer only names the organization - the code writes the rest."""
         prompt = build_system_prompt("Net Gain Edtech")
-        self.assertIn("Say nothing about the background or the material", prompt)
-        self.assertIn("renders the logo as cut paper", prompt)
+        self.assertIn("the code writes the whole logo description", prompt)
         self.assertIn("applied to it just as to any other image", prompt)
         self.assertNotIn("solid white", prompt)
 
@@ -81,7 +79,8 @@ class BuildSystemPromptTests(unittest.TestCase):
         """Live finding (2026-10-05): the Google wordmark, told to fill most of the frame, was wider than the
         podcast square's visible slice and was clipped."""
         prompt = build_system_prompt("Net Gain Edtech")
-        self.assertIn("no wider than about 40 percent of the frame's width", prompt)
+        self.assertIn("you supply only the organization's name in logo_organization", prompt)
+        self.assertIn("say nothing about any of those anywhere", prompt)
         self.assertNotIn("filling most of the frame", prompt)
 
     def test_generic_setting_allowance_is_gone(self):
@@ -175,20 +174,29 @@ class ArtStyleTests(unittest.TestCase):
         instruction is gone and balance within the whole picture is requested instead."""
         for style in (ART_STYLE, ART_STYLE_LOGO):
             self.assertIn("the whole picture is the visible area", style)
-            self.assertIn("middle 40 percent of the width", style)
             self.assertNotIn("overlay", style)
             self.assertNotIn("bottom fifth", style)
+        self.assertIn("middle 40 percent of the width", ART_STYLE)
 
     def test_is_appended_to_an_ordinary_subject(self):
         self.assertEqual(compose_image_prompt(CLEAN, logo_only=False), f"{CLEAN} {ART_STYLE}")
 
-    def test_is_applied_to_logo_only_images_too_with_the_logo_permitted(self):
-        """Operator decision 2026-10-05: uniform look, so logos are cut paper on the same ground."""
-        composed = compose_image_prompt("Official Google logo.", logo_only=True)
-        self.assertEqual(composed, f"Official Google logo. {ART_STYLE_LOGO}")
+    def test_logo_images_get_the_house_style_with_the_logo_permitted_and_a_code_written_subject(self):
+        """Operator decision 2026-10-05: uniform look. And the model's own subject text is ignored for logos:
+        it kept saying 'filling most of the frame', which clipped the Google wordmark in the square."""
+        composed = compose_image_prompt("The Google logo filling most of the frame.", logo_only=True, logo_organization="Google")
+        self.assertTrue(composed.startswith("The official Google logo, reproduced exactly"))
+        self.assertNotIn("filling most of the frame", composed)
+        self.assertIn(ART_STYLE_LOGO, composed)
         self.assertIn("cut-paper collage", composed)
         self.assertIn("real logo itself", composed)
         self.assertNotIn("no text, letters, numerals or logos", composed)
+
+    def test_the_logo_is_held_to_a_narrow_width_so_the_square_crop_cannot_clip_it(self):
+        self.assertIn("no more than 38 percent of the picture's width", ART_STYLE_LOGO)
+
+    def test_a_short_logo_placeholder_is_not_rejected_for_length(self):
+        self.assertEqual(find_prompt_problems("Logo.", min_chars=1), [])
 
     def test_ordinary_images_still_forbid_logos_and_text(self):
         self.assertIn("Absolutely no text, letters, numerals or logos", ART_STYLE)
@@ -243,8 +251,15 @@ class GenerationGuardTests(unittest.TestCase):
         self.assertEqual(len(calls), 2)
 
     def test_a_logo_only_response_gets_the_logo_variant_of_the_house_style(self):
-        calls, run = self.run_with([resp("The official Google logo, flat and centered.", logo_only=True)])
-        self.assertEqual(run(), f"The official Google logo, flat and centered. {ART_STYLE_LOGO}")
+        calls, run = self.run_with([resp("placeholder", logo_only=True, org="Google")])
+        result = run()
+        self.assertTrue(result.startswith("The official Google logo, reproduced exactly"))
+        self.assertTrue(result.endswith(ART_STYLE_LOGO))
+
+    def test_a_logo_response_with_no_organization_is_retried(self):
+        calls, run = self.run_with([resp("placeholder", logo_only=True, org=""), resp("placeholder", logo_only=True, org="Google")])
+        self.assertIn("Google", run())
+        self.assertEqual(len(calls), 2)
 
     def test_gives_up_loudly_after_the_attempt_limit(self):
         calls, run = self.run_with([resp(JUNK_TAIL_2)])
