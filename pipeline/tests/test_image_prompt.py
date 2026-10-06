@@ -173,10 +173,11 @@ class ArtStyleTests(unittest.TestCase):
         """2026-10-05: the image is now generated for the VISIBLE window, so the old 'bottom fifth is covered'
         instruction is gone and balance within the whole picture is requested instead."""
         for style in (ART_STYLE, ART_STYLE_LOGO):
-            self.assertIn("the whole picture is the visible area", style)
             self.assertNotIn("overlay", style)
             self.assertNotIn("bottom fifth", style)
+        self.assertIn("the whole picture is the visible area", ART_STYLE)
         self.assertIn("middle 40 percent of the width", ART_STYLE)
+        self.assertIn("exact middle of a very large, empty sheet", ART_STYLE_LOGO)
 
     def test_is_appended_to_an_ordinary_subject(self):
         self.assertEqual(compose_image_prompt(CLEAN, logo_only=False), f"{CLEAN} {ART_STYLE}")
