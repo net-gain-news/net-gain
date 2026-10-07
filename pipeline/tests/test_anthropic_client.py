@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from anthropic_client import WEB_SEARCH_TOOL, GenerationError, generate
+from anthropic_client import WEB_SEARCH_TOOL, GenerationError, _without_dangling_tool_calls, generate
 
 
 def _block(type_, text=None):
@@ -161,3 +161,46 @@ class LogUsageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PausedTurnTests(unittest.TestCase):
+    """Production failure 2026-10-05/06: a pause_turn response ended in a web_search call with no result block,
+    and resuming with it in the history was rejected with a 400."""
+
+    @staticmethod
+    def _call(id_):
+        return SimpleNamespace(type="server_tool_use", id=id_, name="web_search")
+
+    @staticmethod
+    def _result(id_):
+        return SimpleNamespace(type="web_search_tool_result", tool_use_id=id_)
+
+    def test_removes_only_the_unanswered_call(self):
+        content = [_block("text", "Searching."), self._call("a"), self._result("a"), self._call("b")]
+        kept = _without_dangling_tool_calls(content)
+        self.assertEqual([getattr(b, "id", None) or getattr(b, "tool_use_id", None) for b in kept[1:]], ["a", "a"])
+        self.assertEqual(len(kept), 3)
+
+    def test_leaves_complete_turns_and_idless_blocks_alone(self):
+        content = [_block("server_tool_use"), _block("web_search_tool_result"), self._call("a"), self._result("a")]
+        self.assertEqual(len(_without_dangling_tool_calls(content)), 4)
+
+    def test_a_paused_turn_is_resumed_without_the_dangling_call(self):
+        paused = SimpleNamespace(stop_reason="pause_turn", content=[
+            SimpleNamespace(type="thinking", text=None), _block("text", "Looking."), self._call("a"), self._result("a"), self._call("b"),
+        ])
+        final = SimpleNamespace(stop_reason="end_turn", content=[_block("text", "The finished script.")])
+        sent = []
+
+        class Messages:
+            def create(self, **kwargs):
+                sent.append([dict(m) for m in kwargs["messages"]])
+                return paused if len(sent) == 1 else final
+
+        client = SimpleNamespace(messages=Messages())
+        self.assertEqual(generate(client, system="s", user_content="go"), "The finished script.")
+        assistant = sent[1][1]
+        self.assertEqual(assistant["role"], "assistant")
+        ids = [getattr(b, "id", None) for b in assistant["content"] if b.type == "server_tool_use"]
+        self.assertEqual(ids, ["a"])                                   # "b" had no result and was dropped
+        self.assertEqual(sent[1][2], {"role": "user", "content": "Continue."})

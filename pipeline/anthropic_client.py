@@ -82,6 +82,33 @@ def _without_trailing_thinking(content):
     return content
 
 
+def _without_dangling_tool_calls(content):
+    """
+    Drop any server-side tool call (web_search) that has no result block in the same content.
+
+    Diagnosed 2026-10-07 from the production log: every script run whose first response stopped with
+    pause_turn then died on the continuation request with
+    "messages.1: `web_search` tool use with id srvtoolu_... was found without a corresponding
+    `web_search_tool_result` block" (400), on 10/5 once and on 10/6 three times in a row - each failed run
+    having already paid for ~17-19 searches (about a million input tokens). A pause can land between the
+    model issuing a search and the result arriving, so the paused turn ends in a call with no result. We
+    then send that turn back followed by a "Continue." user message, and the API (rightly) refuses an
+    unanswered tool call that is followed by another user turn. Removing the unanswered call lets the model
+    simply issue that search again on resume.
+    """
+    content = list(content)
+    answered = {getattr(b, "tool_use_id", None) for b in content if str(getattr(b, "type", "")).endswith("_tool_result")}
+    kept = []
+    for block in content:
+        block_id = getattr(block, "id", None)
+        if getattr(block, "type", "") == "server_tool_use" and block_id is not None and block_id not in answered:
+            logger.warning("Dropping unanswered server tool call %s (%s) from the paused turn before resuming.",
+                           block_id, getattr(block, "name", "?"))
+            continue
+        kept.append(block)
+    return kept
+
+
 def _log_usage(purpose, attempt, response):
     """
     Added 2026-09-29 alongside re-enabling thinking and raising max_uses, on
@@ -183,7 +210,7 @@ def generate(client, system, user_content, tools=None, response_schema=None, eff
         if response.stop_reason not in ("pause_turn", "max_tokens"):
             break
 
-        trimmed = _without_trailing_thinking(response.content)
+        trimmed = _without_trailing_thinking(_without_dangling_tool_calls(response.content))
         if not trimmed:
             break  # Nothing usable to continue from - fall through and report.
 
