@@ -12,6 +12,8 @@ actually wanted instead of the draft).
 
 import re
 
+from text_rules import K12_PROMPT_RULE
+
 
 def strip_html(html):
     """
@@ -105,6 +107,7 @@ def build_system_prompt(guidelines_text, show_name):
         "reflects the host's real editorial judgment overriding your draft. "
         "Compare them and carry forward whatever changes the edit reveals - "
         "don't repeat the same issues today that were corrected there.\n"
+        f"- {K12_PROMPT_RULE}\n"
         "- Output only the finished script text - no preamble, no notes to the "
         "editor, no commentary about your process."
     )

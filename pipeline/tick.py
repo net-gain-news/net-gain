@@ -879,6 +879,32 @@ def upload_episode_to_youtube(wp, client, config, show, episode_id, meta):
     # actually completes.
 
 
+def retry_youtube_thumbnail(wp, service, episode_id, video_id, meta):
+    """
+    One more try at the custom thumbnail once YouTube has finished processing the video; returns the
+    remaining error text, or "" if the thumbnail is now set (and clears the stored error).
+
+    Added 2026-10-07: the thumbnail call made seconds after the upload came back 403 "forbidden" for
+    episode 317 although the channel, its verification and the token's scopes were all fine - an
+    identical call five hours later succeeded. YouTube can refuse thumbnails.set on a video it has only
+    just created, so a failure at upload time is treated as possibly transient and retried here, on a
+    later tick, before the step is settled as degraded.
+    """
+    try:
+        image_id = meta.get("ng_image_16x9_id")
+        image = wp.download_binary(wp.get_attachment_url(image_id))
+        with tempfile.TemporaryDirectory() as workdir:
+            path = Path(workdir) / "thumbnail.jpg"
+            path.write_bytes(image)
+            yt.set_thumbnail(service, video_id, str(path))
+    except Exception as exc:
+        logger.warning("Retrying the YouTube thumbnail for video %s still failed: %s", video_id, exc)
+        return str(exc)[:500]
+    wp.update_episode_meta(episode_id, {"ng_youtube_thumbnail_error": ""})
+    logger.info("YouTube thumbnail for video %s set on retry.", video_id)
+    return ""
+
+
 def resolve_youtube_processing(wp, config, show, episode_id, meta):
     video_id = meta.get("ng_youtube_video_id") or ""
     started_raw = meta.get("ng_youtube_upload_started_at") or ""
@@ -937,6 +963,8 @@ def resolve_youtube_processing(wp, config, show, episode_id, meta):
     wp.update_episode_meta(episode_id, {"ng_url_youtube": yt.watch_url(video_id)})
 
     thumbnail_error = meta.get("ng_youtube_thumbnail_error") or ""
+    if thumbnail_error:
+        thumbnail_error = retry_youtube_thumbnail(wp, service, episode_id, video_id, meta)
     if thumbnail_error:
         wp.update_step(episode_id, "youtube_published", "degraded", note=f"Thumbnail could not be set: {thumbnail_error[:400]}")
     else:

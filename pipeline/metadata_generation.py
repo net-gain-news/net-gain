@@ -21,6 +21,8 @@ show-notes editor is a styled-text (rich text) editor, not plain text.
 import json
 import logging
 
+from text_rules import K12_PROMPT_RULE, machine_safe
+
 logger = logging.getLogger("net_gain.metadata_generation")
 
 # Revised 2026-10-02 at the human operator's request: three-story titles of
@@ -149,7 +151,8 @@ def build_system_prompt(show_name):
         "entry in youtube_tags - investors commonly search by ticker in a way plain "
         "company names don't capture. Omit this entirely when no public company is "
         "genuinely discussed; never invent or guess a ticker. A ticker symbol or "
-        "company never changes the story order."
+        "company never changes the story order.\n\n"
+        f"{K12_PROMPT_RULE} (youtube_tags are the one exception: write K-12 there with an ordinary hyphen.)"
     )
 
 
@@ -275,6 +278,13 @@ def _retry_feedback(audit, problems):
     )
 
 
+def _finalize(metadata):
+    """YouTube tags are search keys, not read text: keep ordinary hyphens there (text_rules.machine_safe)."""
+    metadata = dict(metadata)
+    metadata["youtube_tags"] = [machine_safe(tag) for tag in metadata.get("youtube_tags") or []]
+    return metadata
+
+
 def generate_metadata_for_episode(anthropic_generate, show_name, episode_date, final_script):
     """
     Two independent guards, both regenerating on failure:
@@ -314,7 +324,7 @@ def generate_metadata_for_episode(anthropic_generate, show_name, episode_date, f
 
         over = overlong_titles(metadata)
         if not over:
-            return metadata
+            return _finalize(metadata)
         valid_attempts.append(metadata)
         logger.warning("Title over %d characters (attempt %d of %d): %s", TITLE_MAX_CHARS, attempt, MAX_METADATA_ATTEMPTS, over)
         feedback = ""
@@ -332,4 +342,4 @@ def generate_metadata_for_episode(anthropic_generate, show_name, episode_date, f
         "No attempt had every title within %d characters; using the shortest of each: %s",
         TITLE_MAX_CHARS, {f: len(result[f]) for f in TITLE_FIELDS},
     )
-    return result
+    return _finalize(result)

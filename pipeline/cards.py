@@ -104,12 +104,19 @@ def cond(size):
     return archivo(size, 700, 78)
 
 
+def _g(text):
+    """IBM Plex Mono has no U+2011 glyph (it would draw an empty box); the other faces draw it exactly like a
+    hyphen. So text is drawn with an ordinary hyphen - the K-12 never breaks anyway, since lines wrap only at spaces."""
+    return text.replace("\u2011", "-") if text else text
+
+
 def _adv(font, a, b=""):
     return font.getlength(a + b) - font.getlength(b) if b else font.getlength(a)
 
 
 def tlen(text, font, tr=0.0):
     """Width of text with letter-spacing tr (in em); Pillow has none, so it is drawn glyph by glyph."""
+    text = _g(text)
     size = font.size
     width = 0
     for i, ch in enumerate(text):
@@ -119,6 +126,7 @@ def tlen(text, font, tr=0.0):
 
 def ttext(d, xy, text, font, fill, tr=0.0, anchor="la"):
     x, y = xy
+    text = _g(text)
     size = font.size
     for i, ch in enumerate(text):
         d.text((x, y), ch, font=font, fill=fill, anchor=anchor)
@@ -184,7 +192,7 @@ class Canvas:
 
     def put(self, block, x, base, text, font, fill, tr=-0.01, what=""):
         """Draw text and record any ink (descenders included) that would leave its block."""
-        l, t, r, b = font.getbbox(text, anchor="ls")
+        l, t, r, b = font.getbbox(_g(text), anchor="ls")
         m = min(block[2] - block[0], block[3] - block[1]) * 0.025
         ink = (x + l, base + t, x + r, base + b)
         if ink[0] < block[0] + m or ink[2] > block[2] - m or ink[1] < block[1] + m or ink[3] > block[3] - m:

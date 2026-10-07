@@ -91,6 +91,12 @@
 	.ng-dashboard-table td {
 		display: block;
 		width: 100%;
+		/* Diagnosed 2026-10-07 (reproduced with WordPress's own admin stylesheets at phone width): these
+		   boxes default to content-box, so width:100% PLUS the row's 8px padding/1px border and each cell's
+		   20px side padding made every cell 40px wider than its card and the card wider than the screen.
+		   With justify-content:space-between the LED sat at the cells' far right edge - off the screen on
+		   an iPhone, where only the labels were visible. border-box keeps card and cells inside the page. */
+		box-sizing: border-box;
 	}
 
 	.ng-dashboard-table tr {

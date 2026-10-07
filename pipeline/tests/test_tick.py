@@ -22,6 +22,7 @@ from tick import (
     finalization_elapsed,
     generate_metadata,
     resolve_youtube_processing,
+    retry_youtube_thumbnail,
     script_generation_due,
     verify_website_publish,
     website_publish_due,
@@ -760,3 +761,45 @@ class NormalizeWpTextTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RetryYouTubeThumbnailTests(unittest.TestCase):
+    """Episode 317 (2026-10-07): thumbnails.set came back 403 seconds after upload, and succeeded when retried later."""
+
+    def _wp(self):
+        wp = Mock()
+        wp.get_attachment_url.return_value = "https://x.test/a.jpg"
+        wp.download_binary.return_value = b"jpegbytes"
+        return wp
+
+    @patch("tick.yt")
+    def test_a_successful_retry_clears_the_stored_error(self, mock_yt):
+        wp = self._wp()
+        result = retry_youtube_thumbnail(wp, "svc", 42, "vid", {"ng_image_16x9_id": 7})
+        self.assertEqual(result, "")
+        mock_yt.set_thumbnail.assert_called_once()
+        wp.update_episode_meta.assert_called_once_with(42, {"ng_youtube_thumbnail_error": ""})
+
+    @patch("tick.yt")
+    def test_a_failed_retry_keeps_the_error_and_leaves_the_stored_one_alone(self, mock_yt):
+        mock_yt.set_thumbnail.side_effect = RuntimeError("403 forbidden")
+        wp = self._wp()
+        result = retry_youtube_thumbnail(wp, "svc", 42, "vid", {"ng_image_16x9_id": 7})
+        self.assertIn("403 forbidden", result)
+        wp.update_episode_meta.assert_not_called()
+
+    @patch("tick.yt")
+    def test_resolve_settles_done_when_the_retry_works_and_degraded_when_it_does_not(self, mock_yt):
+        mock_yt.get_video_state.return_value = {"exists": True, "upload_status": "processed", "title": "T"}
+        mock_yt.watch_url.return_value = "https://youtube.test/v"
+        meta = {"ng_youtube_video_id": "vid", "ng_youtube_upload_started_at": datetime.now(timezone.utc).isoformat(),
+                "ng_meta_youtube_title": "T", "ng_youtube_thumbnail_error": "403", "ng_image_16x9_id": 7}
+        wp = self._wp()
+        wp.get_youtube_access_token.return_value = {"access_token": "tok"}
+        resolve_youtube_processing(wp, {}, {"id": 1, "name": "Show"}, 42, meta)
+        wp.update_step.assert_called_with(42, "youtube_published", "done")
+
+        mock_yt.set_thumbnail.side_effect = RuntimeError("still forbidden")
+        wp.update_step.reset_mock()
+        resolve_youtube_processing(wp, {}, {"id": 1, "name": "Show"}, 42, meta)
+        self.assertEqual(wp.update_step.call_args[0][2], "degraded")

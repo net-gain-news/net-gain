@@ -26,6 +26,7 @@ import logging
 import anthropic
 
 from retry import call_with_retries
+from text_rules import apply_text_rules
 
 logger = logging.getLogger("net_gain.anthropic_client")
 
@@ -245,4 +246,5 @@ def generate(client, system, user_content, tools=None, response_schema=None, eff
             f"Generation finished (stop_reason={response.stop_reason}) but produced no "
             "usable text content - refusing to treat an empty result as a real script."
         )
-    return text
+    # House text rules (text_rules.py): K-12 always uses the non-breaking hyphen, whatever the model wrote.
+    return apply_text_rules(text)

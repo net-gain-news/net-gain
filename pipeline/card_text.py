@@ -16,6 +16,8 @@ captions, which are not reliable headlines (operator, 2026-10-06).
 import json
 import logging
 
+from text_rules import K12_PROMPT_RULE
+
 from metadata_generation import StoryOrderError
 
 logger = logging.getLogger("net_gain.card_text")
@@ -76,7 +78,8 @@ def build_system_prompt(show_name):
         f"is one or two words (at most {WORD_MAX_CHARS} characters in total) naming what that story is about, "
         "such as \"Cyberattack\", \"AI detectors\" or \"Acquisition\". Sentence case: capitalize only the first "
         "word and proper nouns or acronyms; never all capitals except an acronym of up to four letters. "
-        "No punctuation. Name the topic, not the company."
+        "No punctuation. Name the topic, not the company.\n\n"
+        + K12_PROMPT_RULE
     )
 
 

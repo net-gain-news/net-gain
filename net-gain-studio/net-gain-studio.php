@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.8.0
+ * Version:           0.8.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -27,7 +27,7 @@ if ( ! isset( $_SERVER['HTTP_AUTHORIZATION'] ) && isset( $_SERVER['REDIRECT_HTTP
 	$_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
 }
 
-define( 'NET_GAIN_VERSION', '0.8.0' );
+define( 'NET_GAIN_VERSION', '0.8.1' );
 define( 'NET_GAIN_PLUGIN_FILE', __FILE__ );
 define( 'NET_GAIN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -66,6 +66,17 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-my-show-page.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-dashboard-page.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-admin-menu.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-admin-actions.php';
+
+// House text rule (K-12 uses a non-breaking hyphen, U+2011, in generated text - pipeline/text_rules.py): WordPress
+// would percent-encode that character into ugly URL slugs, so turn it into an ordinary hyphen BEFORE core's own slug
+// sanitizer (priority 10) runs. Titles keep the non-breaking hyphen; only slugs change.
+add_filter(
+	'sanitize_title',
+	function ( $title ) {
+		return str_replace( "\xE2\x80\x91", '-', $title );
+	},
+	5
+);
 
 register_activation_hook( __FILE__, array( 'Net_Gain_Activator', 'activate' ) );
 register_deactivation_hook( __FILE__, array( 'Net_Gain_Deactivator', 'deactivate' ) );

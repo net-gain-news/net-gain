@@ -68,6 +68,12 @@ The business asked for this delivered as one complete system rather than phased 
 8. Image pipeline (Section 7).
 9. YouTube (Section 6.3) — explicitly its own phase per the spec; build it last, not in parallel with the others.
 
+## Text rules for everything AI-generated
+
+Standing operator rules (they apply to every generator - scripts, headlines, titles, show notes, descriptions, episode graphics - not just the one you happen to be editing). They are enforced in code in `pipeline/text_rules.py`, so a new generator must route its output through it (`anthropic_client.generate()` already does) and put `K12_PROMPT_RULE` in its prompt.
+
+- **K-12 always uses a non-breaking hyphen (U+2011)** between the K and the 12, so the term can never split across two lines. Leave URLs alone, keep ordinary hyphens in machine-facing fields (YouTube tags) and in URL slugs (the plugin converts it for slugs), and note that IBM Plex Mono has no U+2011 glyph - `pipeline/cards.py` draws it as a plain hyphen. Text the host types by hand is not AI-generated and is not changed.
+
 ## When you're blocked on something only the human operator can provide
 
 Say so plainly and specifically (which credential, which manual step, which decision) rather than stubbing around it silently. Given how much of this project's history involved discovering undocumented third-party API behavior the hard way (Section 1), the same discipline applies here: verify against real documentation or a live response before building on an assumption, and prefer failing loudly and specifically over guessing quietly.
