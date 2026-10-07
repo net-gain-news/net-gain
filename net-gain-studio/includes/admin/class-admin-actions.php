@@ -127,6 +127,9 @@ class Net_Gain_Admin_Actions {
 			update_post_meta( $show_id, $fallback_key, (int) ( $_POST[ $fallback_key ] ?? 0 ) );
 		}
 
+		$image_mode = ( 'cards' === ( $_POST['ng_image_mode'] ?? '' ) ) ? 'cards' : 'ai';
+		update_post_meta( $show_id, 'ng_image_mode', $image_mode );
+
 		$image_style = ( 'duotone' === ( $_POST['ng_image_style'] ?? '' ) ) ? 'duotone' : 'none';
 		update_post_meta( $show_id, 'ng_image_style', $image_style );
 		update_post_meta( $show_id, 'ng_duotone_shadow_color', sanitize_hex_color( wp_unslash( $_POST['ng_duotone_shadow_color'] ?? '' ) ) ?: '' );

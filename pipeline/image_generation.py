@@ -22,11 +22,14 @@ corrected call shape only needs to touch this one place.
 
 import json
 import logging
+from datetime import date
 from io import BytesIO
 
 from PIL import Image
 
-from image_compositing import apply_duotone, composite_and_encode
+import cards
+from card_text import generate_card_text
+from image_compositing import apply_duotone, composite_and_encode, encode_with_size_cap
 from image_prompt import generate_image_prompt_for_episode
 from retry import call_with_retries
 
@@ -53,6 +56,9 @@ FALLBACK_META_KEYS = {
     "16x9": "ng_fallback_16x9_id",
     "1200x630": "ng_fallback_1200x630_id",
 }
+CARD_TEMPLATE_META_KEY = "ng_card_template"        # episode meta: which card the episode was drawn with
+CARD_LAST_META_KEY = "ng_card_last_template"       # show meta: the template the rotation used most recently
+IMAGE_MODE_META_KEY = "ng_image_mode"              # show meta: "ai" (default) or "cards"
 IMAGE_META_KEYS = {"square": "ng_image_square_id", "16x9": "ng_image_16x9_id", "1200x630": "ng_image_1200x630_id"}
 
 RETRYABLE_EXCEPTIONS = ()
@@ -117,17 +123,93 @@ def generate_base_image(client, prompt):
     raise RuntimeError(f"Gemini response contained no image data: {response}")
 
 
+def card_index_from_snapshot(show_meta, episode_date):
+    """
+    The day's Edtech Index in the shape the cards use, or None. Only a snapshot refreshed on the episode's own
+    date counts: yesterday's numbers on today's card would be wrong.
+    """
+    snapshot = show_meta.get("ng_index_snapshot") or {}
+    if not snapshot or show_meta.get("ng_index_last_refresh_date") != episode_date:
+        return None
+    if snapshot.get("daily_change_percent") is None:
+        return None
+    moves = [
+        {"t": c["ticker"], "co": c.get("company", ""), "mv": c["day_change_percent"]}
+        for c in snapshot.get("constituents") or []
+        if c.get("ticker") and c.get("day_change_percent") is not None
+    ]
+    return {"pct": snapshot["daily_change_percent"], "ytd": snapshot.get("ytd_change_percent"), "moves": moves}
+
+
+def render_cards_for_episode(wp, anthropic_generate, show, episode_id, episode, show_meta):
+    """
+    Code-built card path (show image mode "cards"): no AI imagery. Text is generated from the script (with the
+    story-order audit), the template comes from the show's round-robin rotation, and all three formats are drawn
+    and uploaded like the AI path's. If the text cannot be generated safely (story-order audit failure), the card
+    is simply drawn from a template that needs no generated text - never with wrong-order text.
+    """
+    meta = episode.get("meta", {})
+    episode_date = meta.get("ng_episode_date", "")
+    dt = date.fromisoformat(episode_date)
+
+    frames = {}
+    for spec, meta_key in FRAME_META_KEYS.items():
+        frame_id = show_meta.get(meta_key, 0)
+        if not frame_id:
+            raise RuntimeError(f"Show '{show['name']}' has no {spec} frame configured.")
+        frames[spec] = wp.download_binary(wp.get_attachment_url(frame_id))
+
+    content = cards.CardContent(episode_date=dt, index=card_index_from_snapshot(show_meta, episode_date))
+    try:
+        text = generate_card_text(anthropic_generate, show["name"], episode_date, meta.get("ng_script_final", ""))
+        content.headline, content.keywords = text["headline"], text["keywords"]
+    except Exception as exc:   # includes StoryOrderError - fall back to templates that need no generated text
+        logger.warning("Card text unavailable for episode %s (%s); drawing a text-free card: %s", episode_id, show["name"], exc)
+
+    stored = meta.get(CARD_TEMPLATE_META_KEY) or ""
+    candidates = cards.candidate_templates(show_meta.get(CARD_LAST_META_KEY) or "", content)
+    if stored in candidates:
+        candidates = [stored] + [t for t in candidates if t != stored]   # a re-render keeps the episode's own card
+    if not candidates:
+        raise RuntimeError("No card template can be drawn for this episode.")
+
+    rendered, chosen, last_error = None, None, None
+    for template in candidates:
+        try:
+            rendered, chosen = cards.render_formats(template, content, frames), template
+            break
+        except cards.CardLayoutError as exc:
+            last_error = exc
+            logger.warning("Card %s does not fit episode %s (%s): %s", template, episode_id, show["name"], exc)
+    if rendered is None:
+        raise RuntimeError(f"No card template fit this episode: {last_error}")
+
+    result_meta = {CARD_TEMPLATE_META_KEY: chosen}
+    for spec, output_spec in OUTPUT_SPECS.items():
+        encoded = encode_with_size_cap(rendered[spec], output_spec["format"], output_spec["max_bytes"])
+        ext = "jpg" if output_spec["format"] == "JPEG" else "webp"
+        filename = f"{show['slug']}-{episode_date}-{spec}.{ext}"
+        result_meta[IMAGE_META_KEYS[spec]] = wp.upload_media(encoded, filename, output_spec["mime"])
+    wp.update_episode_meta(episode_id, result_meta)
+    if chosen != stored:
+        wp.update_show_meta(show["id"], {CARD_LAST_META_KEY: chosen})
+    logger.info("Drew card %s for episode %s (%s).", chosen, episode_id, show["name"])
+
+
 def render_images_for_episode(wp, vertex_client, anthropic_generate, show, episode_id):
     episode = wp.get_episode(episode_id)
     meta = episode.get("meta", {})
     episode_date = meta.get("ng_episode_date", "")
 
+    show_details = wp.get_show(show["id"])
+    show_meta = show_details.get("meta", {})
+
+    if show_meta.get(IMAGE_MODE_META_KEY) == "cards":
+        return render_cards_for_episode(wp, anthropic_generate, show, episode_id, episode, show_meta)
+
     image_prompt = generate_image_prompt_for_episode(
         anthropic_generate, show["name"], episode_date, meta.get("ng_script_final", "")
     )
-
-    show_details = wp.get_show(show["id"])
-    show_meta = show_details.get("meta", {})
 
     frame_bytes = {}
     for spec, meta_key in FRAME_META_KEYS.items():

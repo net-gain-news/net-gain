@@ -273,6 +273,18 @@ class Net_Gain_Edit_Show_Page {
 					</tr>
 
 					<tr>
+						<th>Graphics source</th>
+						<td>
+							<?php $image_mode = $get( 'ng_image_mode', 'ai' ); ?>
+							<select id="ng_image_mode" name="ng_image_mode">
+								<option value="ai" <?php selected( 'ai', $image_mode ); ?>>AI-generated artwork (default)</option>
+								<option value="cards" <?php selected( 'cards', $image_mode ); ?>>Code-built cards (no AI imagery)</option>
+							</select>
+							<p class="description">Code-built cards are drawn from the episode's own facts (headline, topic words, date, the index) in nine templates served round-robin. The frames above supply the footer band and logo. The image style below only applies to AI-generated artwork.</p>
+						</td>
+					</tr>
+
+					<tr>
 						<th>Image style</th>
 						<td>
 							<details<?php echo 'duotone' === $get( 'ng_image_style', 'none' ) ? ' open' : ''; ?>>

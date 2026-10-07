@@ -58,6 +58,8 @@ class Net_Gain_CPT_Episode {
 			'ng_script_draft'          => array( 'type' => 'string', 'default' => '' ),
 			'ng_script_final'          => array( 'type' => 'string', 'default' => '' ),
 			'ng_audio_attachment_id'   => array( 'type' => 'integer', 'default' => 0 ),
+			// Which card template drew this episode's graphics (cards image mode); a re-render keeps it.
+			'ng_card_template'         => array( 'type' => 'string', 'default' => '' ),
 			'ng_image_square_id'       => array( 'type' => 'integer', 'default' => 0 ),
 			'ng_image_16x9_id'         => array( 'type' => 'integer', 'default' => 0 ),
 			'ng_image_1200x630_id'     => array( 'type' => 'integer', 'default' => 0 ),

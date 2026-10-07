@@ -131,6 +131,13 @@ class Net_Gain_CPT_Show {
 			// image before per-format cropping/frame compositing. Only the two colors vary
 			// per show; the blend algorithm itself (contrast/brightness/opacities) is fixed
 			// in pipeline/image_compositing.py, not configurable here.
+			// Where episode graphics come from: 'ai' (generated base image, the original path) or
+			// 'cards' (code-drawn cards from the episode's own facts - no AI imagery, so nothing
+			// for YouTube's "Made with AI" labelling to react to). pipeline/image_generation.py reads it.
+			'ng_image_mode'              => array( 'type' => 'string', 'default' => 'ai' ), // ai|cards
+			// Written by the pipeline only: the card template the round-robin used most recently,
+			// so the next new episode takes the one after it (pipeline/cards.py TEMPLATE_ORDER).
+			'ng_card_last_template'      => array( 'type' => 'string', 'default' => '' ),
 			'ng_image_style'             => array( 'type' => 'string', 'default' => 'none' ), // none|duotone
 			'ng_duotone_shadow_color'    => array( 'type' => 'string', 'default' => '' ),
 			'ng_duotone_highlight_color' => array( 'type' => 'string', 'default' => '' ),
