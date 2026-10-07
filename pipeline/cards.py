@@ -329,13 +329,14 @@ def tpl_A(c, content):
         for ln in lines:
             ttext(d, (pad, y), ln, f, ACC, -0.02)
             y += int(size * 1.06)
+        wave_cy = y + 330     # follows the headline (a 5-line headline puts it where the approved design had it)
         random.seed(7)
         n = 62
         bw = cw / n
         for i in range(n):
             h = int(60 + 150 * abs(math.sin(i * 0.5)) * random.uniform(0.5, 1.0))
             x = pad + i * bw
-            d.rounded_rectangle((x, 2345 - h // 2, x + bw * 0.52, 2345 + h // 2), radius=14, fill=MID if i % 3 else ACC)
+            d.rounded_rectangle((x, wave_cy - h // 2, x + bw * 0.52, wave_cy + h // 2), radius=14, fill=MID if i % 3 else ACC)
     else:
         size, lines = fit_lines(content.headline, archivo, 720, 5, 72, 48)
         y = 110
