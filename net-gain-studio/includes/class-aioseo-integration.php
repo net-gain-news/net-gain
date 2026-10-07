@@ -29,6 +29,45 @@ class Net_Gain_AIOSEO_Integration {
 	public static function register() {
 		add_filter( 'aioseo_description', array( __CLASS__, 'filter_description' ) );
 		add_filter( 'aioseo_save_post', array( __CLASS__, 'filter_save_post' ) );
+		add_filter( 'aioseo_facebook_tags', array( __CLASS__, 'filter_facebook_tags' ) );
+		add_filter( 'aioseo_twitter_tags', array( __CLASS__, 'filter_twitter_tags' ) );
+	}
+
+	/**
+	 * The episode's own 1200x630 art as the Open Graph / Twitter share image
+	 * (2026-10-06). AIOSEO would otherwise look for a featured image, and the
+	 * public podcast post has none - the art hangs off the internal ng_episode
+	 * post (ng_image_1200x630_id), the same one the theme shows on the page.
+	 * Returns array( url, width, height ) or null when this is not an episode
+	 * page or it has no art yet (AIOSEO's own fallback then applies).
+	 */
+	private static function share_image() {
+		if ( ! is_singular( 'podcast' ) ) {
+			return null;
+		}
+		$episode_id = self::source_episode_id( get_the_ID() );
+		$image_id   = $episode_id ? (int) get_post_meta( $episode_id, 'ng_image_1200x630_id', true ) : 0;
+		$src        = $image_id ? wp_get_attachment_image_src( $image_id, 'full' ) : false;
+		return $src ? array( $src[0], (int) $src[1], (int) $src[2] ) : null;
+	}
+
+	public static function filter_facebook_tags( $meta ) {
+		$image = self::share_image();
+		if ( $image ) {
+			$meta['og:image']            = $image[0];
+			$meta['og:image:secure_url'] = $image[0];
+			$meta['og:image:width']      = $image[1];
+			$meta['og:image:height']     = $image[2];
+		}
+		return $meta;
+	}
+
+	public static function filter_twitter_tags( $meta ) {
+		$image = self::share_image();
+		if ( $image ) {
+			$meta['twitter:image'] = $image[0];
+		}
+		return $meta;
 	}
 
 	public static function filter_description( $description ) {
