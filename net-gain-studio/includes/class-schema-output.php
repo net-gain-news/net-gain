@@ -46,12 +46,12 @@ class Net_Gain_Schema_Output {
 			);
 		}
 
+		// The same Person (and @id) AIOSEO publishes and the anchor's bio page
+		// describes, so crawlers and AI systems resolve one entity with its
+		// role, bio and profile links rather than a bare name.
 		$author_id = get_post_field( 'post_author', $post_id );
 		if ( $author_id ) {
-			$schema['author'] = array(
-				'@type' => 'Person',
-				'name'  => get_the_author_meta( 'display_name', $author_id ),
-			);
+			$schema['author'] = Net_Gain_Anchor_Profile::person_schema( (int) $author_id );
 		}
 
 		// str_replace guards against generated title/description text containing a
