@@ -34,6 +34,7 @@ logger = logging.getLogger("net_gain.metadata_generation")
 # separate rules (under 100, aim under 70) and is deliberately unchanged.
 TITLE_MAX_CHARS = 65
 TITLE_FIELDS = ("captivate_title", "aioseo_title")
+SEARCH_RESULT_FIELDS = ("aioseo_title", "aioseo_description")
 MAX_METADATA_ATTEMPTS = 4
 
 RESPONSE_SCHEMA = {
@@ -152,7 +153,8 @@ def build_system_prompt(show_name):
         "company names don't capture. Omit this entirely when no public company is "
         "genuinely discussed; never invent or guess a ticker. A ticker symbol or "
         "company never changes the story order.\n\n"
-        f"{K12_PROMPT_RULE} (youtube_tags are the one exception: write K-12 there with an ordinary hyphen.)"
+        f"{K12_PROMPT_RULE} (youtube_tags, aioseo_title and aioseo_description are the exceptions: search-result fields, "
+        "so write K-12 there with an ordinary hyphen.)"
     )
 
 
@@ -279,8 +281,12 @@ def _retry_feedback(audit, problems):
 
 
 def _finalize(metadata):
-    """YouTube tags are search keys, not read text: keep ordinary hyphens there (text_rules.machine_safe)."""
+    """YouTube tags and the AIOSEO title/description are search keys or search-result text, where an
+    ordinary hyphen matches what people type: keep ordinary hyphens there (text_rules.machine_safe)."""
     metadata = dict(metadata)
+    for key in SEARCH_RESULT_FIELDS:
+        if isinstance(metadata.get(key), str):
+            metadata[key] = machine_safe(metadata[key])
     metadata["youtube_tags"] = [machine_safe(tag) for tag in metadata.get("youtube_tags") or []]
     return metadata
 

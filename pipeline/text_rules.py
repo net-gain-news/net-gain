@@ -9,8 +9,9 @@ apply_text_rules(), and every generator prompt also states the rule (K12_PROMPT_
 
 What is deliberately left alone:
   * URLs - an href or link rewritten with a different character would stop working;
-  * machine-facing fields that are not read as text, such as YouTube tags (metadata_generation
-    restores ordinary hyphens there with machine_safe());
+  * machine-facing and search-result fields, such as YouTube tags and the AIOSEO title and
+    description (operator, 2026-10-10: searchers type an ordinary hyphen), where metadata_generation
+    restores ordinary hyphens with machine_safe();
   * WordPress URL slugs, which the plugin builds with ordinary hyphens (see the sanitize_title
     filter in net-gain-studio.php).
 Text the host types into a script by hand is not "AI-generated" and is not changed here.

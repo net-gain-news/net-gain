@@ -239,5 +239,31 @@ class StoryOrderGuardTests(unittest.TestCase):
         self.assertEqual(len(result["aioseo_title"]), 80)
 
 
+
+class SearchResultHyphenTests(unittest.TestCase):
+    def _fake_metadata(self):
+        return GenerateMetadataForEpisodeTests._fake_metadata(self)
+    def test_search_result_fields_get_an_ordinary_hyphen_while_other_fields_keep_the_non_breaking_one(self):
+        nb = "K\u201112"
+        meta = dict(self._fake_metadata(), captivate_title="A " + nb + " title", aioseo_title="A " + nb + " title",
+                    aioseo_description="News for " + nb + " leaders", youtube_tags=[nb + " schools"])
+
+        def fake_generate(system, user_content, tools, response_schema):
+            if response_schema is AUDIT_SCHEMA:
+                return json.dumps(good_audit())
+            return json.dumps(meta)
+
+        result = generate_metadata_for_episode(fake_generate, "Net Gain Edtech", "2026-10-06", "script")
+        self.assertEqual(result["aioseo_title"], "A K-12 title")
+        self.assertEqual(result["aioseo_description"], "News for K-12 leaders")
+        self.assertEqual(result["youtube_tags"], ["K-12 schools"])
+        self.assertEqual(result["captivate_title"], "A " + nb + " title")
+
+    def test_prompt_exempts_the_search_result_fields_from_the_non_breaking_hyphen(self):
+        prompt = build_system_prompt("Net Gain Edtech")
+        self.assertIn("aioseo_title and aioseo_description are the exceptions", prompt)
+
+
+
 if __name__ == "__main__":
     unittest.main()
