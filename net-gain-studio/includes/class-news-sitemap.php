@@ -4,9 +4,10 @@
  *
  * AIOSEO's own News Sitemap is a separate add-on that this site's licence tier does not include, so the plugin
  * serves the file itself. Per Google's news sitemap format it lists only articles published in the last two days
- * (up to 1000), each with its publication name, language, publication date and title. The publication is the SHOW
- * ("Net Gain Edtech"), matching the publisher named in each episode's NewsArticle structured data
- * (class-news-schema.php). Blog posts and pages are never listed.
+ * (up to 1000), each with its publication name, language, publication date and title. There is ONE sitemap for the
+ * whole site and the publication is the site's name ("Net Gain News") for every show: Google News keys a publication
+ * to the website and names it from the site name, so this must agree with the site name and the publisher in each
+ * episode's NewsArticle structured data (class-news-schema.php). Blog posts and pages are never listed.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -45,12 +46,13 @@ class Net_Gain_News_Sitemap {
 			)
 		);
 
-		$items = array();
+		// One sitemap, one publication: the site's own name, for every show.
+		$publication = html_entity_decode( get_bloginfo( 'name' ), ENT_QUOTES, 'UTF-8' );
+		$items       = array();
 		foreach ( $posts as $post ) {
-			$terms   = get_the_terms( $post->ID, 'series' );
 			$items[] = array(
 				'loc'      => get_permalink( $post ),
-				'name'     => ( ! empty( $terms ) && ! is_wp_error( $terms ) ) ? $terms[0]->name : get_bloginfo( 'name' ),
+				'name'     => $publication,
 				'language' => 'en',
 				'date'     => get_post_time( 'c', false, $post ),
 				'title'    => get_the_title( $post ),

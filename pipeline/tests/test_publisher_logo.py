@@ -20,6 +20,16 @@ class PublisherLogoTests(unittest.TestCase):
         self.assertEqual(img.width, img.height)
         self.assertGreaterEqual(img.width, 512)
 
+    def test_news_wordmark_keeps_the_mark_and_net_gain_and_replaces_the_show_name(self):
+        show = logos._show_wordmark("denim")
+        news = logos.news_wordmark("denim")
+        self.assertEqual(news.height, show.height)
+        self.assertNotEqual(news.width, show.width)     # "News" is a shorter word than "Edtech"
+        cut = 1300                                       # inside "Net Gain": everything left of the show-name word is untouched
+        self.assertEqual(list(news.crop((0, 0, cut, news.height)).getdata()), list(show.crop((0, 0, cut, show.height)).getdata()))
+        right = news.crop((cut + 200, 0, news.width, news.height))
+        self.assertIsNotNone(right.getchannel("A").getbbox())    # the new word was drawn
+
     def test_logos_are_opaque_on_the_dark_footer_colour(self):
         img = logos.wide_logo("denim")
         self.assertEqual(img.mode, "RGB")

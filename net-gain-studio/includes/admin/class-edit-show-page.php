@@ -273,7 +273,7 @@ class Net_Gain_Edit_Show_Page {
 					</tr>
 
 					<tr>
-						<th>Publisher logo</th>
+						<th>Publisher logo (Net Gain News)</th>
 						<td>
 							<?php $logo_id = (int) $get( 'ng_publisher_logo_id', 0 ); ?>
 							<div class="ng-frame-picker" style="margin-bottom:16px;">
@@ -284,7 +284,7 @@ class Net_Gain_Edit_Show_Page {
 								</div>
 								<input type="hidden" class="ng-frame-input" name="ng_publisher_logo_id" value="<?php echo esc_attr( $logo_id ); ?>">
 								<button type="button" class="button ng-frame-select">Select Image</button>
-								<p class="description">Named as the publisher in the news structured data search engines read from each episode page. A rectangular logo no taller than 60 px and no wider than 600 px, on a solid background (it appears on white pages). Leave empty to use the site-wide organization.</p>
+								<p class="description">The logo of the publisher named in the news structured data search engines read from each episode page. The publisher is the site (Net Gain News), not this show, so use the Net Gain News logo: a rectangle no taller than 60 px and no wider than 600 px, on a solid background (it appears on white pages). It is only used when the organization has no logo set in AIOSEO's Search Appearance settings.</p>
 							</div>
 						</td>
 					</tr>

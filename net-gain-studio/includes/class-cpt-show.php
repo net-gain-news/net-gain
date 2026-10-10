@@ -121,7 +121,7 @@ class Net_Gain_CPT_Show {
 			'ng_frame_square_id'     => array( 'type' => 'integer', 'default' => 0 ),
 			'ng_frame_16x9_id'       => array( 'type' => 'integer', 'default' => 0 ),
 			'ng_frame_1200x630_id'   => array( 'type' => 'integer', 'default' => 0 ),
-			// The show's publisher logo for news structured data (rectangular, at most 60 px tall; see includes/class-news-schema.php).
+			// The Net Gain News publisher logo for news structured data (rectangular, at most 60 px tall; see includes/class-news-schema.php).
 			'ng_publisher_logo_id'   => array( 'type' => 'integer', 'default' => 0 ),
 			// Pre-rendered, finished images (already run through all three frames/formats) -
 			// used automatically if AI image generation fails (Spec Section 7's required
