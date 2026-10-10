@@ -1,0 +1,40 @@
+/*
+ * SAGE palette - the original Net Gain Edtech scheme (dark green), in use 2026-09-20 .. 2026-10-09,
+ * replaced on the Edtech site by DENIM on 2026-10-09. Kept so it can be reused for another show.
+ *
+ * Drop-in: put these inside :root and scope the "context" block to the show's body class
+ * (body.ng-show-<slug>) exactly as the Net Gain News theme does for Edtech. The theme's components are all
+ * written in terms of the semantic tokens (--bg --hbg --fg --ac --acl --mu --bd --th --btn-* --nav-active),
+ * so switching palette = changing these values.
+ */
+
+:root {
+	--sage-bg:  #1e2620;   /* page background */
+	--sage-hbg: #1a221d;   /* header, section, footer and network-strip background */
+	--sage-fg:  #f5f6f2;   /* primary text ("ink") */
+	--sage-ac:  #3d6b4a;   /* accent: primary buttons, rules */
+	--sage-acl: #85a870;   /* light accent: links, "Edtech" in the logo and body, labels, nav active */
+	--sage-mu:  #8a9e8c;   /* muted text */
+	--sage-bd:  #2e3a2e;   /* borders and rules */
+	--sage-th:  #253228;   /* thumbnail placeholder background */
+
+	/* Edtech Index up / down on the dark ground */
+	--up:   #85a870;
+	--down: #e87c50;
+}
+
+body.ng-show-SLUG {          /* replace SLUG with the show's slug */
+	--bg:  var(--sage-bg);
+	--hbg: var(--sage-hbg);
+	--fg:  var(--sage-fg);
+	--ac:  var(--sage-ac);
+	--acl: var(--sage-acl);
+	--mu:  var(--sage-mu);
+	--bd:  var(--sage-bd);
+	--th:  var(--sage-th);
+
+	--btn-bg:      var(--ac);
+	--btn-text:    var(--fg);     /* light text on the green button */
+	--btn-s-hover: var(--acl);
+	--nav-active:  var(--acl);
+}

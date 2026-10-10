@@ -1,0 +1,1244 @@
+/**
+ * Theme Name: Net Gain News
+ * Theme URI: https://netgain.news/
+ * Author: Net Gain News
+ * Template: astra
+ * Description: Custom child theme implementing the Net Gain News / Net Gain Edtech design system (Claude Design handoff) on top of Astra.
+ * Version: 0.5.3
+ * Text Domain: net-gain-news
+ *
+ * Class names below are ported directly from the design handoff's own
+ * netgain.css / edtech.css (site_name/.site-header/.btn-p etc.) rather than
+ * re-derived, for pixel fidelity. Palette differences between the corporate
+ * and show sections are resolved via CSS custom properties scoped by body
+ * class - see "Design tokens" below - rather than duplicating each rule.
+ *
+ * Astra's own stylesheet (the real parent theme's style.css) still loads
+ * first for base resets - see functions.php for the enqueue order.
+ */
+
+/* ==========================================================================
+   Design tokens
+   ========================================================================== */
+
+:root {
+	/* Corporate section - Neutral Dark palette */
+	--corp-bg:  #12110e;
+	--corp-hbg: #0e0d0b;
+	--corp-fg:  #ede9e2;
+	--corp-ac:  #ede9e2;
+	--corp-acl: #c8c4bc;
+	--corp-mu:  #7a766e;
+	--corp-bd:  #252320;
+
+	/* Net Gain Edtech - Sage palette (active show) */
+	--sage-bg:  #1e2620;
+	--sage-hbg: #1a221d;
+	--sage-fg:  #f5f6f2;
+	--sage-ac:  #3d6b4a;
+	--sage-acl: #85a870;
+	--sage-mu:  #8a9e8c;
+	--sage-bd:  #2e3a2e;
+	--sage-th:  #253228;
+
+	/* Reserved for future shows (design system doc) - not wired to any page yet */
+	--amber-bistre: #1e1a14;
+	--amber-amber:  #b87d1a;
+	--amber-gold:   #e8c46a;
+	--amber-cream:  #fdf8f0;
+
+	--ember-espresso: #1c1410;
+	--ember-ember:    #c24a28;
+	--ember-coral:    #e87c50;
+	--ember-linen:    #faf8f5;
+
+	--citron-carbon: #181c18;
+	--citron-citron: #c8e830;
+	--citron-bone:   #f0f0ec;
+
+	/* Semantic up/down (Edtech Index) */
+	--up:   #85a870;
+	--down: #e87c50;
+}
+
+/* Context scopes - set on <body> by header.php depending on section.
+   Default (no scope class) falls back to the corporate palette.
+   --btn-bg/--btn-text/--btn-s-hover/--nav-active are semantic tokens that
+   resolve the two sections' genuinely different button/nav treatments
+   (corporate: light neutral accent button; edtech: colored accent button)
+   without duplicating every component rule per section. */
+body,
+body.ng-corporate {
+	--bg:  var(--corp-bg);
+	--hbg: var(--corp-hbg);
+	--fg:  var(--corp-fg);
+	--ac:  var(--corp-ac);
+	--acl: var(--corp-acl);
+	--mu:  var(--corp-mu);
+	--bd:  var(--corp-bd);
+
+	--btn-bg:      var(--fg);
+	--btn-text:    var(--hbg);
+	--btn-s-hover: var(--fg);
+	--nav-active:  var(--fg);
+}
+
+body.ng-show-edtech {
+	--bg:  var(--sage-bg);
+	--hbg: var(--sage-hbg);
+	--fg:  var(--sage-fg);
+	--ac:  var(--sage-ac);
+	--acl: var(--sage-acl);
+	--mu:  var(--sage-mu);
+	--bd:  var(--sage-bd);
+	--th:  var(--sage-th);
+
+	--btn-bg:      var(--ac);
+	--btn-text:    var(--fg);
+	--btn-s-hover: var(--acl);
+	--nav-active:  var(--acl);
+}
+
+/* ==========================================================================
+   Reset / base
+   ========================================================================== */
+
+html {
+	overflow-y: scroll; /* prevents scrollbar-width layout shift between pages */
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	background: var(--bg) !important;
+	color: var(--fg);
+	font-family: 'IBM Plex Sans', system-ui, sans-serif;
+	min-height: 100vh;
+	margin: 0;
+	scrollbar-gutter: stable;
+	-webkit-font-smoothing: antialiased;
+}
+
+img {
+	max-width: 100%;
+	display: block;
+}
+
+body a {
+	color: inherit;
+	text-decoration: none;
+}
+
+body.ng-corporate a:hover {
+	color: var(--fg);
+	opacity: 0.7;
+}
+
+body.ng-show-edtech a:hover {
+	color: var(--acl);
+}
+
+h1, h2, h3, h4, h5, h6 {
+	margin: 0 0 0.5em;
+	color: var(--fg) !important; /* no per-instance inline heading colors anywhere in this theme, safe to force */
+	font-weight: inherit;
+}
+
+p {
+	margin: 0 0 1em;
+	color: inherit;
+}
+
+button, input, select, textarea {
+	font-family: inherit;
+	font-size: inherit;
+}
+
+/* No shadows or rounded corners anywhere - flat, sharp brand throughout */
+* {
+	border-radius: 0 !important;
+	box-shadow: none !important;
+}
+
+.mono { font-family: 'IBM Plex Mono', monospace; }
+.arch { font-family: 'Archivo', system-ui, sans-serif; }
+.fam  { font-family: 'Familjen Grotesk', system-ui, sans-serif; }
+
+/* ==========================================================================
+   Layout helpers
+   ========================================================================== */
+
+.ng-container {
+	max-width: 1360px;
+	margin: 0 auto;
+	padding: 0 40px;
+}
+
+.ng-content {
+	max-width: 1200px;
+	margin: 0 auto;
+	padding: 0 40px;
+}
+
+/* ==========================================================================
+   Brand mark - two horizontal bars, scales with adjacent text via 1cap units.
+   Rendered by ng_brand_mark() in functions.php - color passed per instance
+   (header/footer/logo lockup each use a different bar color), so this stays
+   a single set of rules rather than a per-section variant.
+   ========================================================================== */
+
+.ng-mark {
+	display: inline-block;
+	vertical-align: baseline;
+	overflow: hidden;
+	height: 1cap;
+	width: calc(1cap * 1.077);
+	margin-right: 0.3em;
+	position: relative;
+	top: 0;
+}
+
+.ng-mark-inner {
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	height: 100%;
+}
+
+.ng-mark-bar {
+	display: block;
+	height: calc(1cap * 0.419);
+	background: currentColor;
+}
+
+.ng-mark-bar--top    { width: calc(1cap * 0.731); }
+.ng-mark-bar--bottom { width: 100%; }
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+
+.site-header {
+	position: sticky;
+	top: 0;
+	z-index: 100;
+	background: var(--hbg);
+	border-bottom: 1px solid var(--bd);
+	height: 64px;
+	display: flex;
+	align-items: center;
+	padding: 0 40px;
+}
+
+.header-inner {
+	display: flex;
+	align-items: center;
+	max-width: 1360px;
+	margin: 0 auto;
+	width: 100%;
+}
+
+.site-logo {
+	font-family: 'Familjen Grotesk', system-ui, sans-serif;
+	font-weight: 700;
+	font-size: 22px;
+	letter-spacing: -0.025em;
+	white-space: nowrap;
+	line-height: 1;
+	margin-right: 48px;
+	color: var(--fg);
+}
+
+.site-nav {
+	display: flex;
+	align-items: center;
+	gap: 32px;
+	flex: 1;
+}
+
+.site-nav a {
+	font-size: 14px;
+	opacity: 0.6;
+	padding-bottom: 1px;
+	border-bottom: 1px solid transparent;
+	position: relative;
+	top: 4px;
+}
+
+.site-nav a:hover { opacity: 1; }
+
+.site-nav a.active {
+	opacity: 1;
+	border-bottom-color: var(--nav-active);
+}
+
+.nav-badge {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 10px;
+	letter-spacing: 0.08em;
+	color: var(--mu);
+	opacity: 0.7;
+	margin-right: 20px;
+	white-space: nowrap;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+
+.btn-p {
+	background: var(--btn-bg);
+	color: var(--btn-text);
+	border: 1px solid var(--btn-bg);
+	padding: 10px 20px;
+	font-family: 'IBM Plex Sans', sans-serif;
+	font-size: 15px;
+	font-weight: 600;
+	cursor: pointer;
+	letter-spacing: 0.02em;
+	display: inline-block;
+	transition: opacity 120ms ease;
+}
+
+.btn-p:hover { opacity: 0.85; }
+
+.btn-s {
+	background: transparent;
+	color: var(--fg);
+	border: 1px solid var(--bd);
+	padding: 10px 20px;
+	font-family: 'IBM Plex Sans', sans-serif;
+	font-size: 15px;
+	font-weight: 600;
+	cursor: pointer;
+	letter-spacing: 0.02em;
+	display: inline-block;
+	transition: border-color 120ms ease, color 120ms ease;
+}
+
+.btn-s:hover {
+	border-color: var(--btn-s-hover);
+	color: var(--btn-s-hover);
+}
+
+/* No visited-link colour rules anywhere in this theme (removed 2026-10-09): a
+   followed link must look exactly like an unfollowed one. Don't add one back -
+   a blanket important visited-colour rule used to sit here and recoloured every
+   followed link, including those with inline accent colours. */
+
+.header-cta {
+	font-size: 13px !important;
+	padding: 7px 16px !important;
+}
+
+/* ==========================================================================
+   Cards
+   ========================================================================== */
+
+.show-card {
+	border: 1px solid var(--bd);
+	transition: border-color 150ms;
+}
+
+.show-card:hover { border-color: var(--fg); }
+
+.ep-card {
+	border: 1px solid var(--bd);
+	cursor: pointer;
+	transition: border-color 150ms ease;
+}
+
+.ep-card:hover { border-color: var(--ac); }
+
+.ep-row {
+	display: grid;
+	grid-template-columns: 160px 1fr;
+	gap: 20px;
+	padding: 20px 0;
+	border-bottom: 1px solid var(--bd);
+	align-items: start;
+}
+
+.ep-thumb-wrap {
+	aspect-ratio: 1200 / 630;
+	position: relative;
+	overflow: hidden;
+	flex-shrink: 0;
+	background: var(--th, var(--bd));
+}
+
+.ep-thumb-wrap img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+/* ==========================================================================
+   Body text (episode content)
+   ========================================================================== */
+
+.body-text p {
+	font-size: 17px;
+	line-height: 1.75;
+	color: var(--fg);
+	margin: 0 0 1.4em;
+	overflow-wrap: break-word;
+	word-break: break-word;
+}
+
+.body-text a { color: var(--acl); }
+
+.body-text ol {
+	padding-left: 1.4em;
+	font-size: 16px;
+	line-height: 1.75;
+	color: var(--fg);
+	overflow-wrap: break-word;
+	word-break: break-word;
+}
+
+.body-text ol li {
+	margin-bottom: 0.6em;
+}
+
+/* Defensive baseline, not just a fix for today's content: AI-generated text
+   (a long unhyperlinked URL, an unbroken token) can always be longer than
+   expected, and CSS Grid's default min-width:auto on a 1fr track refuses to
+   shrink below its content's min-content size - confirmed directly as the
+   actual mechanism behind a real mobile overflow bug (2026-09-19/20), not
+   assumed. Both halves matter together: the wrap rules above let long
+   content break, and this lets the grid track actually shrink to use it. */
+.ep-grid > * {
+	min-width: 0;
+}
+
+/* Seriously Simple Podcasting auto-appends its own native player + a
+   download/embed block to the_content() output. Our own Captivate iframe
+   above (single-podcast.php) and the sidebar Subscribe/RSS links already
+   cover that, so this would just be a redundant, unstyled duplicate. */
+.podcast_meta,
+.podcast_player {
+	display: none;
+}
+
+/* ==========================================================================
+   Network strip + footer
+   ========================================================================== */
+
+.network-strip {
+	background: var(--hbg);
+	border-top: 1px solid var(--bd);
+	padding: 14px 40px;
+	margin-top: 48px;
+	display: flex;
+	align-items: center;
+	gap: 24px;
+	justify-content: center;
+	flex-wrap: wrap;
+	font-size: 13px;
+}
+
+.site-footer {
+	background: var(--hbg);
+	border-top: 1px solid var(--bd);
+	padding: 20px 40px;
+	margin-top: 48px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+
+/* When both are present (show pages), the gap belongs above .network-strip
+   only - .site-footer should stay snug against it, not get a second gap. */
+.network-strip + .site-footer { margin-top: 0; }
+
+/* ==========================================================================
+   Corporate: home page
+   ========================================================================== */
+
+.hero {
+	padding: 96px 40px 88px;
+	text-align: center;
+	border-bottom: 1px solid var(--bd);
+	max-width: 1360px;
+	margin: 0 auto;
+}
+
+.shows-section {
+	max-width: 1360px;
+	margin: 0 auto;
+	padding: 64px 40px;
+}
+
+.show-grid {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 24px;
+	max-width: 960px;
+}
+
+.mission-section {
+	border-top: 1px solid var(--bd);
+	padding: 64px 40px;
+	max-width: 1360px;
+	margin: 0 auto;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 80px;
+	align-items: start;
+}
+
+/* Scoped to .ng-newsletter-form specifically (not a bare input[type=email]
+   selector) so this can never lose a specificity/source-order tie against
+   the generic input rule below (Contact page section) - that exact
+   collision already broke this twice (bare input[type=email] vs the
+   generic input,textarea,select,input[type=email]... rule have equal
+   specificity, so whichever is LATER in the file wins for every
+   overlapping property, regardless of which one "should" apply). Confirmed
+   directly (2026-09-20): the generic rule's margin-bottom:20px was making
+   the email input 41px tall against the button's 61px. */
+.ng-newsletter-form {
+	display: flex;
+}
+
+.ng-newsletter-form input[type=email] {
+	background: var(--hbg);
+	border: 1px solid var(--bd);
+	border-right: none;
+	padding: 10px 16px;
+	font-family: 'IBM Plex Sans', sans-serif;
+	font-size: 15px;
+	color: var(--fg);
+	outline: none;
+	flex: 1;
+	width: auto;
+	margin-bottom: 0;
+}
+
+.ng-newsletter-form input[type=email]::placeholder { color: var(--mu); opacity: 0.6; }
+
+.ng-newsletter-form .btn-p {
+	margin-top: 0;
+}
+
+/* Kit's JS (ck.5.js) intercepts any form carrying data-sv-form/data-uid and
+   injects a plain-text success/error message into [data-element=errors] or
+   replaces the form on success - styled generically here rather than pulling
+   in Kit's own per-form <style> block, which would fight our design (2026-09-21). */
+[data-element="errors"] { list-style: none; margin: 10px 0 0; padding: 0; font-size: 13px; color: var(--mu); }
+[data-element="errors"]:empty { display: none; }
+.formkit-alert-success { font-size: 13px; color: var(--acl); margin: 10px 0 0; }
+
+/* ==========================================================================
+   Edtech home: hero-intro (2026-09-28 - was fully inline with a fixed
+   760px/40px-padding container, which forced the real headline copy onto
+   3 lines even on wide desktops since the container width itself was the
+   bottleneck, not the viewport. Moved sizing into real classes so it can
+   respond at the same 900/600 breakpoints as the rest of the theme.)
+   ========================================================================== */
+
+.hero-intro-inner {
+	position: relative;
+	max-width: 920px;
+	margin: 0 auto;
+	text-align: center;
+	padding: 80px 24px 72px;
+}
+
+/* ==========================================================================
+   Corporate: page-hero / page-body (about, contact)
+   ========================================================================== */
+
+.page-hero {
+	padding: 72px 40px 64px;
+	border-bottom: 1px solid var(--bd);
+	max-width: 1360px;
+	margin: 0 auto;
+}
+
+.page-body {
+	max-width: 1360px;
+	margin: 0 auto;
+	padding: 64px 40px;
+}
+
+.content-col { max-width: 680px; }
+
+.content-col p {
+	font-size: 16px;
+	color: var(--mu);
+	line-height: 1.75;
+	margin: 0 0 1.4em;
+}
+
+.content-col h2 {
+	font-family: 'Archivo', system-ui, sans-serif;
+	font-weight: 700;
+	font-size: 24px;
+	letter-spacing: -0.02em;
+	margin: 40px 0 14px;
+	color: var(--fg);
+}
+
+/* Contact page */
+
+/* Contact form controls. Astra's own Global Form Fields CSS (inline <style>
+   in <head>) pins every input/select to height:40px with line-height:24px.
+   Inside a 40px border-box with this theme's 10px vertical padding that leaves
+   an 18px content box, and Safari clips a <select>'s text to it - cutting the
+   descenders off "g", "p", "y" in the Subject dropdown (reported 2026-10-06).
+   Letting height follow the content fixes it for the inputs too. The chevron
+   is added because -webkit-appearance:none strips the native arrow, and with
+   a preselected subject nothing else says this is a dropdown. */
+.page-body.contact-grid input,
+.page-body.contact-grid select {
+	height: auto;
+	line-height: 1.4;
+}
+
+.page-body.contact-grid select {
+	padding: 11px 38px 11px 14px;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237a766e' stroke-width='1.5'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 14px center;
+	background-size: 10px 6px;
+}
+
+/* Honeypot field: off-screen rather than display:none, which some bots skip. */
+.ng-hp {
+	position: absolute;
+	left: -9999px;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+}
+
+.ng-card-email {
+	display: inline-block;
+	margin-top: 10px;
+	font-size: 12px;
+	color: var(--acl);
+}
+
+.ng-card-email:empty { display: none; }
+
+.page-body.contact-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 80px;
+	align-items: start;
+}
+
+label {
+	display: block;
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 10px;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--mu);
+	margin-bottom: 8px;
+}
+
+input, textarea, select,
+input[type=text], input[type=email], input[type=tel], input[type=url],
+input[type=search], input[type=number], input[type=password] {
+	width: 100%;
+	background: var(--hbg);
+	border: 1px solid var(--bd);
+	padding: 10px 14px;
+	font-family: 'IBM Plex Sans', sans-serif;
+	font-size: 15px;
+	color: var(--fg);
+	outline: none;
+	margin-bottom: 20px;
+	-webkit-appearance: none;
+}
+
+textarea { height: 140px; resize: vertical; }
+
+input:focus, textarea:focus, select:focus { border-color: var(--acl); }
+
+.contact-reason {
+	padding: 24px;
+	border: 1px solid var(--bd);
+	margin-bottom: 16px;
+	cursor: pointer;
+	transition: border-color 120ms;
+}
+
+.contact-reason:hover,
+.contact-reason.is-active {
+	border-color: var(--fg);
+}
+
+/* Edtech Index page */
+
+.ng-stat-box {
+	border: 1px solid var(--bd);
+	padding: 20px 24px;
+	flex: 1;
+}
+
+.ng-index-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.ng-index-table th {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 10px;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--mu);
+	padding: 10px 12px;
+	text-align: left;
+	border-bottom: 1px solid var(--bd);
+}
+
+.ng-index-table th.r,
+.ng-index-table td.r {
+	text-align: right;
+}
+
+.ng-index-table td {
+	font-size: 14px;
+	padding: 12px;
+	border-bottom: 1px solid var(--bd);
+}
+
+.ng-index-table td.r {
+	font-family: 'IBM Plex Mono', monospace;
+}
+
+.ng-index-table td.up { color: var(--up); }
+.ng-index-table td.dn { color: var(--down); }
+
+/* The bare input,textarea,select rule (Contact page section) leaks
+   margin-bottom:20px and width:100% into any <select> that does not
+   explicitly override them inline - same collision class already fixed
+   twice for .ng-newsletter-form and .site-header (2026-09-19/20). Here it
+   pushed the per-page select down out of vertical center with its own
+   label text (found 2026-09-21). */
+/* Astra's own Global Form Fields customizer CSS (confirmed live, 2026-10-01
+   - only became a real factor once this theme was properly made a child of
+   the genuine Astra parent) injects a competing "select { height: 40px }"
+   rule via an inline <style> block in <head>. This class is more specific
+   and already wins on padding/font-size (set inline on the element, which
+   always beats any stylesheet regardless), but height and line-height have
+   to be explicitly re-declared here too - leaving height unset, as the
+   prior pass at this fix did, means this rule has nothing to win the
+   height property WITH, so Astra's 40px applies by default despite the
+   specificity advantage. A line-height any larger than this box's own
+   ~14px content height (22px minus its border and padding) overflows it
+   and visibly pushes the digit down - the actual bug reported - learned
+   from the first attempt at this fix, which set line-height:20px here.
+   "normal" avoids repeating that mistake. */
+.ng-per-page-select { width: auto; margin-bottom: 0; height: 22px; line-height: normal; }
+/* Same leak, one rule up: the generic label{margin-bottom:8px} rule (Contact
+   page section) also applies to the "Show [n] per page" label on the
+   episodes-list pagination bar, pushing it out of vertical alignment with
+   its siblings ("Page X of Y", the divider bar) in the row - confirmed
+   2026-09-30, reported as misaligned on Safari/macOS. */
+.pagination label { margin-bottom: 0; }
+.ng-index-table tr:hover td { background: rgba(61, 107, 74, 0.06); }
+
+.ng-index-table .ticker {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 12px;
+	color: var(--acl);
+	letter-spacing: 0.06em;
+}
+
+/* Subscribe page platform links */
+
+.ng-platform-link {
+	font-size: 11px;
+	letter-spacing: 0.06em;
+	color: var(--mu);
+	border: 1px solid var(--bd);
+	padding: 5px 12px;
+	transition: border-color 120ms, color 120ms;
+}
+
+.ng-platform-link:hover {
+	border-color: var(--acl);
+	color: var(--acl);
+}
+
+@media (max-width: 700px) {
+	.ng-hide-mobile { display: none; }
+	.ng-index-table { font-size: 12px; }
+	.ng-index-table td, .ng-index-table th { padding: 8px; }
+}
+
+/* ==========================================================================
+   Responsive - breakpoints per design handoff (900px, 600px)
+   ========================================================================== */
+
+/* Edtech home - latest-episode feature (text + thumbnail) and the 3-col
+   recent-episodes grid. display:grid lives here (not inline) specifically
+   so these breakpoints can collapse them - see page-edtech.php. */
+.ng-latest-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 72px;
+}
+
+.ng-recent-grid {
+	display: grid;
+	grid-template-columns: repeat( 3, 1fr );
+}
+
+/* Single episode - article + sticky sidebar. Same bug class as the two
+   grids above: this was inline grid-template-columns before, which no
+   media query can ever override (inline styles beat external rules
+   regardless of specificity), causing real horizontal overflow on phones. */
+.ep-grid {
+	display: grid;
+	grid-template-columns: 1fr 320px;
+	gap: 64px;
+}
+
+/* Hamburger menu - shown at 900px and below, where .site-nav and the show
+   badge are hidden (it was 600px until 2026-10-08, which left tablets with a
+   half-collapsed nav and no way to reach the other links). See header.php. */
+.ng-menu-toggle {
+	display: none;
+	flex-direction: column;
+	justify-content: center;
+	gap: 5px;
+	width: 36px;
+	height: 36px;
+	margin-right: 12px;
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 0;
+}
+
+.ng-menu-toggle span {
+	display: block;
+	width: 22px;
+	height: 2px;
+	background: var(--fg);
+}
+
+/* position:static (the default) put this at its normal spot in document
+   flow, directly below the header's OWN un-scrolled position - correct
+   only when un-scrolled. .site-header is already position:sticky (see
+   above), so it stays pinned at the viewport top regardless of scroll -
+   but this panel, sitting right after it in the DOM with no position of
+   its own, is not, and stayed behind at that original document position.
+   Opening it after scrolling any real distance rendered it far off-screen
+   above the viewport - confirmed directly (2026-09-21): scrolled to
+   scrollY 2000, opened the panel, its own bounding box sat at top -2141px.
+   position:fixed pins it to the viewport itself (not the document), like
+   the header, so it's always directly below the header regardless of
+   scroll position. */
+.ng-mobile-nav {
+	display: none;
+	flex-direction: column;
+	background: var(--hbg);
+	border-bottom: 1px solid var(--bd);
+	position: fixed;
+	top: 64px;
+	left: 0;
+	right: 0;
+	z-index: 99;
+	max-height: calc(100vh - 64px);
+	overflow-y: auto;
+}
+
+.ng-mobile-nav.is-open {
+	display: flex;
+}
+
+.ng-mobile-nav a {
+	padding: 16px 20px;
+	font-family: 'Familjen Grotesk', system-ui, sans-serif;
+	font-size: 15px;
+	border-bottom: 1px solid var(--bd);
+}
+
+@media (max-width: 900px) {
+	.nav-badge { display: none; }
+
+	.show-grid { grid-template-columns: 1fr; }
+	.mission-section { grid-template-columns: 1fr; }
+	.page-body.contact-grid { grid-template-columns: 1fr; }
+	.ng-latest-grid { grid-template-columns: 1fr; }
+	.ep-grid { grid-template-columns: 1fr; }
+
+	.hero-intro-inner { padding: 64px 24px 56px; }
+	.hero-intro-inner h1 { font-size: 42px !important; }
+}
+
+@media (max-width: 600px) {
+	.site-header { padding: 0 16px; }
+	.site-logo { font-size: 17px; margin-right: 16px; }
+	.site-nav { display: none; }
+	/* .site-nav normally carries flex:1, which is what pushes everything
+	   after it (badge/hamburger/Follow Show) to the header's right edge -
+	   once nav is hidden here, that push disappears too, so the trailing
+	   group needs its own margin-left:auto to stay right-justified. */
+	.ng-menu-toggle { display: flex; margin-left: auto; }
+	.ng-recent-grid { grid-template-columns: 1fr; }
+
+	.ep-row { grid-template-columns: 1fr; }
+	.ep-thumb-wrap { width: 100%; }
+	.network-strip { padding: 12px 16px; margin-top: 32px; }
+
+	.site-footer {
+		padding: 14px 16px;
+		margin-top: 32px;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+	}
+
+	.hero .hero-btns { flex-direction: column !important; align-items: stretch !important; max-width: 300px; margin: 0 auto; }
+	.hero { padding: 56px 20px 48px; }
+	.hero h1 { font-size: 52px !important; }
+	.shows-section, .mission-section { padding: 40px 20px; }
+
+	.hero-intro-inner { padding: 48px 20px 40px; }
+	.hero-intro-inner h1 { font-size: 40px !important; }
+	/* Below 600px the explicit line-break (kept for the 2-line desktop/
+	   tablet layout) plus the first half's own natural wrap produced an
+	   orphaned one-word middle line ("leaders" alone) - hiding the break
+	   here lets all 10 words flow and wrap evenly instead. */
+	.hero-intro-break { display: none; }
+
+	.page-hero, .page-body { padding-left: 20px; padding-right: 20px; }
+	.page-hero h1 { font-size: 36px !important; }
+
+	/* All 3 sponsor strips (single-podcast.php, page-edtech.php,
+	   page-episodes.php) kept flex-wrap:nowrap at every width (2026-09-23,
+	   at the user's request) - at narrow phone widths the row's own content
+	   genuinely doesn't fit at desktop sizing, and since nowrap disables
+	   flexbox's normal line-wrap fallback, the browser's default
+	   flex-shrink:1 shrank the "Visit Edsby" link's own box instead,
+	   wrapping ITS text internally - confirmed live: at 375px the strip's
+	   295px available width was ~35px short of what the unshrunk content
+	   needed. These rules free up real space (smaller gap, smaller logo,
+	   tighter button) rather than letting the browser pick what shrinks. */
+	.sponsor-strip { gap: 6px !important; padding-left: 12px !important; padding-right: 12px !important; }
+	.sponsor-strip [role="img"][aria-label="Edsby"] { width: 52px !important; }
+	.sponsor-strip > span { font-size: 9px !important; }
+	.sponsor-strip > a:last-child { padding: 4px 6px !important; font-size: 9px !important; }
+}
+
+
+/* ==========================================================================
+   Site search (2026-10-08) - header control, results page
+   ========================================================================== */
+
+/* Bare glyph: no box, the nav links' own muted tone. It sits at the start of
+   the right-hand cluster, in the space .site-nav's flex:1 already leaves. */
+.ng-search-open {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	margin-right: 12px;
+	color: var(--mu);
+}
+
+.ng-search-open:hover { color: var(--fg); opacity: 1; }
+
+.ng-search-open:focus-visible,
+.ng-search-close:focus-visible,
+.ng-scope-toggle:focus-visible {
+	outline: 1px solid var(--acl);
+	outline-offset: 2px;
+}
+
+/* Opens in place of the nav links; an underline, not a box. */
+.ng-search {
+	display: none;
+	align-items: center;
+	gap: 10px;
+	flex: 1;
+	min-width: 0;
+	height: 32px;
+	margin: 6px 20px 0 0;
+	padding: 0 2px 6px;
+	border-bottom: 1px solid var(--acl);
+	color: var(--mu);
+}
+
+.site-header.ng-search-active .site-nav,
+.site-header.ng-search-active .ng-search-open { display: none; }
+.site-header.ng-search-active .ng-search { display: flex; }
+
+.ng-search-icon { flex-shrink: 0; }
+
+/* The bare input/textarea/select rule, Astra's own form-field CSS and its
+   button styling all reach these controls, so each property is stated. */
+.ng-search input.ng-search-input,
+.ng-mobile-search input.ng-search-input,
+.ng-search-page-form input.ng-search-page-input {
+	flex: 1;
+	width: auto;
+	min-width: 0;
+	height: auto;
+	margin: 0;
+	padding: 0;
+	background: transparent;
+	border: none;
+	outline: none;
+	color: var(--fg);
+	font-family: 'IBM Plex Sans', system-ui, sans-serif;
+	font-size: 15px;
+	line-height: 1.4;
+	-webkit-appearance: none;
+	appearance: none;
+}
+
+.ng-search input::-webkit-search-cancel-button,
+.ng-mobile-search input::-webkit-search-cancel-button,
+.ng-search-page-form input::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+.ng-search input.ng-search-input::placeholder,
+.ng-mobile-search input.ng-search-input::placeholder,
+.ng-search-page-form input.ng-search-page-input::placeholder { color: var(--mu); opacity: 0.8; }
+
+.ng-search .ng-search-close,
+.ng-search-scope .ng-scope-toggle,
+.ng-mobile-scope .ng-scope-toggle {
+	background: none;
+	border: none;
+	box-shadow: none;
+	padding: 0;
+	margin: 0;
+	text-transform: none;
+	cursor: pointer;
+}
+
+.ng-search .ng-search-close {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 11px;
+	color: var(--mu);
+}
+
+.ng-search .ng-search-close:hover { color: var(--fg); background: none; }
+
+/* Scope line under the header while the field is open. */
+.ng-search-scope {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	padding: 8px 40px;
+	background: var(--hbg);
+	border-bottom: 1px solid var(--bd);
+	font-size: 12px;
+	color: var(--mu);
+}
+
+.ng-search-scope[hidden] { display: none; }
+
+.ng-scope-toggle {
+	margin-left: 4px;
+	font-family: inherit;
+	font-size: 12px;
+	color: var(--acl);
+}
+
+.ng-scope-toggle:hover { background: none; text-decoration: underline; }
+
+/* Mobile: search is the first row of the hamburger panel. 16px text stops iOS
+   Safari zooming the page when the field takes focus. */
+.ng-mobile-search {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	height: 56px;
+	padding: 0 20px;
+	border-bottom: 1px solid var(--bd);
+	color: var(--mu);
+}
+
+.ng-mobile-search input.ng-search-input { font-size: 16px; }
+
+.ng-mobile-scope {
+	padding: 10px 20px;
+	border-bottom: 1px solid var(--bd);
+	font-size: 12px;
+	color: var(--mu);
+}
+
+@media (max-width: 900px) {
+	.site-nav { display: none; }
+	.ng-menu-toggle { display: flex; margin-left: auto; }
+	.ng-search-open,
+	.ng-search,
+	.ng-search-scope { display: none !important; }
+}
+
+@media (min-width: 901px) {
+	.ng-mobile-nav { display: none !important; }
+}
+
+/* Results page */
+.ng-search-page-form {
+	display: flex;
+	align-items: flex-end;
+	gap: 16px;
+	max-width: 680px;
+	margin-top: 22px;
+}
+
+.ng-search-page-form input.ng-search-page-input {
+	font-size: 20px;
+	padding: 0 0 8px;
+	border-bottom: 1px solid var(--bd);
+}
+
+.ng-search-page-form input.ng-search-page-input:focus { border-bottom-color: var(--acl); }
+
+mark.ng-hit {
+	background: rgba(133, 168, 112, 0.3);
+	background: color-mix(in srgb, var(--acl) 30%, transparent);
+	color: inherit;
+	padding: 0 2px;
+}
+
+.ng-hit-label {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 10px;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	margin-right: 6px;
+}
+
+.ng-show-chip {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 10px;
+	letter-spacing: 0.06em;
+	color: var(--acl);
+	border: 1px solid var(--bd);
+	padding: 1px 6px;
+}
+
+/* ==========================================================================
+   Anchors (2026-10-08) - episode byline link, bio page, About / home cards
+   ========================================================================== */
+
+/* Same tone as the date and duration beside it; only a thin dotted underline marks it as a link. */
+.ng-anchor-link {
+	color: inherit;
+	border-bottom: 1px dotted currentColor;
+}
+
+.ng-anchor-link:hover { color: var(--acl); border-bottom-style: solid; }
+
+.ng-anchor-ph {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	background: var(--th, var(--bd));
+	color: var(--acl);
+	border: 1px solid var(--bd);
+	font-family: 'IBM Plex Mono', monospace;
+	font-weight: 500;
+}
+
+.ng-anchor-hero {
+	display: grid;
+	grid-template-columns: 200px minmax(0, 1fr);
+	gap: 28px;
+	align-items: center;
+	max-width: 1280px;
+}
+
+.ng-anchor-photo { width: 200px; height: 200px; }
+
+.ng-anchor-photo img,
+.ng-anchor-photo .ng-anchor-ph { width: 100% !important; height: 100% !important; }
+
+.page-body.ng-anchor-body {
+	display: grid;
+	grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+	gap: 56px;
+	align-items: start;
+}
+
+.ng-anchor-h2 {
+	font-weight: 700;
+	font-size: 20px;
+	letter-spacing: -0.01em;
+	margin: 0 0 14px;
+}
+
+.ng-anchor-note {
+	font-size: 14px;
+	color: var(--mu);
+	border: 1px solid var(--bd);
+	padding: 10px 14px;
+	margin: 0 0 24px;
+}
+
+.ng-anchor-ep {
+	display: flex;
+	gap: 16px;
+	padding: 12px 0;
+	border-bottom: 1px solid var(--bd);
+	font-size: 14px;
+	line-height: 1.4;
+}
+
+.ng-anchor-ep .mono { font-size: 11px; color: var(--mu); white-space: nowrap; padding-top: 2px; }
+.ng-anchor-ep:hover { opacity: 1; color: var(--acl); }
+
+.ng-anchor-glance {
+	border-left: 1px solid var(--bd);
+	padding-left: 24px;
+}
+
+.ng-anchor-glance dl { margin: 0; }
+.ng-anchor-glance dt { font-size: 12px; color: var(--mu); margin: 0 0 2px; }
+.ng-anchor-glance dd { font-size: 14px; line-height: 1.5; margin: 0 0 16px; }
+
+.ng-anchor-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+	gap: 16px;
+	margin-top: 8px;
+}
+
+.ng-anchor-card {
+	display: flex;
+	gap: 14px;
+	align-items: center;
+	padding: 16px;
+	border: 1px solid var(--bd);
+	transition: border-color 150ms;
+}
+
+.ng-anchor-card:hover { border-color: var(--fg); opacity: 1; }
+
+@media (max-width: 900px) {
+	.page-body.ng-anchor-body { grid-template-columns: 1fr; gap: 32px; }
+	.page-body.ng-anchor-body { padding-top: 32px; }
+	.ng-anchor-glance { border-left: none; border-top: 1px solid var(--bd); padding: 20px 0 0; order: -1; }
+}
+
+@media (max-width: 600px) {
+	.ng-anchor-hero { grid-template-columns: 96px minmax(0, 1fr); gap: 16px; }
+	.ng-anchor-photo { width: 96px; height: 96px; }
+	.ng-anchor-hero h1 { font-size: 30px !important; }
+	.ng-search-page-form { flex-wrap: wrap; }
+	.ng-search-page-form input.ng-search-page-input { flex-basis: 100%; }
+}
