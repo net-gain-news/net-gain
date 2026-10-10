@@ -134,7 +134,8 @@ a {{ color:{ACCENT}; }}
 
 
 def fetch_items():
-    req = urllib.request.Request(FEED, headers={"User-Agent": "Mozilla/5.0 (compatible; NetGainEmailPreview/1.0)"})
+    import time
+    req = urllib.request.Request(FEED + f"?cb={int(time.time())}", headers={"User-Agent": "Mozilla/5.0 (compatible; NetGainEmailPreview/1.0)"})
     xml = urllib.request.urlopen(req, timeout=60).read().decode("utf-8")
     items = []
     for it in re.findall(r"<item>(.*?)</item>", xml, re.S):
