@@ -45,5 +45,19 @@ check( 'array @type containing NewsArticle is recognised', isset( Net_Gain_News_
 $plain = array( array( '@type' => 'WebPage', '@id' => 'w' ) );
 check( 'no NewsArticle or organization node: graph returned unchanged', Net_Gain_News_Schema::apply( $plain, array( 'images' => $img, 'logo' => $logo ) ) === $plain );
 
+$crumbs = array(
+	array( 'name' => 'Home', 'url' => 'https://netgain.news/' ),
+	array( 'name' => 'Net Gain Edtech', 'url' => 'https://netgain.news/edtech/' ),
+	array( 'name' => 'Episodes', 'url' => 'https://netgain.news/edtech/episodes/' ),
+	array( 'name' => 'Today', 'url' => '' ),
+);
+$with_trail = array_merge( $base, array( array( '@type' => 'BreadcrumbList', '@id' => 'p#bc', 'itemListElement' => array( array( 'name' => 'Episode', 'item' => 'https://netgain.news/podcast/' ) ) ) ) );
+$out        = Net_Gain_News_Schema::apply( $with_trail, array( 'images' => array(), 'logo' => null, 'breadcrumbs' => $crumbs ) );
+$list       = $out[3]['itemListElement'];
+check( 'breadcrumbs: rewritten to Home > show > Episodes > episode', count( $list ) === 4 && $list[1]['item'] === 'https://netgain.news/edtech/' && $list[2]['item'] === 'https://netgain.news/edtech/episodes/' );
+check( 'breadcrumbs: no crumb points at the /podcast/ or /series/ archives', strpos( json_encode( $list ), '/podcast/' ) === false && strpos( json_encode( $list ), '/series/' ) === false );
+check( 'breadcrumbs: positions run 1..4 and the last crumb has no link', $list[0]['position'] === 1 && $list[3]['position'] === 4 && ! isset( $list[3]['item'] ) );
+check( 'breadcrumbs: untouched when no trail is supplied', Net_Gain_News_Schema::apply( $with_trail, array( 'images' => array(), 'logo' => null, 'breadcrumbs' => array() ) ) === $with_trail );
+
 echo $fail ? "FAILED: $fail\n" : "ALL PASSED\n";
 exit( $fail ? 1 : 0 );

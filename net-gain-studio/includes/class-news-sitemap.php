@@ -60,8 +60,8 @@ class Net_Gain_News_Sitemap {
 		}
 
 		status_header( 200 );
-		header( 'Content-Type: application/xml; charset=UTF-8' );
-		header( 'X-Robots-Tag: noindex' ); // the sitemap file itself, as is usual; the URLs inside are what get indexed
+		header( 'Content-Type: text/xml; charset=UTF-8' );              // the same headers AIOSEO sends with its own sitemaps
+		header( 'X-Robots-Tag: noindex, follow' );                     // the sitemap file itself, as is usual; the URLs inside are what get indexed
 		echo self::build_xml( $items ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in build_xml
 		exit;
 	}
