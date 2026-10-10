@@ -15,33 +15,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Net_Gain_News_Sitemap {
 
-	const QUERY_VAR   = 'ng_news_sitemap';
-	const REWRITE_OPT = 'ng_news_sitemap_rewrite_v1';
+	const PATH        = 'news-sitemap.xml';
 	const WINDOW_DAYS = 2;
 	const MAX_URLS    = 1000;
 
 	public static function register() {
-		add_action( 'init', array( __CLASS__, 'add_rewrite' ) );
-		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
-		add_action( 'template_redirect', array( __CLASS__, 'maybe_serve' ), 1 );
+		// Priority 1: AIOSEO's own sitemap request parser (parse_request, priority 10) answers every "*-sitemap.xml"
+		// request it cannot serve with a 404 and exits, so this has to get in first. No rewrite rule is needed.
+		add_action( 'parse_request', array( __CLASS__, 'maybe_serve' ), 1 );
 	}
 
-	public static function add_rewrite() {
-		add_rewrite_rule( '^news-sitemap\.xml$', 'index.php?' . self::QUERY_VAR . '=1', 'top' );
-		// Rules are only written to the database on a flush; do it once, the first time this code runs.
-		if ( '1' !== get_option( self::REWRITE_OPT ) ) {
-			flush_rewrite_rules( false );
-			update_option( self::REWRITE_OPT, '1' );
+	public static function maybe_serve( $wp = null ) {
+		$path = isset( $wp->request ) ? (string) $wp->request : '';
+		if ( '' === $path && isset( $_SERVER['REQUEST_URI'] ) ) {
+			$path = (string) wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 		}
-	}
-
-	public static function query_vars( $vars ) {
-		$vars[] = self::QUERY_VAR;
-		return $vars;
-	}
-
-	public static function maybe_serve() {
-		if ( ! get_query_var( self::QUERY_VAR ) ) {
+		if ( self::PATH !== trim( $path, '/' ) ) {
 			return;
 		}
 
