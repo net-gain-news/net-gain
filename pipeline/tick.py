@@ -37,6 +37,7 @@ import anthropic
 import requests
 
 import edtech_index
+import photo_library
 import youtube_client as yt
 from anthropic_client import generate as anthropic_generate
 from audio_conversion import convert_to_captivate_bitrate
@@ -45,7 +46,7 @@ from captivate_client import CaptivateClient
 from config import ConfigError, load_config
 from image_generation import FALLBACK_META_KEYS, IMAGE_META_KEYS, build_vertex_client, render_images_for_episode
 from metadata_generation import generate_metadata_for_episode
-from notify import notify_failure
+from notify import notify_failure, send_notice
 from script_generation import generate_script_for_show
 from video_composition import render_still_video
 from wp_client import WPClient
@@ -258,10 +259,12 @@ def process_image_rendering(wp, client, vertex_client, config, show):
         episode_id = episode["id"]
         try:
             wp.update_step(episode_id, "images_rendered", "in_progress")
-            render_images_for_episode(
+            result = render_images_for_episode(
                 wp, vertex_client, lambda **kwargs: anthropic_generate(client, **kwargs), show, episode_id
             )
             wp.update_step(episode_id, "images_rendered", "done")
+            if isinstance(result, dict) and result.get("relaxed"):
+                warn_photo_library_low(wp, config, show, episode.get("episode_date", ""))
             for action in pending:
                 wp.update_action(show["id"], action["id"], "done")
             logger.info("Rendered images for episode %s (%s).", episode_id, show["name"])
@@ -1011,6 +1014,67 @@ def process_youtube_publishes(wp, client, config, show):
             notify_failure(config, show["name"], "youtube_published", str(exc))
 
 
+def warn_photo_library_low(wp, config, show, episode_date):
+    """
+    The photo mode had to reuse a photo that was still resting because every usable one was. Tell the operator, at most
+    once every three days per show, so topping up the library does not wait for the weekly note.
+    """
+    try:
+        meta = wp.get_show(show["id"]).get("meta", {})
+        last = meta.get("ng_photo_low_alert_last") or ""
+        today = datetime.now(timezone.utc).date()
+        if last and (today - datetime.fromisoformat(last).date()).days < 3:
+            return
+        stats = wp.get_photo_stats(show["id"], episode_date or today.isoformat())
+        subject, body = photo_library.library_email(show["name"], stats)
+        body = ("The newest episode's graphic had to reuse a photo that was still resting, because every usable photo "
+                "was in its cooldown. Add photos soon.\n\n" + body)
+        if send_notice(config, subject.replace("photo library", "PHOTOS NEEDED - photo library", 1), body):
+            wp.update_show_meta(show["id"], {"ng_photo_low_alert_last": today.isoformat()})
+    except Exception:
+        logger.exception("Could not send the low photo-library warning for %s", show["name"])
+
+
+def process_photo_tagging(wp, client, config, show, limit=4):
+    """
+    Newly uploaded photos arrive untagged (status pending_tags). Each tick tags a few: a vision pass writes tags, topics,
+    who is visible, the focal point and a description, and makes the photo ready to use. A photo whose file cannot be
+    read, or that does not look like a photograph, is retired with a note for the operator; a transient API failure
+    simply leaves it pending for the next tick.
+    """
+    library = wp.list_photos(show["id"])
+    pending = [p for p in library.get("photos", []) if p.get("status") == "pending_tags"][:limit]
+    for photo in pending:
+        try:
+            original = wp.get_photo_file(photo["id"])
+            fields = photo_library.tag_photo(lambda **kwargs: anthropic_generate(client, **kwargs), original)
+        except (OSError, ValueError) as exc:       # unreadable image (PIL errors are OSError subclasses)
+            logger.warning("Photo %s could not be read for tagging: %s", photo["id"], exc)
+            wp.update_photo(photo["id"], {"status": "retired", "flags": ["needs_review"], "description": "The file could not be read as an image."})
+            continue
+        except Exception:
+            logger.exception("Tagging photo %s failed (will retry next tick)", photo["id"])
+            continue
+        wp.update_photo(photo["id"], fields)
+        logger.info("Tagged photo %s for %s: %s / %s", photo["id"], show["name"], fields["tags"], fields["people"])
+
+
+def process_photo_digest(wp, config, show):
+    """The weekly photo-library note: Monday from 08:00 show time, once per day, for shows in photo mode."""
+    tz = ZoneInfo(show.get("recording_timezone") or "UTC")
+    now = datetime.now(tz)
+    if now.weekday() != 0 or now.hour < 8:
+        return
+    meta = wp.get_show(show["id"]).get("meta", {})
+    today = now.date().isoformat()
+    if meta.get("ng_image_mode") != "photos" or meta.get("ng_photo_digest_last_sent") == today:
+        return
+    stats = wp.get_photo_stats(show["id"], today)
+    subject, body = photo_library.library_email(show["name"], stats)
+    if send_notice(config, subject, body):
+        wp.update_show_meta(show["id"], {"ng_photo_digest_last_sent": today})
+
+
 def process_show(wp, client, captivate, vertex_client, config, show):
     # First, so a replaced episode's destinations are settled (Captivate
     # re-pointed, old YouTube video deleted and its step reset) before this
@@ -1029,6 +1093,16 @@ def process_show(wp, client, captivate, vertex_client, config, show):
         process_image_rendering(wp, client, vertex_client, config, show)
     except Exception:
         logger.exception("Error processing image rendering for %s", show["name"])
+
+    try:
+        process_photo_tagging(wp, client, config, show)
+    except Exception:
+        logger.exception("Error tagging photos for %s", show["name"])
+
+    try:
+        process_photo_digest(wp, config, show)
+    except Exception:
+        logger.exception("Error sending the photo library note for %s", show["name"])
 
     try:
         process_captivate_publishes(wp, client, captivate, config, show)

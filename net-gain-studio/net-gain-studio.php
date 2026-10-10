@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.8.3
+ * Version:           0.9.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -27,7 +27,7 @@ if ( ! isset( $_SERVER['HTTP_AUTHORIZATION'] ) && isset( $_SERVER['REDIRECT_HTTP
 	$_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
 }
 
-define( 'NET_GAIN_VERSION', '0.8.3' );
+define( 'NET_GAIN_VERSION', '0.9.0' );
 define( 'NET_GAIN_PLUGIN_FILE', __FILE__ );
 define( 'NET_GAIN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -42,6 +42,7 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/class-cpt-episode.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-attachment-guard.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-guidelines.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-audio-replacement.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/class-photo-library.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-permissions.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-tick-context.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-show-actions.php';
@@ -51,6 +52,7 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-audio-replacement.p
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-secrets.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-website-publish.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-index-snapshot.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-photos.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-website-rewrite.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-aioseo-integration.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-anchor-profile.php';
@@ -65,6 +67,7 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-episode-detail-page.php
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-script-review-page.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-my-show-page.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-dashboard-page.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-photos-page.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-admin-menu.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-admin-actions.php';
 
@@ -88,6 +91,7 @@ add_action(
 		Net_Gain_CPT_Vertical::register();
 		Net_Gain_CPT_Show::register();
 		Net_Gain_CPT_Episode::register();
+		Net_Gain_Photo_Library::register();
 		Net_Gain_Roles::maybe_upgrade();
 	}
 );
@@ -103,6 +107,7 @@ add_action(
 		( new Net_Gain_REST_Secrets() )->register_routes();
 		( new Net_Gain_REST_Website_Publish() )->register_routes();
 		( new Net_Gain_REST_Index_Snapshot() )->register_routes();
+		( new Net_Gain_REST_Photos() )->register_routes();
 	}
 );
 

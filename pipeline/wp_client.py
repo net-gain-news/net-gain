@@ -227,6 +227,30 @@ class WPClient:
             "POST", f"/wp-json/wp/v2/ng_show/{show_id}", json={"meta": meta}
         )
 
+    # --- photo library (plugin routes, includes/rest/class-rest-photos.php) ----------
+
+    def list_photos(self, show_id, for_date=None):
+        """The show's photo library: {"photos": [...], "cooldown_days": int, ...}; each photo carries `eligible`."""
+        params = {"for_date": for_date} if for_date else None
+        return self._request("GET", f"/wp-json/net-gain/v1/shows/{show_id}/photos", params=params)
+
+    def get_photo_stats(self, show_id, for_date=None):
+        params = {"for_date": for_date} if for_date else None
+        return self._request("GET", f"/wp-json/net-gain/v1/shows/{show_id}/photo-stats", params=params)
+
+    def get_photo_file(self, photo_id):
+        """The original photo's bytes (private: only the permission-checked route can serve them)."""
+        return self.download_binary(f"{self.base_url}/wp-json/net-gain/v1/photos/{photo_id}/file")
+
+    def update_photo(self, photo_id, fields):
+        return self._request("POST", f"/wp-json/net-gain/v1/photos/{photo_id}", json=fields)
+
+    def mark_photo_used(self, photo_id, episode_id, episode_date):
+        return self._request(
+            "POST", f"/wp-json/net-gain/v1/photos/{photo_id}/used",
+            json={"episode_id": episode_id, "date": episode_date},
+        )
+
     # --- manual-trigger actions ------------------------------------------------
 
     def update_action(self, show_id, action_id, status):

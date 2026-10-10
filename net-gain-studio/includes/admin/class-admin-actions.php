@@ -127,8 +127,12 @@ class Net_Gain_Admin_Actions {
 			update_post_meta( $show_id, $fallback_key, (int) ( $_POST[ $fallback_key ] ?? 0 ) );
 		}
 
-		$image_mode = ( 'cards' === ( $_POST['ng_image_mode'] ?? '' ) ) ? 'cards' : 'ai';
+		$posted_mode = $_POST['ng_image_mode'] ?? '';
+		$image_mode  = in_array( $posted_mode, array( 'cards', 'photos' ), true ) ? $posted_mode : 'ai';
 		update_post_meta( $show_id, 'ng_image_mode', $image_mode );
+		update_post_meta( $show_id, 'ng_photo_cooldown_days', max( 1, min( 730, (int) ( $_POST['ng_photo_cooldown_days'] ?? 90 ) ) ) );
+		$caption = $_POST['ng_photo_caption'] ?? 'topic';
+		update_post_meta( $show_id, 'ng_photo_caption', in_array( $caption, array( 'topic', 'date', 'none' ), true ) ? $caption : 'topic' );
 
 		$image_style = ( 'duotone' === ( $_POST['ng_image_style'] ?? '' ) ) ? 'duotone' : 'none';
 		update_post_meta( $show_id, 'ng_image_style', $image_style );

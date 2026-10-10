@@ -25,9 +25,11 @@ import logging
 from datetime import date
 from io import BytesIO
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 import cards
+import photo_library
+import photo_render
 from card_text import generate_card_text
 from image_compositing import apply_duotone, composite_and_encode, encode_with_size_cap
 from image_prompt import generate_image_prompt_for_episode
@@ -59,6 +61,8 @@ FALLBACK_META_KEYS = {
 CARD_TEMPLATE_META_KEY = "ng_card_template"        # episode meta: which card the episode was drawn with
 CARD_LAST_META_KEY = "ng_card_last_template"       # show meta: the template the rotation used most recently
 IMAGE_MODE_META_KEY = "ng_image_mode"              # show meta: "ai" (default) or "cards"
+PHOTO_ID_META_KEY = "ng_photo_id"                 # episode meta: the library photo that drew this episode's graphics
+PHOTO_VARIANT_META_KEY = "ng_photo_variant"       # episode meta: the crop recipe (JSON), kept on a re-render
 IMAGE_META_KEYS = {"square": "ng_image_square_id", "16x9": "ng_image_16x9_id", "1200x630": "ng_image_1200x630_id"}
 
 RETRYABLE_EXCEPTIONS = ()
@@ -196,6 +200,79 @@ def render_cards_for_episode(wp, anthropic_generate, show, episode_id, episode, 
     logger.info("Drew card %s for episode %s (%s).", chosen, episode_id, show["name"])
 
 
+def render_photos_for_episode(wp, anthropic_generate, show, episode_id, episode, show_meta, config=None):
+    """
+    Real-photo path (show image mode "photos"): pick a photo from the show's library for story 1, give it this use's
+    crop variant and the show's duotone, optionally add a caption plate, frame it, upload the three formats, and record
+    the use so the photo then rests for the show's cooldown. There is deliberately no fallback to code-built cards: with
+    no usable photo the step fails loudly (the tick loop emails the operator) so the library gets topped up.
+    """
+    meta = episode.get("meta", {})
+    episode_date = meta.get("ng_episode_date", "")
+    dt = date.fromisoformat(episode_date)
+
+    frames = {}
+    for spec, meta_key in FRAME_META_KEYS.items():
+        frame_id = show_meta.get(meta_key, 0)
+        if not frame_id:
+            raise RuntimeError(f"Show '{show['name']}' has no {spec} frame configured.")
+        frames[spec] = wp.download_binary(wp.get_attachment_url(frame_id))
+
+    library = wp.list_photos(show["id"], episode_date)
+    photos = library.get("photos", [])
+
+    stored_id = int(meta.get(PHOTO_ID_META_KEY) or 0)
+    stored = next((p for p in photos if p["id"] == stored_id and p.get("status") != "retired"), None)
+    relaxed = False
+    if stored:                                   # a re-render keeps the episode's own photo and crop
+        photo = stored
+        variant = json.loads(meta.get(PHOTO_VARIANT_META_KEY) or "null") or photo_library.choose_variant(photo["id"], photo.get("use_count", 0))
+    else:
+        brief = photo_library.describe_story(anthropic_generate, show["name"], episode_date, meta.get("ng_script_final", ""))
+        photo, relaxed = photo_library.select_photo(photos, brief, episode_date)
+        if photo is None:
+            why = "no ready photos" if not any(p.get("status") == "ready" for p in photos) else \
+                  "this story is sensitive and no ready photo is free of identifiable people"
+            raise RuntimeError(
+                f"The photo library for '{show['name']}' has nothing usable for this episode ({why}). "
+                "Add photos at Net Gain Studio > Photos."
+            )
+        variant = photo_library.choose_variant(photo["id"], photo.get("use_count", 0))
+
+    original = ImageOps.exif_transpose(Image.open(BytesIO(wp.get_photo_file(photo["id"]))))
+
+    duotone = None
+    if show_meta.get("ng_image_style") == "duotone":
+        duotone = (show_meta.get("ng_duotone_shadow_color") or "#000000", show_meta.get("ng_duotone_highlight_color") or "#ffffff")
+
+    caption = None
+    mode = show_meta.get("ng_photo_caption") or "topic"
+    if mode != "none":
+        caption = {"topic": None, "date": dt}
+        if mode == "topic":
+            try:
+                text = generate_card_text(anthropic_generate, show["name"], episode_date, meta.get("ng_script_final", ""))
+                caption["topic"] = text["keywords"][0] if text.get("keywords") else None
+            except Exception as exc:   # includes StoryOrderError: the caption falls back to the date alone
+                logger.warning("Caption topic unavailable for episode %s (%s): %s", episode_id, show["name"], exc)
+
+    rendered = photo_render.render_formats(
+        original, (photo.get("focal_x", 0.5), photo.get("focal_y", 0.5)), variant, frames, duotone, caption
+    )
+
+    result_meta = {PHOTO_ID_META_KEY: photo["id"], PHOTO_VARIANT_META_KEY: json.dumps(variant)}
+    for spec, output_spec in OUTPUT_SPECS.items():
+        encoded = encode_with_size_cap(rendered[spec], output_spec["format"], output_spec["max_bytes"])
+        ext = "jpg" if output_spec["format"] == "JPEG" else "webp"
+        filename = f"{show['slug']}-{episode_date}-{spec}.{ext}"
+        result_meta[IMAGE_META_KEYS[spec]] = wp.upload_media(encoded, filename, output_spec["mime"])
+    wp.update_episode_meta(episode_id, result_meta)
+    wp.mark_photo_used(photo["id"], episode_id, episode_date)
+    logger.info("Drew photo %s (zoom %s, %s) for episode %s (%s)%s.", photo["id"], variant["zoom"], variant["strategy"],
+                episode_id, show["name"], " - every usable photo was resting, reused the least recent" if relaxed else "")
+    return {"relaxed": relaxed, "photo_id": photo["id"]}
+
+
 def render_images_for_episode(wp, vertex_client, anthropic_generate, show, episode_id):
     episode = wp.get_episode(episode_id)
     meta = episode.get("meta", {})
@@ -206,6 +283,8 @@ def render_images_for_episode(wp, vertex_client, anthropic_generate, show, episo
 
     if show_meta.get(IMAGE_MODE_META_KEY) == "cards":
         return render_cards_for_episode(wp, anthropic_generate, show, episode_id, episode, show_meta)
+    if show_meta.get(IMAGE_MODE_META_KEY) == "photos":
+        return render_photos_for_episode(wp, anthropic_generate, show, episode_id, episode, show_meta)
 
     image_prompt = generate_image_prompt_for_episode(
         anthropic_generate, show["name"], episode_date, meta.get("ng_script_final", "")

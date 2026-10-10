@@ -53,3 +53,34 @@ def notify_failure(config, show_name, step_key, error_message):
             smtp.send_message(message)
     except Exception:
         logger.exception("Failed to send failure alert email (show=%s step=%s)", show_name, step_key)
+
+
+def send_notice(config, subject, body):
+    """
+    A plain informational email to the same alert address (the weekly photo-library note, the low-stock warning).
+    Returns True if it was sent; logs and returns False if SMTP is not configured or sending fails - never raises.
+    """
+    if not config.get("SMTP_HOST") or not config.get("ALERT_TO_EMAIL"):
+        logger.warning("SMTP not configured - notice not sent: %s", subject)
+        return False
+
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = config.get("ALERT_FROM_EMAIL") or config.get("SMTP_USERNAME")
+    message["To"] = config["ALERT_TO_EMAIL"]
+    message.set_content(body)
+    try:
+        if config["SMTP_PORT"] == 465:
+            smtp_context = smtplib.SMTP_SSL(config["SMTP_HOST"], config["SMTP_PORT"], timeout=15)
+        else:
+            smtp_context = smtplib.SMTP(config["SMTP_HOST"], config["SMTP_PORT"], timeout=15)
+        with smtp_context as smtp:
+            if config["SMTP_PORT"] != 465:
+                smtp.starttls()
+            if config.get("SMTP_USERNAME"):
+                smtp.login(config["SMTP_USERNAME"], config["SMTP_PASSWORD"])
+            smtp.send_message(message)
+        return True
+    except Exception:
+        logger.exception("Failed to send notice email: %s", subject)
+        return False

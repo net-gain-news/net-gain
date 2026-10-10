@@ -138,6 +138,13 @@ class Net_Gain_CPT_Show {
 			// Written by the pipeline only: the card template the round-robin used most recently,
 			// so the next new episode takes the one after it (pipeline/cards.py TEMPLATE_ORDER).
 			'ng_card_last_template'      => array( 'type' => 'string', 'default' => '' ),
+			// Real-photo mode (ng_image_mode = 'photos', 2026-10-09; see includes/class-photo-library.php): days a photo
+			// rests after being used, whether the graphic carries a small caption plate ('topic' = story 1's topic word,
+			// 'date', or 'none'), and the bookkeeping for the weekly library email and the low-stock alert.
+			'ng_photo_cooldown_days'     => array( 'type' => 'integer', 'default' => 90 ),
+			'ng_photo_caption'           => array( 'type' => 'string', 'default' => 'topic' ),
+			'ng_photo_digest_last_sent'  => array( 'type' => 'string', 'default' => '' ),
+			'ng_photo_low_alert_last'    => array( 'type' => 'string', 'default' => '' ),
 			'ng_image_style'             => array( 'type' => 'string', 'default' => 'none' ), // none|duotone
 			'ng_duotone_shadow_color'    => array( 'type' => 'string', 'default' => '' ),
 			'ng_duotone_highlight_color' => array( 'type' => 'string', 'default' => '' ),

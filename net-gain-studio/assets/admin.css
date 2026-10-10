@@ -126,3 +126,76 @@
 		text-align: left;
 	}
 }
+
+/* --- Photos screen (2026-10-09): per-show photo library ---------------------------------------- */
+
+.ng-photos-meter {
+	margin: 14px 0;
+	padding: 12px 16px;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-left-width: 6px;
+	border-radius: 4px;
+	max-width: 900px;
+}
+.ng-photos-meter.is-ok     { border-left-color: #46b450; }
+.ng-photos-meter.is-low    { border-left-color: #dba617; }
+.ng-photos-meter.is-urgent { border-left-color: #d63638; }
+.ng-photos-numbers { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 8px 0; }
+.ng-photos-stat b { font-size: 20px; }
+.ng-photos-meter ul { margin: 6px 0 0 18px; list-style: disc; }
+.ng-photos-warn { color: #8a4b00; margin: 8px 0 0; }
+
+.ng-photos-drop {
+	border: 2px dashed #8c8f94;
+	border-radius: 6px;
+	background: #fff;
+	padding: 34px 20px;
+	text-align: center;
+	max-width: 900px;
+	cursor: pointer;
+	transition: background .15s, border-color .15s;
+}
+.ng-photos-drop strong { font-size: 16px; }
+.ng-photos-drop.is-over, .ng-photos-drop:focus { background: #f0f6fc; border-color: #2271b1; outline: none; }
+
+.ng-photos-uploads { max-width: 900px; margin: 8px 0; }
+.ng-upload-row { display: flex; align-items: center; gap: 12px; padding: 4px 0; font-size: 13px; }
+.ng-upload-row progress { width: 160px; }
+.ng-upload-row.is-done .ng-upload-status { color: #1a7f37; }
+.ng-upload-row.is-error .ng-upload-status { color: #b32d2e; }
+
+.ng-photos-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin: 18px 0 10px; }
+
+.ng-photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+.ng-photos-toolbar .button { background: #fff; color: #2271b1; border: 1px solid #2271b1; }
+.ng-photos-toolbar .button.is-active { background: #2271b1; color: #fff; }
+.ng-photo-card {
+	/* a <button>, so everything is set explicitly: buttons centre their content vertically and inherit odd colours */
+	display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch;
+	padding: 0; text-align: left; background: #fff; color: #1d2327; font: inherit; border: 1px solid #dcdcde;
+	border-radius: 4px; overflow: hidden; cursor: pointer;
+}
+.ng-photo-card:hover, .ng-photo-card:focus { border-color: #2271b1; box-shadow: 0 0 0 1px #2271b1; outline: none; }
+.ng-photo-card img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block; background: #e2e2e2; }
+.ng-photo-meta { display: block; padding: 8px 10px 10px; font-size: 12px; }
+.ng-photo-badge { display: inline-block; padding: 1px 7px; border-radius: 10px; background: #e8e8e8; color: #3c434a; margin: 0 4px 4px 0; font-size: 11px; }
+.ng-photo-badge.is-ready   { background: #d7f0dd; color: #1a5c2b; }
+.ng-photo-badge.is-cooling { background: #fdf2d0; color: #6b4e00; }
+.ng-photo-badge.is-pending { background: #dbe9f7; color: #1d4f7c; }
+.ng-photo-badge.is-retired { background: #e4e4e4; color: #555; }
+.ng-photo-badge.is-faces   { background: #f7dddd; color: #7a1f1f; }
+.ng-photo-badge.is-warn    { background: #fdf2d0; color: #6b4e00; }
+.ng-photo-tags, .ng-photo-used { display: block; color: #50575e; }
+
+.ng-photos-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); z-index: 100000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.ng-photos-modal[hidden] { display: none; }
+.ng-photos-dialog { background: #fff; border-radius: 6px; max-width: 1000px; width: 100%; max-height: 90vh; overflow: auto; display: grid; grid-template-columns: 1.2fr 1fr; gap: 22px; padding: 20px; }
+@media (max-width: 782px) { .ng-photos-dialog { grid-template-columns: 1fr; } }
+.ng-photos-dialog-right label { display: block; font-weight: 600; margin: 12px 0 4px; }
+.ng-focal-stage { position: relative; cursor: crosshair; line-height: 0; }
+.ng-focal-stage img { width: 100%; height: auto; display: block; }
+.ng-focal { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px #2271b1, 0 0 8px rgba(0, 0, 0, .5); pointer-events: none; }
+.ng-topics { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.ng-topic { font-weight: 400 !important; margin: 0 !important; }
+.ng-photos-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }

@@ -23,6 +23,7 @@ class Net_Gain_Admin_Menu {
 	const EDIT_SLUG   = 'net-gain-edit-show';
 
 	private static $asset_hooks = array();
+	private static $photos_hook = '';
 
 	public static function register() {
 		add_menu_page(
@@ -51,6 +52,15 @@ class Net_Gain_Admin_Menu {
 			self::CAPABILITY,
 			self::SHOWS_SLUG,
 			array( 'Net_Gain_Shows_List_Page', 'render' )
+		);
+
+		self::$photos_hook = add_submenu_page(
+			self::LIST_SLUG,
+			'Photos',
+			'Photos',
+			self::CAPABILITY,
+			Net_Gain_Photos_Page::SLUG,
+			array( 'Net_Gain_Photos_Page', 'render' )
 		);
 
 		self::$asset_hooks[] = add_submenu_page(
@@ -115,6 +125,11 @@ class Net_Gain_Admin_Menu {
 		}
 
 		wp_enqueue_style( 'ng-admin', plugins_url( 'assets/admin.css', NET_GAIN_PLUGIN_FILE ), array(), NET_GAIN_VERSION );
+
+		if ( self::$photos_hook && $hook === self::$photos_hook ) {
+			Net_Gain_Photos_Page::enqueue();
+			return;
+		}
 
 		if ( ! in_array( $hook, self::$asset_hooks, true ) ) {
 			return;

@@ -279,8 +279,22 @@ class Net_Gain_Edit_Show_Page {
 							<select id="ng_image_mode" name="ng_image_mode">
 								<option value="ai" <?php selected( 'ai', $image_mode ); ?>>AI-generated artwork (default)</option>
 								<option value="cards" <?php selected( 'cards', $image_mode ); ?>>Code-built cards (no AI imagery)</option>
+								<option value="photos" <?php selected( 'photos', $image_mode ); ?>>Real photos (from the Photos library)</option>
 							</select>
-							<p class="description">Code-built cards are drawn from the episode's own facts (headline, topic words, date, the index) in nine templates served round-robin. The frames above supply the footer band and logo. The image style below only applies to AI-generated artwork.</p>
+							<p class="description">Code-built cards are drawn from the episode's own facts (headline, topic words, date, the index) in nine templates served round-robin. "Real photos" uses your uploaded photographs (see Net Gain Studio &gt; Photos): each is cropped differently over time, given the duotone below, and framed by the frames above. The image style below applies to real photos and AI-generated artwork.</p>
+							<p>
+								<label for="ng_photo_cooldown_days"><strong>Photo rest period (days)</strong></label>
+								<input type="number" min="1" max="730" id="ng_photo_cooldown_days" name="ng_photo_cooldown_days" style="width:80px"
+									value="<?php echo esc_attr( (int) $get( 'ng_photo_cooldown_days', 90 ) ?: 90 ); ?>">
+								&nbsp;&nbsp;
+								<label for="ng_photo_caption"><strong>Caption on photo graphics</strong></label>
+								<?php $photo_caption = $get( 'ng_photo_caption', 'topic' ); ?>
+								<select id="ng_photo_caption" name="ng_photo_caption">
+									<option value="topic" <?php selected( 'topic', $photo_caption ); ?>>Story 1's topic word and the date</option>
+									<option value="date" <?php selected( 'date', $photo_caption ); ?>>The date only</option>
+									<option value="none" <?php selected( 'none', $photo_caption ); ?>>No caption</option>
+								</select>
+							</p>
 						</td>
 					</tr>
 
