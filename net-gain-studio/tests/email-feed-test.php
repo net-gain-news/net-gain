@@ -34,7 +34,8 @@ foreach ( array( 'daily' => $daily, 'weekly' => $week ) as $name => $html ) {
 	check( "$name: no story links, only the episode page, listen and transcript URLs", preg_match_all( '/href="([^"]+)"/', $html, $m ) && count( array_diff( array_unique( $m[1] ), array( 'https://netgain.news/edtech/a/', 'https://netgain.news/edtech/a/?autoplay=1', 'https://netgain.news/edtech/a/#transcript' ) ) ) === 0 );
 }
 check( 'daily: names the latest episode and shows the date', strpos( $daily, 'Latest episode' ) !== false && strpos( $daily, 'Oct 9, 2026' ) !== false );
-check( 'daily: points readers to the website for show notes and story links', strpos( $daily, 'every story link are on the episode page' ) !== false );
+check( 'daily: the whole phrase "Show notes and source story links" is one link to the episode page', strpos( $daily, '<a href="https://netgain.news/edtech/a/" style="color:#2f5379;text-decoration:underline;">Show notes and source story links &rarr;</a>' ) !== false );
+check( 'weekly: offers a Story links link to the episode page', strpos( $week, '>Story links</a>' ) !== false );
 check( 'weekly: long summaries are trimmed with an ellipsis', strpos( Net_Gain_Email_Feed::compact_card( array_merge( $e, array( 'summary' => str_repeat( 'word ', 60 ) ) ) ), '&hellip;' ) !== false );
 
 $no_art = Net_Gain_Email_Feed::daily_card( array_merge( $e, array( 'image_url' => '' ) ) );

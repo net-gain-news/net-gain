@@ -22,7 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Net_Gain_Email_Feed {
 
-	const FEED = 'ng-email';
+	const FEED      = 'ng-email';
+	const MAX_ITEMS = 5;     // a week of weekday episodes: the weekly digest shows the last five, the daily email uses the newest
 
 	// Denim palette (see design/palettes/denim and the live theme).
 	const INK    = '#22293a';
@@ -87,8 +88,10 @@ class Net_Gain_Email_Feed {
 		echo '<description>' . esc_html( get_bloginfo( 'description' ) ) . "</description>\n";
 		echo '<language>en-US</language>' . "\n";
 
-		while ( have_posts() ) {
+		$count = 0;
+		while ( have_posts() && $count < self::MAX_ITEMS ) {
 			the_post();
+			++$count;
 			$post = get_post();
 			$e    = self::episode_data( $post );
 			echo "<item>\n";
@@ -133,8 +136,8 @@ class Net_Gain_Email_Feed {
 			. '<a href="' . self::esc( $e['url'] ) . '" style="color:' . self::INK . ';text-decoration:none;">' . self::esc( $e['title'] ) . '</a></td></tr>'
 			. '<tr><td style="padding:0 0 24px;font-family:' . self::BODY . ';font-size:17px;line-height:27px;color:' . self::INK . ';">' . self::esc( $e['summary'] ) . '</td></tr>'
 			. '<tr><td style="padding:0 0 22px;">' . self::button( $e['listen_url'], '&#9658;&nbsp; Listen', true ) . '&nbsp;&nbsp;' . self::button( $e['transcript_url'], 'Read transcript', false ) . '</td></tr>'
-			. '<tr><td style="padding:0;font-family:' . self::BODY . ';font-size:14px;line-height:22px;color:' . self::MUTED . ';">'
-			. 'The show notes and every story link are on the episode page: <a href="' . self::esc( $e['url'] ) . '" style="color:' . self::ACCENT . ';text-decoration:underline;">read them on the website &rarr;</a></td></tr>'
+			. '<tr><td style="padding:0;font-family:' . self::BODY . ';font-size:15px;line-height:22px;">'
+			. '<a href="' . self::esc( $e['url'] ) . '" style="color:' . self::ACCENT . ';text-decoration:underline;">Show notes and source story links &rarr;</a></td></tr>'
 			. '</table>';
 	}
 
@@ -161,7 +164,9 @@ class Net_Gain_Email_Feed {
 			. '<div style="font-family:' . self::MONO . ';font-size:11px;line-height:14px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;">'
 			. '<a href="' . self::esc( $e['listen_url'] ) . '" style="color:' . self::ACCENT . ';text-decoration:none;">&#9658; Listen</a>'
 			. '<span style="color:' . self::BORDER . ';">&nbsp;&nbsp;|&nbsp;&nbsp;</span>'
-			. '<a href="' . self::esc( $e['transcript_url'] ) . '" style="color:' . self::ACCENT . ';text-decoration:none;">Transcript</a></div>'
+			. '<a href="' . self::esc( $e['transcript_url'] ) . '" style="color:' . self::ACCENT . ';text-decoration:none;">Transcript</a>'
+			. '<span style="color:' . self::BORDER . ';">&nbsp;&nbsp;|&nbsp;&nbsp;</span>'
+			. '<a href="' . self::esc( $e['url'] ) . '" style="color:' . self::ACCENT . ';text-decoration:none;">Story links</a></div>'
 			. '</td></tr></table></td></tr></table>';
 	}
 }

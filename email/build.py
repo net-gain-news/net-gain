@@ -25,14 +25,15 @@ MONO = "'IBM Plex Mono','Courier New',Courier,monospace"
 BODY = "'IBM Plex Sans','Helvetica Neue',Helvetica,Arial,sans-serif"
 
 VARIANTS = {
-    "daily": {"label": "Daily briefing", "title": "Net Gain Edtech daily briefing", "intro": ""},
+    "daily": {"label": "Daily briefing", "title": "Net Gain Edtech daily briefing", "intro": "", "top": "8px"},
     "weekly": {
         "label": "Weekly digest",
         "title": "Net Gain Edtech weekly digest",
+        "top": "34px",
         "intro": f"""
               <tr><td style="padding:0 0 6px;font-family:{MONO};font-size:10px;line-height:12px;letter-spacing:0.12em;text-transform:uppercase;color:{MUTED};">This week on Net Gain Edtech</td></tr>
               <tr><td style="padding:0 0 10px;font-family:{HEAD};font-size:30px;line-height:34px;font-weight:700;letter-spacing:-0.02em;color:{INK};">Your week in K&#8209;12 edtech.</td></tr>
-              <tr><td style="padding:0 0 26px;font-family:{BODY};font-size:16px;line-height:25px;color:{MUTED};">Every episode from the past week in one place. Listen, read the transcript, or open the episode page for the show notes and sources.</td></tr>""",
+              <tr><td style="padding:0;font-family:{BODY};font-size:16px;line-height:25px;color:{MUTED};">All our newscasts from the past week in one place. Listen, read transcripts or follow story source links.</td></tr>""",
     },
 }
 
@@ -88,7 +89,7 @@ a {{ color:{ACCENT}; }}
 
         <!-- Body: Kit puts the email content here -->
         <tr>
-          <td class="ng-pad" bgcolor="{CARD}" style="background:{CARD};padding:34px 32px 8px;border-left:1px solid {CARD_BORDER};border-right:1px solid {CARD_BORDER};">
+          <td class="ng-pad" bgcolor="{CARD}" style="background:{CARD};padding:{v["top"]} 32px 8px;border-left:1px solid {CARD_BORDER};border-right:1px solid {CARD_BORDER};">
             {intro_block}
             {{{{ message_content }}}}
           </td>
@@ -101,7 +102,7 @@ a {{ color:{ACCENT}; }}
               <tr>
                 <td style="padding:22px 24px;">
                   <div style="font-family:{MONO};font-size:10px;line-height:12px;letter-spacing:0.12em;text-transform:uppercase;color:{MUTED};padding:0 0 8px;">The Net Gain Edtech Index</div>
-                  <div style="font-family:{BODY};font-size:15px;line-height:23px;color:{INK};padding:0 0 12px;">A proprietary portfolio of fifty publicly traded edtech companies, tracked on every episode.</div>
+                  <div style="font-family:{BODY};font-size:15px;line-height:23px;color:{INK};padding:0 0 12px;">Our proprietary portfolio of fifty publicly traded edtech companies, tracked on every episode.</div>
                   <a href="{SITE}/edtech/index/" style="font-family:{MONO};font-size:12px;line-height:16px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:{ACCENT};text-decoration:none;">See how the Index moved &rarr;</a>
                 </td>
               </tr>
