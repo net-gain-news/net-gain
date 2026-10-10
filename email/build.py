@@ -118,7 +118,7 @@ a {{ color:{ACCENT}; }}
             </div>
             <div style="font-family:{BODY};font-size:12px;line-height:19px;color:#8fa3bd;">
               You&rsquo;re receiving this because you subscribed to Net Gain Edtech.<br>
-              {{{{ unsubscribe_link }}}} &nbsp;|&nbsp; {{{{ subscriber_preferences_link }}}}<br>
+              <a href="{{{{ unsubscribe_url }}}}" style="color:{NAVY_LINK};text-decoration:underline;">Unsubscribe</a> &nbsp;|&nbsp; <a href="{{{{ subscriber_preferences_url }}}}" style="color:{NAVY_LINK};text-decoration:underline;">Update your preferences</a><br>
               {{{{ address }}}}
             </div>
           </td>
@@ -148,8 +148,8 @@ def fetch_items():
 
 def preview(kind, html, items):
     fills = {
-        "{{ unsubscribe_link }}": '<a href="#" style="color:#9fbbdb;text-decoration:underline;">Unsubscribe</a>',
-        "{{ subscriber_preferences_link }}": '<a href="#" style="color:#9fbbdb;text-decoration:underline;">Update your preferences</a>',
+        "{{ unsubscribe_url }}": "#",
+        "{{ subscriber_preferences_url }}": "#",
         "{{ address }}": "600 1st Ave, Ste 330 PMB 92768, Seattle, WA 98104-2246",
     }
     if kind == "daily":
