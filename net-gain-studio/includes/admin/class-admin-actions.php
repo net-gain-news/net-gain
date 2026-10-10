@@ -131,8 +131,8 @@ class Net_Gain_Admin_Actions {
 		$image_mode  = in_array( $posted_mode, array( 'cards', 'photos' ), true ) ? $posted_mode : 'ai';
 		update_post_meta( $show_id, 'ng_image_mode', $image_mode );
 		update_post_meta( $show_id, 'ng_photo_cooldown_days', max( 1, min( 730, (int) ( $_POST['ng_photo_cooldown_days'] ?? 90 ) ) ) );
-		$caption = $_POST['ng_photo_caption'] ?? 'topic';
-		update_post_meta( $show_id, 'ng_photo_caption', in_array( $caption, array( 'topic', 'date', 'none' ), true ) ? $caption : 'topic' );
+		$caption = $_POST['ng_photo_caption'] ?? 'none';
+		update_post_meta( $show_id, 'ng_photo_caption', in_array( $caption, array( 'topic', 'date', 'none' ), true ) ? $caption : 'none' );
 
 		$image_style = ( 'duotone' === ( $_POST['ng_image_style'] ?? '' ) ) ? 'duotone' : 'none';
 		update_post_meta( $show_id, 'ng_image_style', $image_style );

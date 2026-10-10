@@ -288,7 +288,7 @@ class Net_Gain_Edit_Show_Page {
 									value="<?php echo esc_attr( (int) $get( 'ng_photo_cooldown_days', 90 ) ?: 90 ); ?>">
 								&nbsp;&nbsp;
 								<label for="ng_photo_caption"><strong>Caption on photo graphics</strong></label>
-								<?php $photo_caption = $get( 'ng_photo_caption', 'topic' ); ?>
+								<?php $photo_caption = $get( 'ng_photo_caption', 'none' ); ?>
 								<select id="ng_photo_caption" name="ng_photo_caption">
 									<option value="topic" <?php selected( 'topic', $photo_caption ); ?>>Story 1's topic word and the date</option>
 									<option value="date" <?php selected( 'date', $photo_caption ); ?>>The date only</option>

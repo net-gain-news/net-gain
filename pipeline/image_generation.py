@@ -246,7 +246,7 @@ def render_photos_for_episode(wp, anthropic_generate, show, episode_id, episode,
         duotone = (show_meta.get("ng_duotone_shadow_color") or "#000000", show_meta.get("ng_duotone_highlight_color") or "#ffffff")
 
     caption = None
-    mode = show_meta.get("ng_photo_caption") or "topic"
+    mode = show_meta.get("ng_photo_caption") or "none"    # default: the plain frame, nothing superimposed
     if mode != "none":
         caption = {"topic": None, "date": dt}
         if mode == "topic":
