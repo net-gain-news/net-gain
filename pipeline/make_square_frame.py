@@ -9,6 +9,7 @@ templates/logo_horizontal.png.
     python make_square_frame.py [out.png]
 
 Upload the result as the show's square frame (Edit Show > frames); cards.py measures the window from the frame itself.
+For all three frames in either palette (sage or denim) use make_frames.py instead.
 """
 
 import sys
