@@ -421,7 +421,7 @@ def publish_to_captivate(wp, captivate, show, episode_id, finalization):
     }
     image_id = meta.get("ng_image_square_id")
     if image_id:
-        payload["episode_art"] = wp.get_attachment_url(image_id)
+        payload["episode_art"] = wp.get_attachment_url(image_id, original=True)    # the 3000 px file, not WordPress's 2560 px "-scaled" copy
 
     created = captivate.create_episode(payload)
     new_episode_id = created.get("id") or (created.get("episode") or {}).get("id")

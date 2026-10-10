@@ -75,9 +75,18 @@ class WPClient:
 
     # --- media ---------------------------------------------------------------
 
-    def get_attachment_url(self, attachment_id):
+    def get_attachment_url(self, attachment_id, original=False):
+        """
+        The attachment's URL. WordPress shrinks any image over 2560 px to a "-scaled" copy and reports THAT as
+        source_url; `original=True` returns the file as uploaded instead (the 3000 px square graphic, which is what
+        Captivate's episode art should be).
+        """
         media = self._request("GET", f"/wp-json/wp/v2/media/{attachment_id}")
-        return media.get("source_url", "")
+        url = media.get("source_url", "")
+        uploaded = (media.get("media_details") or {}).get("original_image")
+        if original and uploaded and "/" in url:
+            return url.rsplit("/", 1)[0] + "/" + uploaded
+        return url
 
     def download_binary(self, url):
         """
