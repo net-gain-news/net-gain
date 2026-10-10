@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.9.0
+ * Version:           0.9.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -27,7 +27,7 @@ if ( ! isset( $_SERVER['HTTP_AUTHORIZATION'] ) && isset( $_SERVER['REDIRECT_HTTP
 	$_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
 }
 
-define( 'NET_GAIN_VERSION', '0.9.0' );
+define( 'NET_GAIN_VERSION', '0.9.1' );
 define( 'NET_GAIN_PLUGIN_FILE', __FILE__ );
 define( 'NET_GAIN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -57,6 +57,8 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/class-website-rewrite.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-aioseo-integration.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-anchor-profile.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-schema-output.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/class-news-schema.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/class-news-sitemap.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/shortcodes/class-shortcodes.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-activator.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-deactivator.php';
@@ -121,4 +123,6 @@ Net_Gain_Guidelines::register();
 Net_Gain_AIOSEO_Integration::register();
 Net_Gain_Anchor_Profile::register();
 Net_Gain_Schema_Output::register();
+Net_Gain_News_Schema::register();
+Net_Gain_News_Sitemap::register();
 Net_Gain_Shortcodes::register();

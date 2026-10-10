@@ -123,6 +123,8 @@ class Net_Gain_Admin_Actions {
 			update_post_meta( $show_id, $frame_key, (int) ( $_POST[ $frame_key ] ?? 0 ) );
 		}
 
+		update_post_meta( $show_id, 'ng_publisher_logo_id', (int) ( $_POST['ng_publisher_logo_id'] ?? 0 ) );
+
 		foreach ( array( 'ng_fallback_square_id', 'ng_fallback_16x9_id', 'ng_fallback_1200x630_id' ) as $fallback_key ) {
 			update_post_meta( $show_id, $fallback_key, (int) ( $_POST[ $fallback_key ] ?? 0 ) );
 		}

@@ -273,6 +273,23 @@ class Net_Gain_Edit_Show_Page {
 					</tr>
 
 					<tr>
+						<th>Publisher logo</th>
+						<td>
+							<?php $logo_id = (int) $get( 'ng_publisher_logo_id', 0 ); ?>
+							<div class="ng-frame-picker" style="margin-bottom:16px;">
+								<div class="ng-frame-preview" style="margin-bottom:6px;">
+									<?php if ( $logo_id ) : ?>
+										<?php echo wp_get_attachment_image( $logo_id, array( 200, 60 ) ); ?>
+									<?php endif; ?>
+								</div>
+								<input type="hidden" class="ng-frame-input" name="ng_publisher_logo_id" value="<?php echo esc_attr( $logo_id ); ?>">
+								<button type="button" class="button ng-frame-select">Select Image</button>
+								<p class="description">Named as the publisher in the news structured data search engines read from each episode page. A rectangular logo no taller than 60 px and no wider than 600 px, on a solid background (it appears on white pages). Leave empty to use the site-wide organization.</p>
+							</div>
+						</td>
+					</tr>
+
+					<tr>
 						<th>Graphics source</th>
 						<td>
 							<?php $image_mode = $get( 'ng_image_mode', 'ai' ); ?>

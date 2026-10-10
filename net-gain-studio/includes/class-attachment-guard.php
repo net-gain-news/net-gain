@@ -59,6 +59,7 @@ class Net_Gain_Attachment_Guard {
 		'ng_frame_square_id',
 		'ng_frame_16x9_id',
 		'ng_frame_1200x630_id',
+		'ng_publisher_logo_id',
 		'ng_fallback_square_id',
 		'ng_fallback_16x9_id',
 		'ng_fallback_1200x630_id',
