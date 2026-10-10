@@ -25,7 +25,7 @@ MONO = "'IBM Plex Mono','Courier New',Courier,monospace"
 BODY = "'IBM Plex Sans','Helvetica Neue',Helvetica,Arial,sans-serif"
 
 VARIANTS = {
-    "daily": {"label": "Daily briefing", "title": "Net Gain Edtech daily briefing", "intro": "", "top": "8px"},
+    "daily": {"label": "Daily briefing", "title": "Net Gain Edtech daily briefing", "intro": "", "top": "38px"},
     "weekly": {
         "label": "Weekly digest",
         "title": "Net Gain Edtech weekly digest",
