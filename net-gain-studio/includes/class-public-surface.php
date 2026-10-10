@@ -14,7 +14,9 @@
  *     did); a bot can still guess one, and gets a 404.
  *  3. The podcast plugin's own archive (/podcast/, and its older /ssp-podcast-archive/ page) renders the newest episode
  *     under a second URL, so it is a duplicate; both 301 to the episode list instead of being left to search engines.
- *  4. The REST discovery pointers (the <link rel="https://api.w.org/"> tag and Link header) are dropped from public pages.
+ *  4. Comments and pings are closed everywhere, always: the site has no use for them, an open comment form is a spam
+ *     surface on every episode, and the pipeline creates new posts that would otherwise inherit WordPress's "open" default.
+ *  5. The REST discovery pointers (the <link rel="https://api.w.org/"> tag and Link header) are dropped from public pages.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -30,8 +32,17 @@ class Net_Gain_Public_Surface {
 		add_filter( 'rest_pre_dispatch', array( __CLASS__, 'guard_rest' ), 5, 3 );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_404_author' ), 1 );
 		add_action( 'template_redirect', array( __CLASS__, 'redirect_duplicate_archive' ), 0 );
+		add_filter( 'comments_open', '__return_false', 99 );
+		add_filter( 'pings_open', '__return_false', 99 );
+		add_filter( 'feed_links_show_comments_feed', '__return_false' );
+		add_filter( 'wp_headers', array( __CLASS__, 'drop_pingback_header' ) );
 		remove_action( 'wp_head', 'rest_output_link_wp_head', 10 );
 		remove_action( 'template_redirect', 'rest_output_link_header', 11 );
+	}
+
+	public static function drop_pingback_header( $headers ) {
+		unset( $headers['X-Pingback'] );
+		return $headers;
 	}
 
 	/** Pure: is this request path one of the podcast plugin's duplicate archive URLs? */
