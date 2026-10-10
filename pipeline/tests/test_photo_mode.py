@@ -271,6 +271,37 @@ class TaggingStepTests(unittest.TestCase):
         self.assertEqual(wp.update_photo.call_count, 4)
 
 
+class FallbackAlertTests(unittest.TestCase):
+    """No silent fallback: when photo mode cannot make a photo graphic and the show's pre-rendered fallback images are
+    used instead, the operator is emailed; other modes behave as before."""
+
+    def run_failure(self, mode, fallback=True):
+        wp = Mock()
+        wp.get_show.return_value = {"meta": {"ng_image_mode": mode, "ng_fallback_square_id": 28 if fallback else 0,
+                                             "ng_fallback_16x9_id": 29 if fallback else 0, "ng_fallback_1200x630_id": 30 if fallback else 0}}
+        show = {"id": 16, "name": "Net Gain Edtech", "pending_actions": [],
+                "in_flight_episodes": [{"id": 5, "step_status": {"audio_received": {"status": "done"}}}]}
+        with patch("tick.render_images_for_episode", side_effect=RuntimeError("The photo library has nothing usable")), \
+             patch("tick.notify_failure") as alert:
+            tick.process_image_rendering(wp, object(), None, CONFIG, show)
+        return wp, alert
+
+    def test_photo_mode_alerts_when_the_fallback_graphic_is_used(self):
+        wp, alert = self.run_failure("photos")
+        wp.update_step.assert_any_call(5, "images_rendered", "degraded", note="The photo library has nothing usable")
+        alert.assert_called_once()
+        self.assertIn("fallback graphic", alert.call_args[0][2])
+
+    def test_other_modes_keep_their_quiet_degraded_behaviour(self):
+        _, alert = self.run_failure("cards")
+        alert.assert_not_called()
+
+    def test_without_fallback_images_the_step_fails_and_alerts_as_before(self):
+        wp, alert = self.run_failure("photos", fallback=False)
+        wp.update_step.assert_any_call(5, "images_rendered", "failed", note="The photo library has nothing usable")
+        alert.assert_called_once()
+
+
 class DigestTests(unittest.TestCase):
     STATS = {"level": "low", "eligible_now": 14, "cooling_down": 3, "cooldown_days": 90, "never_used": 2, "eligible_no_faces": 4, "retired": 0, "messages": []}
     SHOW = {"id": 16, "name": "Net Gain Edtech", "recording_timezone": "America/New_York"}

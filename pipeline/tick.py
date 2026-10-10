@@ -280,6 +280,11 @@ def process_image_rendering(wp, client, vertex_client, config, show):
                 wp.update_step(episode_id, "images_rendered", "degraded", note=str(exc)[:500])
                 for action in pending:
                     wp.update_action(show["id"], action["id"], "done")
+                if show_meta.get("ng_image_mode") == "photos":
+                    # A generic fallback graphic went out instead of a photo. In photo mode that means the library
+                    # needs attention (empty, or nothing suitable for a sensitive story), so say so rather than
+                    # let it pass quietly as a "degraded" step nobody is watching.
+                    notify_failure(config, show["name"], "images_rendered (used the fallback graphic)", str(exc))
             else:
                 wp.update_step(episode_id, "images_rendered", "failed", note=str(exc)[:500])
                 for action in pending:
