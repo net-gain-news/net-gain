@@ -32,7 +32,7 @@ VARIANTS = {
         "top": "34px",
         "intro": f"""
               <tr><td style="padding:0 0 6px;font-family:{MONO};font-size:10px;line-height:12px;letter-spacing:0.12em;text-transform:uppercase;color:{MUTED};">This week on Net Gain Edtech</td></tr>
-              <tr><td style="padding:0 0 10px;font-family:{HEAD};font-size:30px;line-height:34px;font-weight:700;letter-spacing:-0.02em;color:{INK};">Your week in K&#8209;12 edtech.</td></tr>
+              <tr><td style="padding:0 0 10px;font-family:{HEAD};font-size:30px;line-height:34px;font-weight:700;letter-spacing:-0.02em;color:{INK};">Your week in <span style="white-space:nowrap;">K&#8209;12</span> edtech.</td></tr>
               <tr><td style="padding:0;font-family:{BODY};font-size:16px;line-height:25px;color:{MUTED};">All our newscasts from the past week in one place. Listen, read transcripts or follow story source links.</td></tr>""",
     },
 }
@@ -113,7 +113,7 @@ a {{ color:{ACCENT}; }}
         <!-- Footer -->
         <tr>
           <td class="ng-pad" bgcolor="{NAVY}" style="background:{NAVY};padding:26px 32px 30px;">
-            <div style="font-family:{BODY};font-size:14px;line-height:22px;color:#c9d4e3;padding:0 0 14px;">Net Gain Edtech is brought to you by <a href="https://www.edsby.com/" style="color:{NAVY_LINK};text-decoration:underline;">Edsby</a>, the digital learning platform for K&#8209;12.</div>
+            <div style="font-family:{BODY};font-size:14px;line-height:22px;color:#c9d4e3;padding:0 0 14px;">Net Gain Edtech is brought to you by <a href="https://www.edsby.com/" style="color:{NAVY_LINK};text-decoration:underline;">Edsby</a>, the student success platform for <span style="white-space:nowrap;">K&#8209;12</span>.</div>
             <div style="font-family:{MONO};font-size:11px;line-height:16px;letter-spacing:0.08em;text-transform:uppercase;padding:0 0 18px;">
               <a href="{SITE}/edtech/" style="color:{NAVY_LINK};text-decoration:none;">Website</a>&nbsp;&nbsp;<span style="color:#4d6585;">|</span>&nbsp;&nbsp;<a href="{SITE}/edtech/episodes/" style="color:{NAVY_LINK};text-decoration:none;">All episodes</a>&nbsp;&nbsp;<span style="color:#4d6585;">|</span>&nbsp;&nbsp;<a href="https://net-gain-edtech.captivate.fm/listen" style="color:{NAVY_LINK};text-decoration:none;">Follow the show</a>
             </div>
