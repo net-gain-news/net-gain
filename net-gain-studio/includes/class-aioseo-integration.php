@@ -28,7 +28,7 @@ class Net_Gain_AIOSEO_Integration {
 
 	public static function register() {
 		add_filter( 'aioseo_description', array( __CLASS__, 'filter_description' ) );
-		add_filter( 'aioseo_save_post', array( __CLASS__, 'filter_save_post' ) );
+		add_filter( 'aioseo_save_post', array( __CLASS__, 'filter_save_post' ), 10, 2 );
 		add_filter( 'aioseo_facebook_tags', array( __CLASS__, 'filter_facebook_tags' ) );
 		add_filter( 'aioseo_twitter_tags', array( __CLASS__, 'filter_twitter_tags' ) );
 	}
@@ -80,24 +80,58 @@ class Net_Gain_AIOSEO_Integration {
 		return $override ?: $description;
 	}
 
-	public static function filter_save_post( $post ) {
-		$wp_post_id = isset( $post->post_id ) ? (int) $post->post_id : get_the_ID();
+	/**
+	 * aioseo_save_post: apply_filters( 'aioseo_save_post', array $data, Post $model ) - confirmed against
+	 * AIOSEO Pro 5.0.3's Models/Post.php::savePost() on 2026-10-09. The FIRST argument is the plain ARRAY of
+	 * fields about to be saved (keys such as 'title' and 'description'), the second AIOSEO's Post model.
+	 *
+	 * Fixed 2026-10-09: this was written for an object ("$post->title = ...", marked TODO(verify)) and fataled
+	 * ("Attempt to assign property \"title\" on array") whenever an episode page was saved from the editor.
+	 * Both shapes are handled now, and anything unexpected is returned untouched rather than risk a fatal.
+	 */
+	public static function filter_save_post( $data, $the_post = null ) {
+		if ( ! is_array( $data ) && ! is_object( $data ) ) {
+			return $data;
+		}
+
+		$wp_post_id = 0;
+		if ( is_object( $the_post ) && isset( $the_post->post_id ) ) {
+			$wp_post_id = (int) $the_post->post_id;
+		}
+		if ( ! $wp_post_id && is_array( $data ) && isset( $data['post_id'] ) ) {
+			$wp_post_id = (int) $data['post_id'];
+		}
+		if ( ! $wp_post_id && is_object( $data ) && isset( $data->post_id ) ) {
+			$wp_post_id = (int) $data->post_id;
+		}
+		if ( ! $wp_post_id && isset( $_POST['post_ID'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			$wp_post_id = (int) $_POST['post_ID']; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		}
+		if ( ! $wp_post_id ) {
+			$wp_post_id = (int) get_the_ID();
+		}
+
 		$episode_id = self::source_episode_id( $wp_post_id );
 		if ( ! $episode_id ) {
-			return $post;
+			return $data;
 		}
 
-		$title = get_post_meta( $episode_id, 'ng_meta_aioseo_title', true );
-		if ( $title ) {
-			$post->title = $title; // TODO(verify): confirm this is AIOSEO's real property name.
+		$overrides = array(
+			'title'       => get_post_meta( $episode_id, 'ng_meta_aioseo_title', true ),
+			'description' => get_post_meta( $episode_id, 'ng_meta_aioseo_description', true ),
+		);
+		foreach ( $overrides as $key => $value ) {
+			if ( ! $value ) {
+				continue;
+			}
+			if ( is_array( $data ) ) {
+				$data[ $key ] = $value;
+			} else {
+				$data->$key = $value;
+			}
 		}
 
-		$description = get_post_meta( $episode_id, 'ng_meta_aioseo_description', true );
-		if ( $description ) {
-			$post->description = $description;
-		}
-
-		return $post;
+		return $data;
 	}
 
 	private static function source_episode_id( $wp_post_id ) {

@@ -16,8 +16,11 @@ in metadata_generation.py's own prompt, not a mechanical gate.
 """
 
 import io
+import re
 
 from PIL import Image
+
+from text_rules import machine_safe
 
 TITLE_MAX_CHARS = 100
 DESCRIPTION_MIN_CHARS = 200
@@ -75,12 +78,32 @@ def _check_title(title, tags, show_name):
     return failures
 
 
+# Words that appear in nearly every edtech tag and say nothing about THIS episode - overlap on these alone
+# does not count as a keyword match (a title and a tag both mentioning "schools" proves nothing).
+_GENERIC_TAG_WORDS = {
+    "school", "schools", "public", "student", "students", "district", "districts", "education", "edtech",
+    "teacher", "teachers", "classroom", "learning", "news", "with", "from", "that", "this", "your", "what",
+}
+
+
 def _title_contains_keyword(title, tags, show_name):
-    title_lower = title.lower()
+    # Compared with ordinary hyphens, so a title spelled with the house non-breaking hyphen
+    # (K‑12, text_rules.py) still matches a tag spelled K-12.
+    title_lower = machine_safe(title).lower()
 
     for tag in tags or []:
-        if tag and str(tag).strip().lower() in title_lower:
+        if tag and machine_safe(str(tag)).strip().lower() in title_lower:
             return True
+
+    # Tags are specific phrases ("Frederick County Public Schools") while a title usually uses the short
+    # form ("Frederick County"), so one distinctive word from any tag, as a whole word, also counts.
+    # Added 2026-10-09 after a good title ("Frederick County Bans Student AI; Spokane Breach Widens")
+    # was rejected because no whole tag phrase fit inside it.
+    for tag in tags or []:
+        for word in re.findall(r"[a-z0-9][a-z0-9'\-]*", machine_safe(str(tag or "")).lower()):
+            if len(word) >= 4 and word not in _STOPWORDS and word not in _GENERIC_TAG_WORDS:
+                if re.search(r"(?<![a-z0-9])" + re.escape(word) + r"(?![a-z0-9])", title_lower):
+                    return True
 
     for word in (show_name or "").split():
         word = word.strip().lower().strip(",.:;!?'\"")

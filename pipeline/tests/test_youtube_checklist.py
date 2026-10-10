@@ -51,6 +51,33 @@ class TitleTests(unittest.TestCase):
         self.assertTrue(any("keyword" in f.lower() for f in failures))
 
 
+class TitleKeywordWordMatchTests(unittest.TestCase):
+    """2026-10-09: a good title was rejected because tags are long phrases and the title used the short form."""
+
+    TAGS = ["Frederick County Public Schools", "Gemini AI ban", "K-12 AI policy", "Spokane Public Schools",
+            "PowerSchool breach", "school cyberattack", "data breach K-12", "student data privacy", "edtech news"]
+
+    def _failures(self, title, tags=None):
+        return yc.evaluate(title, "A" * 300, tags or self.TAGS, _make_thumbnail(), "Net Gain Edtech")
+
+    def test_todays_real_title_passes(self):
+        self.assertEqual(self._failures("Frederick County Bans Student AI; Spokane Breach Widens"), [])
+
+    def test_one_distinctive_tag_word_as_a_whole_word_is_enough(self):
+        self.assertEqual(self._failures("Spokane reports new fallout"), [])
+
+    def test_overlap_on_generic_words_alone_still_fails(self):
+        failures = self._failures("Students and schools everywhere react", tags=["Frederick County Public Schools", "student data privacy"])
+        self.assertTrue(any("keyword" in f.lower() for f in failures))
+
+    def test_a_word_inside_a_longer_word_does_not_count(self):
+        failures = self._failures("Spokanes of the world", tags=["Spokane Public Schools"])
+        self.assertTrue(any("keyword" in f.lower() for f in failures))
+
+    def test_title_with_the_non_breaking_k12_hyphen_matches_a_plain_hyphen_tag(self):
+        self.assertEqual(self._failures("Why K\u201112 leaders worry", tags=["K-12 AI policy", "one", "two", "three", "four"]), [])
+
+
 class DescriptionTests(unittest.TestCase):
     def setUp(self):
         self.good_title = "Edtech Funding Roundup"
