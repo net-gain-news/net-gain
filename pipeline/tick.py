@@ -1044,7 +1044,8 @@ def process_photo_tagging(wp, client, config, show, limit=4):
     """
     Newly uploaded photos arrive untagged (status pending_tags). Each tick tags a few: a vision pass writes tags, topics,
     who is visible, the focal point and a description, and makes the photo ready to use. A photo whose file cannot be
-    read, or that does not look like a photograph, is retired with a note for the operator; a transient API failure
+    read is retired with a note for the operator (a picture that merely does not look like a photograph is kept and
+    flagged, since a human chose it); a transient API failure
     simply leaves it pending for the next tick.
     """
     library = wp.list_photos(show["id"])

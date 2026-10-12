@@ -263,7 +263,7 @@ class Net_Gain_REST_Photos {
 			update_post_meta( $id, 'ng_photo_description', mb_substr( sanitize_text_field( (string) $body['description'] ), 0, 300 ) );
 		}
 		if ( isset( $body['flags'] ) ) {
-			$known = array( 'low_res', 'logo_text', 'needs_review', 'portrait' );
+			$known = array( 'low_res', 'logo_text', 'needs_review', 'not_photo', 'portrait' );
 			update_post_meta( $id, 'ng_photo_flags', array_values( array_intersect( $known, (array) $body['flags'] ) ) );
 		}
 		foreach ( array( 'width', 'height' ) as $dim ) {

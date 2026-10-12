@@ -138,10 +138,16 @@ class TaggingTests(unittest.TestCase):
         fields = pl.tag_photo(FakeGenerate(dict(self.GOOD, logo_or_text_visible=True)), jpeg_bytes((1200, 1800)))
         self.assertEqual(set(fields["flags"]), {"low_res", "portrait", "logo_text"})
 
-    def test_a_non_photograph_is_retired_for_review(self):
+    def test_a_non_photograph_is_kept_and_flagged_not_retired(self):
         fields = pl.tag_photo(FakeGenerate(dict(self.GOOD, is_photograph=False)), jpeg_bytes())
-        self.assertEqual(fields["status"], "retired")
-        self.assertIn("needs_review", fields["flags"])
+        self.assertEqual(fields["status"], "ready")
+        self.assertIn("not_photo", fields["flags"])
+        self.assertNotIn("needs_review", fields["flags"])
+
+    def test_a_picture_with_no_people_in_it_is_ready(self):
+        for people in ("none", "anonymous", "identifiable"):
+            fields = pl.tag_photo(FakeGenerate(dict(self.GOOD, people=people)), jpeg_bytes())
+            self.assertEqual(fields["status"], "ready", people)
 
     def test_an_unknown_people_value_is_treated_cautiously(self):
         fields = pl.tag_photo(FakeGenerate(dict(self.GOOD, people="unsure")), jpeg_bytes())
@@ -180,6 +186,18 @@ class BriefAndEmailTests(unittest.TestCase):
         self.assertIn("14 ready to use now", body)
         self.assertIn("Only 2 eligible", body)
         self.assertIn("Photos", body)
+
+    def test_the_library_email_counts_the_whole_library_and_its_parts(self):
+        stats = {"level": "ok", "total": 168, "eligible_now": 146, "cooling_down": 13, "cooldown_days": 90, "never_used": 146,
+                 "eligible_no_faces": 46, "retired": 9, "pending": 0, "messages": []}
+        _, body = pl.library_email("Net Gain Edtech", stats)
+        self.assertIn("168 photos in the library", body)
+        self.assertIn("146 ready to use now", body)
+        self.assertIn("13 resting", body)
+        self.assertIn("9 retired", body)
+        self.assertIn("Of the 146 ready to use now: 146 have never been used, and 46 are usable for sensitive stories", body)
+        self.assertNotIn("waiting to be tagged", body)
+        self.assertEqual(146 + 13 + 9, 168)
 
 
 if __name__ == "__main__":

@@ -34,6 +34,17 @@ check('20 eligible = 4 weeks -> low', $s['level']==='low');
 $s=$L::stats(array_slice($photos,0,10),90,'2026-10-09',5);
 check('10 eligible = 2 weeks -> urgent', $s['level']==='urgent');
 check('empty library is urgent with a message', $L::stats(array(),90,'2026-10-09',5)['level']==='urgent');
+
+// the headline numbers add up: total = ready now + resting + retired + waiting to be tagged
+$mix=array();
+for($i=0;$i<10;$i++) $mix[]=array('status'=>'ready','last_used'=>'','topics'=>array('general'),'people'=>'none','flags'=>array());
+for($i=0;$i<3;$i++)  $mix[]=array('status'=>'ready','last_used'=>'2026-10-01','topics'=>array('general'),'people'=>'none','flags'=>array());
+for($i=0;$i<2;$i++)  $mix[]=array('status'=>'retired','last_used'=>'','topics'=>array(),'people'=>'none','flags'=>array());
+$mix[]=array('status'=>'pending_tags','last_used'=>'','topics'=>array(),'people'=>'','flags'=>array());
+$s=$L::stats($mix,90,'2026-10-09',5);
+check('total counts every photo', $s['total']===16);
+check('total = ready now + resting + retired + pending', $s['total']===$s['eligible_now']+$s['cooling_down']+$s['retired']+$s['pending']);
+check('never used is a part of ready now, not a separate bucket', $s['never_used']<=$s['eligible_now'] && $s['eligible_no_faces']<=$s['eligible_now']);
 $few=array(); for($i=0;$i<40;$i++) $few[]=array('status'=>'ready','last_used'=>'','topics'=>array('k12'),'people'=>$i<2?'none':'identifiable','flags'=>array());
 $s=$L::stats($few,90,'2026-10-09',5);
 check('thin on no-faces photos is flagged', $s['eligible_no_faces']===2 && $s['level']!=='ok' && strpos(implode(' ',$s['messages']),'without identifiable people')!==false);

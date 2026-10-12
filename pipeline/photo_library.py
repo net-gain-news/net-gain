@@ -100,7 +100,7 @@ TAG_SYSTEM_PROMPT = (
     "You catalogue photographs for a newsroom's image library (an education-technology news show). For the photo you "
     "are shown, return:\n"
     f"- is_photograph: true for a real camera photograph; false for an illustration, vector, 3D render, collage or "
-    "anything that does not look like a genuine photograph.\n"
+    "anything that does not look like a genuine photograph (this only labels the picture; it is never rejected).\n"
     f"- tags: three to eight lowercase tags, preferring this vocabulary: {', '.join(SETTINGS)}; add other short tags "
     "(for example 'sunlight', 'blue', 'wide shot') if useful.\n"
     f"- topics: which story topics the photo suits, from: {', '.join(TOPICS)} ('general' if it suits almost any story).\n"
@@ -126,8 +126,10 @@ def prepare_for_vision(image_bytes, max_side=1024):
 def tag_photo(anthropic_generate, image_bytes):
     """
     Vision pass over one uploaded original. Returns the fields to store with the photo: tags, topics, people, focal
-    point, description, flags, true dimensions, and the status to give it ("ready", or "retired" with a needs_review
-    flag if it does not look like a photograph).
+    point, description, flags, true dimensions and the status to give it, which is always "ready": a human curator
+    chose the picture, so it is trusted. A picture the vision pass judges not to be a camera photograph (a render,
+    illustration or collage) only gets a non-blocking "not_photo" flag so the operator can see it in the library;
+    it is never retired for that, and no face or person is required either.
     """
     jpeg, width, height = prepare_for_vision(image_bytes)
     content = [
@@ -145,8 +147,7 @@ def tag_photo(anthropic_generate, image_bytes):
         flags.append("portrait")
     status = "ready"
     if not data.get("is_photograph", True):
-        flags.append("needs_review")
-        status = "retired"
+        flags.append("not_photo")      # information only - curator-supplied pictures are trusted (operator, 2026-10-12)
 
     return {
         "tags": [str(t).lower().strip() for t in data.get("tags", [])][:8],
@@ -242,12 +243,18 @@ def crop_box(img_w, img_h, focal, variant, win_w, win_h):
 def library_email(show_name, stats):
     """(subject, body) for the weekly library note."""
     level = {"ok": "healthy", "low": "running low", "urgent": "needs photos now"}.get(stats.get("level"), "")
+    total = stats.get("total")
+    if total is None:
+        total = stats["eligible_now"] + stats["cooling_down"] + stats.get("retired", 0) + stats.get("pending", 0)
     lines = [f"Photo library for {show_name}: {level}.", ""]
-    lines += [f"  {stats['eligible_now']} ready to use now",
-              f"  {stats['cooling_down']} resting ({stats['cooldown_days']}-day cooldown)",
-              f"  {stats['never_used']} never used",
-              f"  {stats['eligible_no_faces']} usable for sensitive stories (no identifiable people)",
-              f"  {stats['retired']} retired", ""]
+    lines += [f"  {total} photos in the library, made up of:",
+              f"    {stats['eligible_now']} ready to use now",
+              f"    {stats['cooling_down']} resting ({stats['cooldown_days']}-day cooldown)",
+              f"    {stats.get('retired', 0)} retired"]
+    if stats.get("pending"):
+        lines.append(f"    {stats['pending']} waiting to be tagged")
+    lines += ["", f"  Of the {stats['eligible_now']} ready to use now: {stats['never_used']} have never been used, and "
+                  f"{stats['eligible_no_faces']} are usable for sensitive stories (no identifiable people).", ""]
     lines += [f"- {m}" for m in stats.get("messages", [])]
     lines += ["", "Add photos any time at Net Gain Studio > Photos: drag and drop, and they are tagged automatically."]
     return f"Net Gain Studio: photo library {level} ({show_name})", "\n".join(lines)

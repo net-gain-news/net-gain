@@ -91,17 +91,22 @@
 			urgent: 'Add photos now'
 		}[ stats.level ];
 
-		var numbers = el( 'div', { 'class': 'ng-photos-numbers' }, [
-			stat( stats.eligible_now, 'ready to use' ),
+		// One whole and its parts: total = ready + resting + retired (+ waiting to be tagged). The "of the ready
+		// photos" line is a breakdown of the ready number, not further buckets.
+		var parts = [
+			stat( stats.total, 'photos in the library, of which' ),
+			stat( stats.eligible_now, 'ready to use now' ),
 			stat( stats.cooling_down, 'resting (' + stats.cooldown_days + '-day cooldown)' ),
-			stat( stats.never_used, 'never used' ),
-			stat( stats.eligible_no_faces, 'usable for sensitive stories' ),
 			stat( stats.retired, 'retired' )
-		] );
+		];
+		if ( stats.pending > 0 ) { parts.push( stat( stats.pending, 'waiting to be tagged' ) ); }
+		var numbers = el( 'div', { 'class': 'ng-photos-numbers' }, parts );
+		var breakdown = el( 'p', { 'class': 'ng-photos-breakdown', text: 'Of the ' + stats.eligible_now + ' ready to use now: ' + stats.never_used + ' have never been used, and ' + stats.eligible_no_faces + ' are usable for sensitive stories (no identifiable people).' } );
 
 		var list = el( 'ul', {}, stats.messages.map( function ( m ) { return el( 'li', { text: m } ); } ) );
 		meter.appendChild( el( 'strong', { text: headline } ) );
 		meter.appendChild( numbers );
+		meter.appendChild( breakdown );
 		meter.appendChild( list );
 		if ( ! state.storage.ok ) {
 			meter.appendChild( el( 'p', { 'class': 'ng-photos-warn', text: 'No private storage folder is writable - uploads will fail until your host allows it.' } ) );

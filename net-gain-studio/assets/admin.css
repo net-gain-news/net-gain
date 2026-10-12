@@ -142,6 +142,7 @@
 .ng-photos-meter.is-low    { border-left-color: #dba617; }
 .ng-photos-meter.is-urgent { border-left-color: #d63638; }
 .ng-photos-numbers { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 8px 0; }
+.ng-photos-breakdown { margin: 0 0 8px; color: #50575e; }
 .ng-photos-stat b { font-size: 20px; }
 .ng-photos-meter ul { margin: 6px 0 0 18px; list-style: disc; }
 .ng-photos-warn { color: #8a4b00; margin: 8px 0 0; }
