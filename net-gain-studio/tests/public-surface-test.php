@@ -35,5 +35,12 @@ foreach ( array( '/edtech/episodes/', '/feed/podcast/', '/podcast-download/335/x
 	check( "not a duplicate archive path: $p", ! $S::is_duplicate_archive_path( $p ) );
 }
 
+$feeds = array( 'edtech' => 'https://feeds.captivate.fm/netgain-edtech/' );
+check( 'the edtech slug maps to its Captivate feed', 'https://feeds.captivate.fm/netgain-edtech/' === $S::podcast_feed_target( 'edtech', $feeds ) );
+check( 'no slug maps to the only show', 'https://feeds.captivate.fm/netgain-edtech/' === $S::podcast_feed_target( '', $feeds ) );
+check( 'an unknown slug has no feed', null === $S::podcast_feed_target( 'net-gain-news', $feeds ) );
+check( 'no slug with several shows has no feed', null === $S::podcast_feed_target( '', $feeds + array( 'real-estate' => 'https://feeds.captivate.fm/x/' ) ) );
+check( 'a slug with no shows configured has no feed', null === $S::podcast_feed_target( 'edtech', array() ) );
+
 echo $fail ? "FAILED: $fail\n" : "ALL PASSED\n";
 exit( $fail ? 1 : 0 );

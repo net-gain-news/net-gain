@@ -17,6 +17,11 @@
  *  4. Comments and pings are closed everywhere, always: the site has no use for them, an open comment form is a spam
  *     surface on every episode, and the pipeline creates new posts that would otherwise inherit WordPress's "open" default.
  *  5. The REST discovery pointers (the <link rel="https://api.w.org/"> tag and Link header) are dropped from public pages.
+ *  6. One podcast feed, and it is Captivate's (2026-10-12). Seriously Simple Podcasting serves its own podcast feed
+ *     (/feed/podcast/<show>/, ?feed=podcast, and the series feed variants) with the same audio enclosures, and advertised
+ *     it in every page's <head>. A second feed for the same show lets a directory or app pick the wrong one, so no feed
+ *     link is advertised any more, and every request for the plugin's feed 301s to the show's Captivate feed (or answers
+ *     410 for a show that has none). Kit's email feed (ng-email) is a different feed and is not touched.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -28,6 +33,9 @@ class Net_Gain_Public_Surface {
 	const PRIVATE_ROUTES   = '#^/wp/v2/(ng_episode|ng_show|ng_vertical|users)(/|$)#';
 	const DUPLICATE_ARCHIVE = '#^/?(podcast|ssp-podcast-archive)(/page/\d+)?/?$#';
 
+	/** Show slug => the feed listeners add to their podcast apps. Filterable: net_gain_podcast_feeds. */
+	const PODCAST_FEEDS = array( 'edtech' => 'https://feeds.captivate.fm/netgain-edtech/' );
+
 	public static function register() {
 		add_filter( 'rest_pre_dispatch', array( __CLASS__, 'guard_rest' ), 5, 3 );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_404_author' ), 1 );
@@ -38,6 +46,70 @@ class Net_Gain_Public_Surface {
 		add_filter( 'wp_headers', array( __CLASS__, 'drop_pingback_header' ) );
 		remove_action( 'wp_head', 'rest_output_link_wp_head', 10 );
 		remove_action( 'template_redirect', 'rest_output_link_header', 11 );
+
+		add_action( 'init', array( __CLASS__, 'redirect_podcast_feed_query' ), 1 );
+		add_action( 'parse_request', array( __CLASS__, 'redirect_podcast_feed' ), 1 );
+		add_filter( 'ssp_show_global_feed_tag', '__return_false' );
+		add_filter( 'ssp_show_series_feed_tag', '__return_false' );
+		add_filter( 'ssp_rss_meta_tag', '__return_empty_string' );
+		remove_action( 'wp_head', 'feed_links', 2 );
+		remove_action( 'wp_head', 'feed_links_extra', 3 );
+	}
+
+	/** Pure: the Captivate feed for a show slug; an empty slug means the only show when there is exactly one. */
+	public static function podcast_feed_target( $series_slug, array $feeds ) {
+		$series_slug = trim( (string) $series_slug );
+		if ( '' !== $series_slug ) {
+			return isset( $feeds[ $series_slug ] ) ? $feeds[ $series_slug ] : null;
+		}
+		return 1 === count( $feeds ) ? reset( $feeds ) : null;
+	}
+
+	/** The query-string forms (?feed=podcast, ?feed=podcast&podcast_series=x) are answered by the plugin on `init`, before
+	 *  WordPress parses the request, so they are caught here, first. The pretty URLs are caught in redirect_podcast_feed(). */
+	public static function redirect_podcast_feed_query() {
+		if ( empty( $_GET['feed'] ) || apply_filters( 'ssp_feed_slug', 'podcast' ) !== $_GET['feed'] ) { // phpcs:ignore WordPress.Security.NonceVerification
+			return;
+		}
+
+		$slug = '';
+		foreach ( array( 'podcast_series', 'series' ) as $key ) {
+			if ( ! empty( $_GET[ $key ] ) && is_string( $_GET[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+				$slug = sanitize_title( wp_unslash( $_GET[ $key ] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+				break;
+			}
+		}
+		self::answer_podcast_feed( $slug );
+	}
+
+	/** Every other request for the plugin's own podcast feed ends here, before the plugin builds anything. */
+	public static function redirect_podcast_feed( $wp ) {
+		$vars = isset( $wp->query_vars ) ? (array) $wp->query_vars : array();
+		if ( empty( $vars['feed'] ) || apply_filters( 'ssp_feed_slug', 'podcast' ) !== $vars['feed'] ) {
+			return;
+		}
+
+		$slug = '';
+		foreach ( array( 'podcast_series', 'series' ) as $key ) {
+			if ( ! empty( $vars[ $key ] ) ) {
+				$slug = (string) $vars[ $key ];
+				break;
+			}
+		}
+		self::answer_podcast_feed( $slug );
+	}
+
+	private static function answer_podcast_feed( $slug ) {
+		$target = self::podcast_feed_target( $slug, (array) apply_filters( 'net_gain_podcast_feeds', self::PODCAST_FEEDS ) );
+		header( 'X-Robots-Tag: noindex' );
+		if ( $target ) {
+			wp_redirect( $target, 301, 'Net Gain Studio' ); // phpcs:ignore WordPress.Security.SafeRedirect -- the Captivate feed is an external URL on purpose
+			exit;
+		}
+
+		status_header( 410 );
+		nocache_headers();
+		exit;
 	}
 
 	public static function drop_pingback_header( $headers ) {
