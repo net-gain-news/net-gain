@@ -62,6 +62,7 @@ class Net_Gain_REST_Tick_Context {
 				'index_sheet_url'     => get_post_meta( $show->ID, 'ng_index_sheet_url', true ),
 				'index_last_refresh_date' => get_post_meta( $show->ID, 'ng_index_last_refresh_date', true ),
 				'youtube_description_boilerplate' => get_post_meta( $show->ID, 'ng_youtube_description_boilerplate', true ),
+				'captivate_notes_footer' => get_post_meta( $show->ID, 'ng_captivate_notes_footer', true ),
 				'effective_talent_today' => Net_Gain_Talent_Assignments::get_effective_talent( $show->ID, $today ),
 				'in_flight_episodes'  => $this->in_flight_episodes( $show->ID ),
 				// Separate from in_flight_episodes: a replaced episode is usually fully

@@ -173,6 +173,10 @@ class Net_Gain_CPT_Show {
 			// something the metadata-generation prompt is asked to write itself,
 			// so it stays exactly what was typed here across every episode.
 			'ng_youtube_description_boilerplate' => array( 'type' => 'string', 'default' => '' ),
+			// Fixed HTML appended verbatim to the end of every Captivate episode's show notes when the episode is
+			// created (the sponsor line). The website's show notes come from the generated notes themselves, so this
+			// does not appear there. Edited by the show owner, never written by the AI.
+			'ng_captivate_notes_footer' => array( 'type' => 'string', 'default' => '' ),
 			// Written only by POST /shows/{id}/index-snapshot (tick.py) - never
 			// hand-edited. Whole-snapshot replace on every successful fetch, so
 			// constituents can be added/removed in the sheet at any time with no

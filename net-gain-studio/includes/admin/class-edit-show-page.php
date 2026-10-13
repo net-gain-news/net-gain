@@ -386,6 +386,14 @@ class Net_Gain_Edit_Show_Page {
 						</td>
 					</tr>
 
+					<tr>
+						<th><label for="ng_captivate_notes_footer">Captivate show notes footer</label></th>
+						<td>
+							<textarea id="ng_captivate_notes_footer" name="ng_captivate_notes_footer" rows="3" class="large-text code"><?php echo esc_textarea( $get( 'ng_captivate_notes_footer' ) ); ?></textarea>
+							<p class="description">HTML appended on its own line to the bottom of every Captivate episode's show notes when the episode is published (for example the sponsor line, with a link). Allowed: p, a, strong, em, br. Not shown on the website, whose show notes come from the generated notes. Leave blank to append nothing.</p>
+						</td>
+					</tr>
+
 				</table>
 
 				<?php submit_button( 'Save changes' ); ?>

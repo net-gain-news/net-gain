@@ -358,6 +358,18 @@ def generate_metadata(wp, client, show, episode_id):
     wp.update_step(episode_id, "metadata_generated", "done")
 
 
+def append_notes_footer(notes, footer):
+    """
+    Put the show's fixed footer (HTML, e.g. the sponsor line) at the end of a Captivate show-notes body, on its own line.
+    Idempotent - a body that already ends with it is returned unchanged - and a blank footer changes nothing.
+    """
+    notes = notes or ""
+    footer = (footer or "").strip()
+    if not footer or footer in notes:
+        return notes
+    return notes.rstrip() + ("\n" if notes.strip() else "") + footer
+
+
 def compute_captivate_date_field(show, finalization):
     """
     Isolated from publish_to_captivate() purely so this can be unit-tested
@@ -413,7 +425,7 @@ def publish_to_captivate(wp, captivate, show, episode_id, finalization):
     payload = {
         "shows_id": captivate_show_id,
         "title": title,
-        "shownotes": meta.get("ng_meta_captivate_notes", ""),
+        "shownotes": append_notes_footer(meta.get("ng_meta_captivate_notes", ""), show.get("captivate_notes_footer")),
         "media_id": media_id,
         "date": date_field,
         "status": "Published",

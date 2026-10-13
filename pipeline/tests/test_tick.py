@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from unittest.mock import Mock, patch
 
 from tick import (
+    append_notes_footer,
     record_audio_seconds,
     CAPTIVATE_ACCOUNT_TIMEZONE,
     WP_SITE_TIMEZONE,
@@ -838,3 +839,26 @@ class RecordAudioSecondsTests(unittest.TestCase):
         self.assertEqual(record_audio_seconds(wp, self.Cap({"episode": {}}), 7, "c"), 0)
         self.assertEqual(record_audio_seconds(wp, self.Cap(error=RuntimeError("down")), 7, "c"), 0)
         self.assertEqual(wp.updates, [])
+
+
+class AppendNotesFooterTests(unittest.TestCase):
+    FOOT = '<p>Brought to you by the <a href="https://www.edsby.com/">Edsby</a> student success platform for K-12.</p>'
+
+    def test_goes_on_its_own_line_after_the_notes(self):
+        self.assertEqual(append_notes_footer("<p>Story one.</p>\n<p>Story two.</p>", self.FOOT),
+                         "<p>Story one.</p>\n<p>Story two.</p>\n" + self.FOOT)
+
+    def test_trailing_whitespace_is_not_doubled(self):
+        self.assertEqual(append_notes_footer("<p>Story.</p>\n\n", self.FOOT), "<p>Story.</p>\n" + self.FOOT)
+
+    def test_running_it_twice_changes_nothing(self):
+        once = append_notes_footer("<p>Story.</p>", self.FOOT)
+        self.assertEqual(append_notes_footer(once, self.FOOT), once)
+
+    def test_a_blank_or_missing_footer_leaves_the_notes_alone(self):
+        for footer in (None, "", "   \n"):
+            self.assertEqual(append_notes_footer("<p>Story.</p>", footer), "<p>Story.</p>")
+
+    def test_empty_notes_become_just_the_footer(self):
+        self.assertEqual(append_notes_footer("", self.FOOT), self.FOOT)
+        self.assertEqual(append_notes_footer(None, self.FOOT), self.FOOT)

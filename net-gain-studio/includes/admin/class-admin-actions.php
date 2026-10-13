@@ -154,6 +154,12 @@ class Net_Gain_Admin_Actions {
 			'ng_youtube_description_boilerplate',
 			sanitize_textarea_field( wp_unslash( $_POST['ng_youtube_description_boilerplate'] ?? '' ) )
 		);
+
+		update_post_meta(
+			$show_id,
+			'ng_captivate_notes_footer',
+			wp_kses( wp_unslash( $_POST['ng_captivate_notes_footer'] ?? '' ), array( 'p' => array(), 'a' => array( 'href' => array(), 'rel' => array() ), 'strong' => array(), 'em' => array(), 'br' => array() ) )
+		);
 	}
 
 	public static function connect_captivate() {
