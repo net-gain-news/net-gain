@@ -448,7 +448,30 @@ def publish_to_captivate(wp, captivate, show, episode_id, finalization):
     # every episode published clean in the log while writing an empty URL.
     public_url = f"https://player.captivate.fm/episode/{new_episode_id}"
     wp.update_episode_meta(episode_id, {"ng_url_captivate": public_url})
+    record_audio_seconds(wp, captivate, episode_id, new_episode_id)
     return episode_number
+
+
+def record_audio_seconds(wp, captivate, episode_id, captivate_episode_id):
+    """
+    Store the episode's length as Captivate serves it (media_duration, whole seconds) in `ng_audio_seconds`. The daily
+    email shows it on the Listen button and the thumbnail, and it matches the website's own player (Captivate's file is
+    processed, so it is not always the length of the audio we uploaded). Best effort and never fatal: Captivate can
+    still be processing the audio when the episode is created, so the website publish tries again later.
+    """
+    try:
+        episode = captivate.get_episode(captivate_episode_id)
+        if isinstance(episode, dict):
+            episode = episode.get("episode", episode)
+        if isinstance(episode, list):
+            episode = episode[0] if episode else {}
+        seconds = int(round(float(episode.get("media_duration") or 0)))
+    except Exception:
+        logger.warning("Could not read the length of Captivate episode %s", captivate_episode_id, exc_info=True)
+        return 0
+    if seconds > 0:
+        wp.update_episode_meta(episode_id, {"ng_audio_seconds": seconds})
+    return seconds
 
 
 def process_captivate_publishes(wp, client, captivate, config, show):
@@ -627,7 +650,7 @@ def _normalize_wp_text(text):
     return text
 
 
-def process_website_publishes(wp, client, config, show):
+def process_website_publishes(wp, client, config, show, captivate=None):
     for episode in show.get("in_flight_episodes", []) or []:
         if not website_publish_due(show, episode):
             continue
@@ -641,6 +664,10 @@ def process_website_publishes(wp, client, config, show):
                 generate_metadata(wp, client, show, episode_id)
 
             wp.update_step(episode_id, "website_published", "in_progress")
+            if captivate is not None:    # the length may not have been ready when Captivate created the episode
+                meta_now = wp.get_episode(episode_id).get("meta", {})
+                if not int(meta_now.get("ng_audio_seconds") or 0) and meta_now.get("ng_url_captivate"):
+                    record_audio_seconds(wp, captivate, episode_id, meta_now["ng_url_captivate"].rsplit("/", 1)[-1])
             result = wp.publish_website(episode_id)
             verify_website_publish(result.get("permalink"), wp.get_episode(episode_id).get("meta", {}))
             wp.update_step(episode_id, "website_published", "done")
@@ -1116,7 +1143,7 @@ def process_show(wp, client, captivate, vertex_client, config, show):
         logger.exception("Error processing Captivate publishes for %s", show["name"])
 
     try:
-        process_website_publishes(wp, client, config, show)
+        process_website_publishes(wp, client, config, show, captivate)
     except Exception:
         logger.exception("Error processing website publishes for %s", show["name"])
 

@@ -17,6 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FEED = "https://netgain.news/series/edtech/feed/ng-email/"
 LOGO = "https://netgain.news/wp-content/uploads/2026/10/net-gain-edtech-email-logo-460.png"
 SITE = "https://netgain.news"
+EDSBY_LOGO = "https://netgain.news/wp-content/plugins/net-gain-studio/assets/email/edsby-logo-white.png"   # white, from the plugin so it is versioned with the site
 
 # Denim palette, as on the live site (header, page, cards)
 NAVY, NAVY_LINK, PAGE, CARD, CARD_BORDER, INK, MUTED, ACCENT = "#1f2a3a", "#9fbbdb", "#e6dccc", "#efe7da", "#d6cab7", "#22293a", "#5f6470", "#2f5379"
@@ -113,7 +114,7 @@ a {{ color:{ACCENT}; }}
         <!-- Footer -->
         <tr>
           <td class="ng-pad" bgcolor="{NAVY}" style="background:{NAVY};padding:26px 32px 30px;">
-            <div style="font-family:{BODY};font-size:14px;line-height:22px;color:#c9d4e3;padding:0 0 14px;">Net Gain Edtech is brought to you by <a href="https://www.edsby.com/" style="color:{NAVY_LINK};text-decoration:underline;">Edsby</a>, the student success platform for <span style="white-space:nowrap;">K&#8209;12</span>.</div>
+            <div style="font-family:{BODY};font-size:14px;line-height:22px;color:#c9d4e3;padding:0 0 14px;">Net Gain Edtech is brought to you by <a href="https://www.edsby.com/" style="color:{NAVY_LINK};text-decoration:none;"><img src="{EDSBY_LOGO}" width="57" height="20" alt="Edsby" style="display:inline-block;width:57px;height:20px;border:0;vertical-align:-5px;"></a>, the student success platform for <span style="white-space:nowrap;">K&#8209;12</span>.</div>
             <div style="font-family:{MONO};font-size:11px;line-height:16px;letter-spacing:0.08em;text-transform:uppercase;padding:0 0 18px;">
               <a href="{SITE}/edtech/" style="color:{NAVY_LINK};text-decoration:none;">Website</a>&nbsp;&nbsp;<span style="color:#4d6585;">|</span>&nbsp;&nbsp;<a href="{SITE}/edtech/episodes/" style="color:{NAVY_LINK};text-decoration:none;">All episodes</a>&nbsp;&nbsp;<span style="color:#4d6585;">|</span>&nbsp;&nbsp;<a href="https://net-gain-edtech.captivate.fm/listen" style="color:{NAVY_LINK};text-decoration:none;">Follow the show</a>
             </div>

@@ -58,6 +58,9 @@ class Net_Gain_CPT_Episode {
 			'ng_script_draft'          => array( 'type' => 'string', 'default' => '' ),
 			'ng_script_final'          => array( 'type' => 'string', 'default' => '' ),
 			'ng_audio_attachment_id'   => array( 'type' => 'integer', 'default' => 0 ),
+			// Length of the episode as Captivate serves it (media_duration, rounded to seconds); the pipeline writes it after
+			// the Captivate publish. The daily email shows it on the Listen button and the thumbnail. 0 = unknown.
+			'ng_audio_seconds'         => array( 'type' => 'integer', 'default' => 0 ),
 			// Which card template drew this episode's graphics (cards image mode); a re-render keeps it.
 			'ng_card_template'         => array( 'type' => 'string', 'default' => '' ),
 			// Real-photo mode: which library photo and which crop variant drew this episode's graphics (a re-render keeps both).

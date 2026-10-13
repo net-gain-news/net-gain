@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from unittest.mock import Mock, patch
 
 from tick import (
+    record_audio_seconds,
     CAPTIVATE_ACCOUNT_TIMEZONE,
     WP_SITE_TIMEZONE,
     YOUTUBE_PUBLISH_DELAY_MINUTES,
@@ -803,3 +804,37 @@ class RetryYouTubeThumbnailTests(unittest.TestCase):
         wp.update_step.reset_mock()
         resolve_youtube_processing(wp, {}, {"id": 1, "name": "Show"}, 42, meta)
         self.assertEqual(wp.update_step.call_args[0][2], "degraded")
+
+
+class RecordAudioSecondsTests(unittest.TestCase):
+    class WP:
+        def __init__(self):
+            self.updates = []
+
+        def update_episode_meta(self, episode_id, meta):
+            self.updates.append((episode_id, meta))
+
+    class Cap:
+        def __init__(self, reply=None, error=None):
+            self.reply, self.error = reply, error
+
+        def get_episode(self, episode_id):
+            if self.error:
+                raise self.error
+            return self.reply
+
+    def test_stores_the_length_captivate_reports_rounded_to_seconds(self):
+        wp = self.WP()
+        got = record_audio_seconds(wp, self.Cap({"episode": {"media_duration": 293.277}}), 7, "cap-1")
+        self.assertEqual(got, 293)
+        self.assertEqual(wp.updates, [(7, {"ng_audio_seconds": 293})])
+
+    def test_accepts_a_list_wrapped_episode(self):
+        wp = self.WP()
+        self.assertEqual(record_audio_seconds(wp, self.Cap([{"media_duration": 288.157}]), 7, "c"), 288)
+
+    def test_no_length_yet_writes_nothing_and_does_not_raise(self):
+        wp = self.WP()
+        self.assertEqual(record_audio_seconds(wp, self.Cap({"episode": {}}), 7, "c"), 0)
+        self.assertEqual(record_audio_seconds(wp, self.Cap(error=RuntimeError("down")), 7, "c"), 0)
+        self.assertEqual(wp.updates, [])
