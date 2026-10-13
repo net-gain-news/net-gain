@@ -110,6 +110,15 @@ def _without_dangling_tool_calls(content):
     return kept
 
 
+def _trailing_text(content):
+    """The text blocks after the last non-text block: the answer itself, not the narration between searches."""
+    last_non_text_idx = -1
+    for i, block in enumerate(content):
+        if block.type != "text":
+            last_non_text_idx = i
+    return "".join(block.text for block in content[last_non_text_idx + 1:] if block.type == "text")
+
+
 def _log_usage(purpose, attempt, response):
     """
     Added 2026-09-29 alongside re-enabling thinking and raising max_uses, on
@@ -189,6 +198,7 @@ def generate(client, system, user_content, tools=None, response_schema=None, eff
     purpose = "script_generation" if any(t.get("name") == "web_search" for t in tools) else "other"
 
     response = None
+    carried = ""    # answer text already written by turns that were cut off at max_tokens (see below)
     for attempt in range(1, MAX_CONTINUATIONS + 1):
         response = call_with_retries(
             lambda: client.messages.create(
@@ -211,6 +221,12 @@ def generate(client, system, user_content, tools=None, response_schema=None, eff
         if response.stop_reason not in ("pause_turn", "max_tokens"):
             break
 
+        # A turn cut off at max_tokens has usually already written most of the answer; the continuation only
+        # finishes it. Production failure 2026-10-13: a script body cut off at the limit was thrown away and only the
+        # continuation's 224-word tail was kept. (A pause_turn's trailing text is narration, so it is not carried.)
+        if response.stop_reason == "max_tokens":
+            carried += _trailing_text(response.content)
+
         trimmed = _without_trailing_thinking(_without_dangling_tool_calls(response.content))
         if not trimmed:
             break  # Nothing usable to continue from - fall through and report.
@@ -227,13 +243,13 @@ def generate(client, system, user_content, tools=None, response_schema=None, eff
     # the latest from Net Gain Edtech..."), confirmed on a live draft. Only
     # text blocks after the last non-text (tool-use/tool-result) block are the
     # real answer - anything earlier is commentary between searches.
-    last_non_text_idx = -1
-    for i, block in enumerate(response.content):
-        if block.type != "text":
-            last_non_text_idx = i
-    text = "".join(
-        block.text for block in response.content[last_non_text_idx + 1:] if block.type == "text"
-    )
+    text = _trailing_text(response.content)
+    if carried:
+        # If the continuation restarted the whole answer instead of resuming it, keep the fresh, complete copy.
+        restarted = len(carried.strip()) > 80 and text.strip().startswith(carried.strip()[:80])
+        if not restarted:
+            logger.info("Joined %d characters carried over from a max_tokens cut-off with the %d-character continuation.", len(carried), len(text))
+            text = carried + text
     if not text.strip():
         block_types = [block.type for block in response.content]
         logger.warning(

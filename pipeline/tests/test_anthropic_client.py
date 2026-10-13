@@ -204,3 +204,33 @@ class PausedTurnTests(unittest.TestCase):
         ids = [getattr(b, "id", None) for b in assistant["content"] if b.type == "server_tool_use"]
         self.assertEqual(ids, ["a"])                                   # "b" had no result and was dropped
         self.assertEqual(sent[1][2], {"role": "user", "content": "Continue."})
+
+
+class MaxTokensCarryOverTests(unittest.TestCase):
+    """Production failure 2026-10-13: a script cut off at max_tokens had its text dropped and only the continuation's
+    short tail was saved as the whole script."""
+
+    def _run(self, first_text, second_text):
+        first = SimpleNamespace(stop_reason="max_tokens", content=[_block("text", first_text)])
+        final = SimpleNamespace(stop_reason="end_turn", content=[_block("text", second_text)])
+        sent = []
+
+        class Messages:
+            def create(self, **kwargs):
+                sent.append(1)
+                return first if len(sent) == 1 else final
+
+        return generate(SimpleNamespace(messages=Messages()), system="s", user_content="go")
+
+    def test_the_text_before_the_cut_off_is_kept_and_joined_to_the_continuation(self):
+        body = "Good evening. " + "Story one is long. " * 30
+        tail = " Story two closes the show."
+        self.assertEqual(self._run(body, tail), body + tail)
+
+    def test_a_continuation_that_restarts_the_answer_replaces_the_partial_copy(self):
+        body = "Good evening. " + "Story one is long. " * 30
+        full = body + "Story two. Sign off."
+        self.assertEqual(self._run(body[:300], full), full)
+
+    def test_a_cut_off_with_no_text_yet_changes_nothing(self):
+        self.assertEqual(self._run("", "The finished script."), "The finished script.")
