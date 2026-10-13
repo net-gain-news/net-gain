@@ -26,7 +26,7 @@ MONO = "'IBM Plex Mono','Courier New',Courier,monospace"
 BODY = "'IBM Plex Sans','Helvetica Neue',Helvetica,Arial,sans-serif"
 
 VARIANTS = {
-    "daily": {"label": "Daily briefing", "title": "Net Gain Edtech daily briefing", "intro": "", "top": "38px"},
+    "daily": {"label": "Audio briefing", "title": "Net Gain Edtech daily briefing", "intro": "", "top": "38px"},
     "weekly": {
         "label": "Weekly digest",
         "title": "Net Gain Edtech weekly digest",
@@ -114,7 +114,7 @@ a {{ color:{ACCENT}; }}
         <!-- Footer -->
         <tr>
           <td class="ng-pad" bgcolor="{NAVY}" style="background:{NAVY};padding:26px 32px 30px;">
-            <div style="font-family:{BODY};font-size:14px;line-height:22px;color:#c9d4e3;padding:0 0 14px;">Net Gain Edtech is brought to you by <a href="https://www.edsby.com/" style="color:{NAVY_LINK};text-decoration:none;"><img src="{EDSBY_LOGO}" width="57" height="20" alt="Edsby" style="display:inline-block;width:57px;height:20px;border:0;vertical-align:-5px;"></a>, the student success platform for <span style="white-space:nowrap;">K&#8209;12</span>.</div>
+            <div style="font-family:{BODY};font-size:14px;line-height:22px;color:#c9d4e3;padding:0 0 14px;">Net Gain Edtech is brought to you by <a href="https://www.edsby.com/" style="color:{NAVY_LINK};text-decoration:none;"><img src="{EDSBY_LOGO}" width="57" height="20" alt="Edsby" style="display:inline-block;width:57px;height:20px;border:0;vertical-align:-5px;margin:0 2px 0 7px;"></a>, the student success platform for <span style="white-space:nowrap;">K&#8209;12</span>.</div>
             <div style="font-family:{MONO};font-size:11px;line-height:16px;letter-spacing:0.08em;text-transform:uppercase;padding:0 0 18px;">
               <a href="{SITE}/edtech/" style="color:{NAVY_LINK};text-decoration:none;">Website</a>&nbsp;&nbsp;<span style="color:#4d6585;">|</span>&nbsp;&nbsp;<a href="{SITE}/edtech/episodes/" style="color:{NAVY_LINK};text-decoration:none;">All episodes</a>&nbsp;&nbsp;<span style="color:#4d6585;">|</span>&nbsp;&nbsp;<a href="https://net-gain-edtech.captivate.fm/listen" style="color:{NAVY_LINK};text-decoration:none;">Follow the show</a>
             </div>

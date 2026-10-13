@@ -142,9 +142,9 @@ class Net_Gain_Email_Feed {
 	}
 
 	/**
-	 * A copy of the episode's 16:9 art with the length in a small cream pill at the right of its bottom strip (aligned
-	 * with the show wordmark on the left). Written once to uploads/ng-email/ and reused; falls back to the plain art URL
-	 * if GD, the font or the file is unavailable, so a problem here can never break the email.
+	 * A copy of the episode's 16:9 art with the length in a small square-cornered navy tag at the bottom right of the
+	 * picture itself, just above the wordmark strip. Written once to uploads/ng-email/ and reused; falls back to the
+	 * plain art URL if GD, the font or the file is unavailable, so a problem here can never break the email.
 	 */
 	public static function thumb_with_length( $image_id, $label ) {
 		$plain = (string) wp_get_attachment_url( $image_id );
@@ -156,7 +156,7 @@ class Net_Gain_Email_Feed {
 
 		$upload = wp_upload_dir();
 		$dir    = $upload['basedir'] . '/ng-email';
-		$key    = substr( md5( filemtime( $path ) . '|' . $label . '|v1' ), 0, 10 );
+		$key    = substr( md5( filemtime( $path ) . '|' . $label . '|v2' ), 0, 10 );
 		$name   = 'thumb-' . (int) $image_id . '-' . preg_replace( '/[^0-9]/', '', $label ) . '-' . $key . '.jpg';
 		$file   = $dir . '/' . $name;
 		$url    = $upload['baseurl'] . '/ng-email/' . $name;
@@ -179,30 +179,17 @@ class Net_Gain_Email_Feed {
 		$box  = imagettfbbox( $size, 0, $font, $label );
 		$tw   = abs( $box[2] - $box[0] );
 		$th   = abs( $box[7] - $box[1] );
-		$padx = 20 * $scale;
-		$pady = 13 * $scale;
+		$padx = 18 * $scale;
+		$pady = 12 * $scale;
 		$pw   = (int) round( $tw + 2 * $padx );
 		$ph   = (int) round( $th + 2 * $pady );
-		$x    = (int) round( $w - 44 * $scale - $pw );  // right margin = the wordmark's left margin
-		$y    = (int) round( $h * 0.906 - $ph / 2 );    // centred on the bottom strip, level with the wordmark
+		$x    = (int) round( $w - 28 * $scale - $pw );          // 28 px in from the right edge
+		$y    = (int) round( $h * ( 584 / 720 ) - 24 * $scale - $ph );   // 24 px above the wordmark strip (it starts at 584 of 720)
 
-		// Draw the pill at 4x on a copy of the strip behind it, then shrink it back for smooth corners.
-		$k   = 4;
-		$big = imagecreatetruecolor( $pw * $k, $ph * $k );
-		imagecopyresampled( $big, $img, 0, 0, $x, $y, $pw * $k, $ph * $k, $pw, $ph );
-		$cream = imagecolorallocate( $big, 239, 231, 218 );
-		$navy  = imagecolorallocate( $big, 31, 42, 58 );
-		$r     = (int) round( 7 * $scale * $k );
-		$W     = $pw * $k - 1;
-		$H     = $ph * $k - 1;
-		imagefilledrectangle( $big, $r, 0, $W - $r, $H, $cream );
-		imagefilledrectangle( $big, 0, $r, $W, $H - $r, $cream );
-		foreach ( array( array( $r, $r ), array( $W - $r, $r ), array( $r, $H - $r ), array( $W - $r, $H - $r ) ) as $c ) {
-			imagefilledellipse( $big, $c[0], $c[1], $r * 2, $r * 2, $cream );
-		}
-		imagettftext( $big, $size * $k, 0, (int) round( $padx * $k - $box[0] * $k ), (int) round( $pady * $k + $th * $k ), $navy, $font, $label );
-		imagecopyresampled( $img, $big, $x, $y, 0, 0, $pw, $ph, $pw * $k, $ph * $k );
-		imagedestroy( $big );
+		$navy  = imagecolorallocate( $img, 31, 42, 58 );
+		$cream = imagecolorallocate( $img, 239, 231, 218 );
+		imagefilledrectangle( $img, $x, $y, $x + $pw - 1, $y + $ph - 1, $navy );
+		imagettftext( $img, $size, 0, (int) round( $x + $padx - $box[0] ), (int) round( $y + $pady + $th ), $cream, $font, $label );
 
 		$ok = imagejpeg( $img, $file, 90 );
 		imagedestroy( $img );
