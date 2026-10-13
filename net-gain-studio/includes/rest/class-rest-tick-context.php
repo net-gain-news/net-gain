@@ -75,6 +75,29 @@ class Net_Gain_REST_Tick_Context {
 	}
 
 	// Any episode where at least one of the 8 steps hasn't reached done/degraded/failed.
+	/**
+	 * Pure: the episode dates that a manual "run it again" request is still waiting on. A settled episode (every step
+	 * done, degraded or failed) is normally not in flight, so a retry of a failed step - which is exactly when someone
+	 * clicks it - would never be seen by the tick loop. Production 2026-10-13: a forced publish_youtube sat pending for
+	 * 27 minutes because the episode's failed YouTube step had left it out of the list.
+	 *
+	 * @param array $actions The show's ng_pending_actions.
+	 * @return array<string,bool> episode_date => true
+	 */
+	public static function pending_retry_dates( $actions ) {
+		$retryable = array( 'generate_images', 'publish_captivate', 'publish_youtube' );
+		$dates     = array();
+		foreach ( (array) $actions as $action ) {
+			if ( ! is_array( $action ) || 'pending' !== ( $action['status'] ?? '' ) || ! in_array( $action['action'] ?? '', $retryable, true ) ) {
+				continue;
+			}
+			if ( ! empty( $action['episode_date'] ) ) {
+				$dates[ (string) $action['episode_date'] ] = true;
+			}
+		}
+		return $dates;
+	}
+
 	private function in_flight_episodes( $show_id ) {
 		$episodes = get_posts(
 			array(
@@ -95,6 +118,8 @@ class Net_Gain_REST_Tick_Context {
 		// eventually crowding real work out of the 50-post cap above.
 		$youtube_connected = Net_Gain_Secrets::exists( 'show', $show_id, 'youtube_oauth' );
 
+		$retry_dates = self::pending_retry_dates( get_post_meta( $show_id, 'ng_pending_actions', true ) );
+
 		$in_flight = array();
 		foreach ( $episodes as $episode ) {
 			$step_status = get_post_meta( $episode->ID, 'ng_step_status', true );
@@ -110,7 +135,7 @@ class Net_Gain_REST_Tick_Context {
 					break;
 				}
 			}
-			if ( $complete ) {
+			if ( $complete && empty( $retry_dates[ (string) get_post_meta( $episode->ID, 'ng_episode_date', true ) ] ) ) {
 				continue;
 			}
 
