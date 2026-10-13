@@ -29,6 +29,7 @@ import html
 import logging
 import sys
 import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -464,23 +465,36 @@ def publish_to_captivate(wp, captivate, show, episode_id, finalization):
     return episode_number
 
 
-def record_audio_seconds(wp, captivate, episode_id, captivate_episode_id):
+def record_audio_seconds(wp, captivate, episode_id, captivate_episode_id, wait_seconds=0, sleep=time.sleep):
     """
     Store the episode's length as Captivate serves it (media_duration, whole seconds) in `ng_audio_seconds`. The daily
-    email shows it on the Listen button and the thumbnail, and it matches the website's own player (Captivate's file is
-    processed, so it is not always the length of the audio we uploaded). Best effort and never fatal: Captivate can
-    still be processing the audio when the episode is created, so the website publish tries again later.
+    email shows it on the Listen button and the thumbnail, so it must match the website's own player.
+
+    Captivate finishes an episode in two steps: it first reports the length of the audio we uploaded, then, a few
+    seconds later, replaces it with its processed copy (the show's post-roll added, +52 s for Net Gain Edtech) and marks
+    it `amie_status: complete`. Production 2026-10-13: the length recorded right after creation (4:58) was the earlier
+    one, while listeners got 5:50. So a read only counts once Captivate says complete; with `wait_seconds` it polls
+    until then, and it always overwrites the stored value with the latest read. Best effort and never fatal.
     """
-    try:
-        episode = captivate.get_episode(captivate_episode_id)
-        if isinstance(episode, dict):
-            episode = episode.get("episode", episode)
-        if isinstance(episode, list):
-            episode = episode[0] if episode else {}
-        seconds = int(round(float(episode.get("media_duration") or 0)))
-    except Exception:
-        logger.warning("Could not read the length of Captivate episode %s", captivate_episode_id, exc_info=True)
-        return 0
+    deadline = time.monotonic() + max(0, wait_seconds)
+    seconds, ready = 0, False
+    while True:
+        try:
+            episode = captivate.get_episode(captivate_episode_id)
+            if isinstance(episode, dict):
+                episode = episode.get("episode", episode)
+            if isinstance(episode, list):
+                episode = episode[0] if episode else {}
+            seconds = int(round(float(episode.get("media_duration") or 0)))
+            ready = episode.get("amie_status") in (None, "complete")
+        except Exception:
+            logger.warning("Could not read the length of Captivate episode %s", captivate_episode_id, exc_info=True)
+            return 0
+        if ready or time.monotonic() >= deadline:
+            break
+        sleep(10)
+    if not ready:
+        logger.warning("Captivate episode %s was still processing after %ds; recording its provisional length of %ds.", captivate_episode_id, wait_seconds, seconds)
     if seconds > 0:
         wp.update_episode_meta(episode_id, {"ng_audio_seconds": seconds})
     return seconds
@@ -676,10 +690,10 @@ def process_website_publishes(wp, client, config, show, captivate=None):
                 generate_metadata(wp, client, show, episode_id)
 
             wp.update_step(episode_id, "website_published", "in_progress")
-            if captivate is not None:    # the length may not have been ready when Captivate created the episode
+            if captivate is not None:    # Captivate swaps in its processed copy (post-roll added) shortly after creating the episode; the email must show that length
                 meta_now = wp.get_episode(episode_id).get("meta", {})
-                if not int(meta_now.get("ng_audio_seconds") or 0) and meta_now.get("ng_url_captivate"):
-                    record_audio_seconds(wp, captivate, episode_id, meta_now["ng_url_captivate"].rsplit("/", 1)[-1])
+                if meta_now.get("ng_url_captivate"):
+                    record_audio_seconds(wp, captivate, episode_id, meta_now["ng_url_captivate"].rsplit("/", 1)[-1], wait_seconds=120)
             result = wp.publish_website(episode_id)
             verify_website_publish(result.get("permalink"), wp.get_episode(episode_id).get("meta", {}))
             wp.update_step(episode_id, "website_published", "done")

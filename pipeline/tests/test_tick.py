@@ -862,3 +862,53 @@ class AppendNotesFooterTests(unittest.TestCase):
     def test_empty_notes_become_just_the_footer(self):
         self.assertEqual(append_notes_footer("", self.FOOT), self.FOOT)
         self.assertEqual(append_notes_footer(None, self.FOOT), self.FOOT)
+
+
+class RecordAudioSecondsWaitTests(unittest.TestCase):
+    """Production 2026-10-13: the first length Captivate reports (the upload, 298 s) is replaced seconds later by its
+    processed copy with the post-roll (350 s, amie_status complete); the email must show the second."""
+
+    class WP:
+        def __init__(self):
+            self.updates = []
+
+        def update_episode_meta(self, episode_id, meta):
+            self.updates.append((episode_id, meta))
+
+    class Cap:
+        def __init__(self, replies):
+            self.replies = list(replies)
+            self.reads = 0
+
+        def get_episode(self, episode_id):
+            self.reads += 1
+            return self.replies.pop(0) if len(self.replies) > 1 else self.replies[0]
+
+    def test_waits_for_the_processed_copy_and_records_its_length(self):
+        wp, naps = self.WP(), []
+        cap = self.Cap([{"media_duration": 298.0, "amie_status": "processing"},
+                        {"media_duration": 298.0, "amie_status": "processing"},
+                        {"media_duration": 350.041, "amie_status": "complete"}])
+        got = record_audio_seconds(wp, cap, 7, "c", wait_seconds=120, sleep=naps.append)
+        self.assertEqual(got, 350)
+        self.assertEqual(wp.updates, [(7, {"ng_audio_seconds": 350})])
+        self.assertEqual(naps, [10, 10])
+
+    def test_an_already_complete_episode_is_read_once_and_overwrites_an_older_value(self):
+        wp, naps = self.WP(), []
+        cap = self.Cap([{"media_duration": 350.041, "amie_status": "complete"}])
+        self.assertEqual(record_audio_seconds(wp, cap, 7, "c", wait_seconds=120, sleep=naps.append), 350)
+        self.assertEqual((cap.reads, naps), (1, []))
+
+    def test_without_a_wait_a_still_processing_episode_is_recorded_provisionally(self):
+        wp = self.WP()
+        cap = self.Cap([{"media_duration": 298.0, "amie_status": "processing"}])
+        self.assertEqual(record_audio_seconds(wp, cap, 7, "c"), 298)
+        self.assertEqual(cap.reads, 1)
+
+    def test_gives_up_waiting_at_the_deadline_and_keeps_the_latest_read(self):
+        wp = self.WP()
+        cap = self.Cap([{"media_duration": 298.0, "amie_status": "processing"}])
+        with patch("tick.time.monotonic", side_effect=[0, 0, 5, 200]):
+            got = record_audio_seconds(wp, cap, 7, "c", wait_seconds=120, sleep=lambda s: None)
+        self.assertEqual(got, 298)
