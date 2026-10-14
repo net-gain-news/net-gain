@@ -142,8 +142,9 @@ class Net_Gain_Email_Feed {
 	}
 
 	/**
-	 * A copy of the episode's 16:9 art with the length in a small square-cornered navy tag at the bottom right of the
-	 * picture itself, just above the wordmark strip. Written once to uploads/ng-email/ and reused; falls back to the
+	 * A copy of the episode's 16:9 art with a white play button (blue triangle) centred in the picture and the length in a
+	 * small square-cornered WHITE box with Denim-blue text at its bottom right, just above the wordmark strip - the same
+	 * two marks the website draws over every episode picture (white reads best on the duotone art). Written once to uploads/ng-email/ and reused; falls back to the
 	 * plain art URL if GD, the font or the file is unavailable, so a problem here can never break the email.
 	 */
 	public static function thumb_with_length( $image_id, $label ) {
@@ -156,7 +157,7 @@ class Net_Gain_Email_Feed {
 
 		$upload = wp_upload_dir();
 		$dir    = $upload['basedir'] . '/ng-email';
-		$key    = substr( md5( filemtime( $path ) . '|' . $label . '|v2' ), 0, 10 );
+		$key    = substr( md5( filemtime( $path ) . '|' . $label . '|v3' ), 0, 10 );
 		$name   = 'thumb-' . (int) $image_id . '-' . preg_replace( '/[^0-9]/', '', $label ) . '-' . $key . '.jpg';
 		$file   = $dir . '/' . $name;
 		$url    = $upload['baseurl'] . '/ng-email/' . $name;
@@ -186,10 +187,31 @@ class Net_Gain_Email_Feed {
 		$x    = (int) round( $w - 28 * $scale - $pw );          // 28 px in from the right edge
 		$y    = (int) round( $h * ( 584 / 720 ) - 24 * $scale - $ph );   // 24 px above the wordmark strip (it starts at 584 of 720)
 
-		$navy  = imagecolorallocate( $img, 31, 42, 58 );
-		$cream = imagecolorallocate( $img, 239, 231, 218 );
-		imagefilledrectangle( $img, $x, $y, $x + $pw - 1, $y + $ph - 1, $navy );
-		imagettftext( $img, $size, 0, (int) round( $x + $padx - $box[0] ), (int) round( $y + $pady + $th ), $cream, $font, $label );
+		$white = imagecolorallocate( $img, 255, 255, 255 );
+		$blue  = imagecolorallocate( $img, 47, 83, 121 );    // Denim #2f5379
+
+		// Length: a white box, blue text.
+		imagefilledrectangle( $img, $x, $y, $x + $pw - 1, $y + $ph - 1, $white );
+		imagettftext( $img, $size, 0, (int) round( $x + $padx - $box[0] ), (int) round( $y + $pady + $th ), $blue, $font, $label );
+
+		// Play: a white disc with a blue triangle, centred in the picture area above the wordmark strip (40.5% down), drawn at
+		// 4x on a copy of that spot and shrunk back so the edges are smooth.
+		$d  = (int) round( $w * 0.15 );
+		$cx = (int) round( $w / 2 );
+		$cy = (int) round( $h * 0.405 );
+		$k  = 4;
+		$px = $cx - intdiv( $d, 2 );
+		$py = $cy - intdiv( $d, 2 );
+		$big = imagecreatetruecolor( $d * $k, $d * $k );
+		imagecopyresampled( $big, $img, 0, 0, $px, $py, $d * $k, $d * $k, $d, $d );
+		$bw = imagecolorallocate( $big, 255, 255, 255 );
+		$bb = imagecolorallocate( $big, 47, 83, 121 );
+		imagefilledellipse( $big, intdiv( $d * $k, 2 ), intdiv( $d * $k, 2 ), $d * $k - 1, $d * $k - 1, $bw );
+		$tri = $d * $k * 0.20;                          // half the triangle's height
+		$mid = $d * $k / 2;
+		imagefilledpolygon( $big, array( (int) ( $mid - $tri * 0.6 ), (int) ( $mid - $tri ), (int) ( $mid - $tri * 0.6 ), (int) ( $mid + $tri ), (int) ( $mid + $tri * 1.2 ), (int) $mid ), 3, $bb );
+		imagecopyresampled( $img, $big, $px, $py, 0, 0, $d, $d, $d * $k, $d * $k );
+		imagedestroy( $big );
 
 		$ok = imagejpeg( $img, $file, 90 );
 		imagedestroy( $img );
@@ -212,7 +234,7 @@ class Net_Gain_Email_Feed {
 			? '<tr><td style="padding:0 0 20px;"><a href="' . self::esc( $e['url'] ) . '"><img src="' . self::esc( $art ) . '" width="536" alt="' . self::esc( $e['image_alt'] )
 				. '" style="display:block;width:100%;max-width:536px;height:auto;border:1px solid ' . self::BORDER . ';" /></a></td></tr>'
 			: '';
-		$label = '&#9658;&nbsp; Listen now' . ( '' !== $length ? '&nbsp;&middot;&nbsp;' . self::esc( $length ) : '' );
+		$label = '&#9658;&nbsp; Listen now';    // the length is on the picture (white box), not repeated on the button
 
 		return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
 			. '<tr><td style="padding:0 0 16px;font-family:' . self::MONO . ';font-size:10px;line-height:12px;letter-spacing:0.12em;text-transform:uppercase;color:' . self::MUTED . ';">'

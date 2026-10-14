@@ -37,14 +37,14 @@ foreach ( array( 'daily' => $daily, 'weekly' => $week ) as $name => $html ) {
 check( 'weekly: Transcript links to the #transcript anchor', strpos( $week, 'href="https://netgain.news/edtech/a/#transcript"' ) !== false );
 check( 'weekly: thumbnail is the plain episode art (no length stamped on it)', strpos( $week, 'src="https://netgain.news/wp-content/uploads/art.jpg"' ) !== false && strpos( $week, 'ng-email/' ) === false );
 check( 'daily: thumbnail is the copy with the length stamped on it', strpos( $daily, 'src="https://netgain.news/wp-content/uploads/ng-email/art-453.jpg"' ) !== false );
-check( 'daily: one full-width Listen button carries the length', strpos( $daily, 'Listen now&nbsp;&middot;&nbsp;4:53' ) !== false && strpos( $daily, 'display:block;font-family' ) !== false );
+check( 'daily: one full-width Listen now button, with no length on it', strpos( $daily, '&#9658;&nbsp; Listen now</a>' ) !== false && strpos( $daily, 'Listen now&nbsp;&middot;' ) === false && strpos( $daily, 'display:block;font-family' ) !== false );
 check( 'daily: the Listen button links to the autoplay URL', preg_match( '/<a href="https:\/\/netgain\.net\/edtech\/a\/\?autoplay=1"/', $daily ) === 0 && strpos( $daily, '<a href="https://netgain.news/edtech/a/?autoplay=1"' ) !== false );
 check( 'daily: no Read transcript button and no #transcript link any more', strpos( $daily, 'Read transcript' ) === false && strpos( $daily, '#transcript' ) === false );
 check( 'daily: the secondary link is "Transcript & source story links" with the arrow', strpos( $daily, '>Transcript &amp; source story links &rarr;</a>' ) !== false );
 check( 'daily: names the latest episode and shows the date', strpos( $daily, 'Latest episode' ) !== false && strpos( $daily, 'Oct 9, 2026' ) !== false );
 check( 'daily: the secondary link goes to the episode page', strpos( $daily, '<a href="https://netgain.news/edtech/a/" style="color:#2f5379;text-decoration:underline;">Transcript &amp; source story links &rarr;</a>' ) !== false );
 $no_len = Net_Gain_Email_Feed::daily_card( array_merge( $e, array( 'length' => '', 'daily_image_url' => '' ) ) );
-check( 'no length known: button says Listen now with no time and the plain art is used', strpos( $no_len, 'Listen now</a>' ) !== false && strpos( $no_len, 'src="https://netgain.news/wp-content/uploads/art.jpg"' ) !== false );
+check( 'no length known: the plain art is used and the button is the same', strpos( $no_len, 'Listen now</a>' ) !== false && strpos( $no_len, 'src="https://netgain.news/wp-content/uploads/art.jpg"' ) !== false );
 foreach ( array( 293 => '4:53', 241 => '4:01', 59 => '0:59', 3723 => '1:02:03', 0 => '', -5 => '', 288.157 => '4:48' ) as $sec => $want ) {
 	check( "duration_label($sec) = '$want'", Net_Gain_Email_Feed::duration_label( $sec ) === $want );
 }
