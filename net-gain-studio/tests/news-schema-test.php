@@ -59,5 +59,13 @@ check( 'breadcrumbs: no crumb points at the /podcast/ or /series/ archives', str
 check( 'breadcrumbs: positions run 1..4 and the last crumb has no link', $list[0]['position'] === 1 && $list[3]['position'] === 4 && ! isset( $list[3]['item'] ) );
 check( 'breadcrumbs: untouched when no trail is supplied', Net_Gain_News_Schema::apply( $with_trail, array( 'images' => array(), 'logo' => null, 'breadcrumbs' => array() ) ) === $with_trail );
 
+$described = Net_Gain_News_Schema::apply( $base, array( 'images' => array(), 'logo' => null, 'description' => 'A Maryland school board bans student AI.' ) );
+check( 'description: added to the NewsArticle', $described[1]['description'] === 'A Maryland school board bans student AI.' );
+check( 'description: not added to other nodes', ! isset( $described[0]['description'] ) && ! isset( $described[2]['description'] ) );
+$own = $base;
+$own[1]['description'] = 'AIOSEO wrote this';
+check( 'description: one AIOSEO already set is never overwritten', Net_Gain_News_Schema::apply( $own, array( 'images' => array(), 'logo' => null, 'description' => 'Ours' ) )[1]['description'] === 'AIOSEO wrote this' );
+check( 'description: an empty description adds nothing', ! isset( Net_Gain_News_Schema::apply( $base, array( 'images' => array(), 'logo' => null, 'description' => '' ) )[1]['description'] ) );
+
 echo $fail ? "FAILED: $fail\n" : "ALL PASSED\n";
 exit( $fail ? 1 : 0 );
