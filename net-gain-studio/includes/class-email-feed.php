@@ -157,7 +157,7 @@ class Net_Gain_Email_Feed {
 
 		$upload = wp_upload_dir();
 		$dir    = $upload['basedir'] . '/ng-email';
-		$key    = substr( md5( filemtime( $path ) . '|' . $label . '|v3' ), 0, 10 );
+		$key    = substr( md5( filemtime( $path ) . '|' . $label . '|v4' ), 0, 10 );
 		$name   = 'thumb-' . (int) $image_id . '-' . preg_replace( '/[^0-9]/', '', $label ) . '-' . $key . '.jpg';
 		$file   = $dir . '/' . $name;
 		$url    = $upload['baseurl'] . '/ng-email/' . $name;
@@ -198,7 +198,7 @@ class Net_Gain_Email_Feed {
 		// 4x on a copy of that spot and shrunk back so the edges are smooth.
 		$d  = (int) round( $w * 0.15 );
 		$cx = (int) round( $w / 2 );
-		$cy = (int) round( $h * 0.405 );
+		$cy = (int) round( $h * 0.4111 );               // centre of the visible picture: from the 8px top band (720 tall) to the strip at 584
 		$k  = 4;
 		$px = $cx - intdiv( $d, 2 );
 		$py = $cy - intdiv( $d, 2 );
@@ -207,9 +207,12 @@ class Net_Gain_Email_Feed {
 		$bw = imagecolorallocate( $big, 255, 255, 255 );
 		$bb = imagecolorallocate( $big, 47, 83, 121 );
 		imagefilledellipse( $big, intdiv( $d * $k, 2 ), intdiv( $d * $k, 2 ), $d * $k - 1, $d * $k - 1, $bw );
-		$tri = $d * $k * 0.20;                          // half the triangle's height
+		// Triangle: 48% of the disc high, flat side left, CENTROID (a third of the way in from the flat side) exactly on the disc's centre.
+		$th2 = $d * $k * 0.48;
+		$tw2 = $th2 * 0.866;
 		$mid = $d * $k / 2;
-		imagefilledpolygon( $big, array( (int) ( $mid - $tri * 0.6 ), (int) ( $mid - $tri ), (int) ( $mid - $tri * 0.6 ), (int) ( $mid + $tri ), (int) ( $mid + $tri * 1.2 ), (int) $mid ), 3, $bb );
+		$x0  = $mid - $tw2 / 3;
+		imagefilledpolygon( $big, array( (int) round( $x0 ), (int) round( $mid - $th2 / 2 ), (int) round( $x0 ), (int) round( $mid + $th2 / 2 ), (int) round( $x0 + $tw2 ), (int) round( $mid ) ), 3, $bb );
 		imagecopyresampled( $img, $big, $px, $py, 0, 0, $d, $d, $d * $k, $d * $k );
 		imagedestroy( $big );
 
