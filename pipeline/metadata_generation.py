@@ -22,6 +22,14 @@ import json
 import logging
 
 from text_rules import K12_PROMPT_RULE, machine_safe
+from title_width import (
+    DESC_CHARS_TARGET_MAX,
+    DESC_CHARS_TARGET_MIN,
+    TITLE_PX_TARGET_MAX,
+    TITLE_PX_TARGET_MIN,
+    search_field_distance,
+    search_field_problems,
+)
 
 logger = logging.getLogger("net_gain.metadata_generation")
 
@@ -33,7 +41,7 @@ logger = logging.getLogger("net_gain.metadata_generation")
 # to the Captivate and website titles; the YouTube title keeps its own
 # separate rules (under 100, aim under 70) and is deliberately unchanged.
 TITLE_MAX_CHARS = 65
-TITLE_FIELDS = ("captivate_title", "aioseo_title")
+TITLE_FIELDS = ("captivate_title",)  # character-limited; aioseo_title is limited by rendered width (title_width.py)
 SEARCH_RESULT_FIELDS = ("aioseo_title", "aioseo_description")
 MAX_METADATA_ATTEMPTS = 4
 
@@ -111,14 +119,23 @@ def build_system_prompt(show_name):
         "tag - the href must be the exact, unaltered URL from the script; never "
         "invent, paraphrase, or modify a URL. If the script has no such section, omit "
         "it rather than inventing one.\n"
-        "- aioseo_title / aioseo_description: written for search engines and social "
-        "link previews, not duplicates of the Captivate fields. aioseo_title becomes "
-        f"the website page's own title and must be at most {TITLE_MAX_CHARS} characters "
-        "(a hard limit; Google starts cutting titles off around 60, so shorter is better), naming at most TWO stories, "
-        "story 1 first and then, only if it fits, one later story, joined the same ways as captivate_title - do not append the show name or any show/site "
-        f"name suffix to it (e.g. no \"... - {show_name}\" or \"... | {show_name}\"), even "
-        "though that's a common general SEO convention - the site's own branding already "
-        "establishes the show name elsewhere on the page.\n"
+        "- aioseo_title: written for search engines and social link previews, not a duplicate of the "
+        "Captivate title. It becomes the website page's own title and the search-result title, and "
+        "AIOSEO's page analysis scores it by RENDERED WIDTH, not character count: it must measure between "
+        f"{TITLE_PX_TARGET_MIN} and {TITLE_PX_TARGET_MAX} pixels at 20px Arial (roughly 46-58 characters of "
+        "ordinary mixed-case text; wide letters like W and M and capitals cost more, narrow ones like i, l, t "
+        "and punctuation cost less). Aim for the middle of that range. It is checked after you write it and "
+        "rewritten if it is outside. Name at most TWO stories, story 1 first and then, only if it fits, one "
+        "later story, joined the same ways as captivate_title. Lead with story 1's most searchable names and "
+        "terms. Do not append the show name or any show/site name suffix (e.g. no "
+        f"\"... - {show_name}\" or \"... | {show_name}\"): the site's own branding establishes it elsewhere on "
+        "the page.\n"
+        "- aioseo_description: the page's meta description and the text under the title in search results. "
+        f"It must be between {DESC_CHARS_TARGET_MIN} and {DESC_CHARS_TARGET_MAX} CHARACTERS including spaces "
+        "(AIOSEO scores 121-160 as good; Google cuts off around 155-160) - count them, and aim for 140-155. "
+        "It is checked after you write it and rewritten if it is outside. Plain, keyword-rich sentences "
+        "naming the real companies, places, products, agencies and events in the stories, in script order; "
+        "no ticker symbols unless the rule below allows one.\n"
         "- website_excerpt: a genuine excerpt, not a teaser at any length - under 160 "
         "characters (roughly a search-result meta-description length; WordPress does "
         "not truncate a manually-set excerpt on its own, so this field is the actual "
@@ -148,11 +165,15 @@ def build_system_prompt(show_name):
         "and suggested videos.\n"
         "- Ticker symbols: whenever the episode discusses a publicly-traded company, "
         "include its stock ticker symbol (e.g. $AAPL) at least once in "
-        "captivate_notes, aioseo_description, youtube_description, and as its own "
+        "captivate_notes, youtube_description, and as its own "
         "entry in youtube_tags - investors commonly search by ticker in a way plain "
         "company names don't capture. Omit this entirely when no public company is "
         "genuinely discussed; never invent or guess a ticker. A ticker symbol or "
-        "company never changes the story order.\n\n"
+        "company never changes the story order. In aioseo_title never use a ticker, and in "
+        "aioseo_description use at most ONE, and only when a public company's stock or deal is "
+        "itself one of the lead stories - never a list of tickers, never a ticker tacked on as an aside "
+        "(\"Plus market moves for $X and $Y\"); a description reads as a sentence about the news, "
+        "not a string of keywords.\n\n"
         f"{K12_PROMPT_RULE} (youtube_tags, aioseo_title and aioseo_description are the exceptions: search-result fields, "
         "so write K-12 there with an ordinary hyphen.)"
     )
@@ -280,6 +301,16 @@ def _retry_feedback(audit, problems):
     )
 
 
+def _length_feedback(over, search_problems):
+    lines = [f"captivate_title is {n} characters; it must be at most {TITLE_MAX_CHARS}" for field, n in over.items()]
+    lines += [f"{field} {sentence}" for field, sentence in search_problems.items()]
+    return (
+        "\n\nYOUR PREVIOUS ATTEMPT BROKE A LENGTH RULE (measured after you wrote it):\n- " + "\n- ".join(lines)
+        + "\nRewrite ALL fields, fixing these and keeping everything else, including the story order, exactly as "
+        "the rules require."
+    )
+
+
 def _finalize(metadata):
     """YouTube tags and the AIOSEO title/description are search keys or search-result text, where an
     ordinary hyphen matches what people type: keep ordinary hyphens there (text_rules.machine_safe)."""
@@ -297,9 +328,11 @@ def generate_metadata_for_episode(anthropic_generate, show_name, episode_date, f
     - story order (never relaxed): every field must inherit the script's story order,
       checked by a separate audit call; if no attempt passes, StoryOrderError is raised
       so the step fails loudly instead of publishing a wrongly ordered headline.
-    - title length: over-limit titles are regenerated; if no order-valid attempt is within
-      the limit, each title field takes the SHORTEST value seen across the order-valid
-      attempts (operator's choice, 2026-10-02) rather than failing the publish.
+    - field length: an over-limit Captivate title, or an AIOSEO title/description outside AIOSEO's
+      green window (title width in pixels, description in characters - see title_width.py), is regenerated
+      with the measured problem fed back; if no order-valid attempt is within the limits, the Captivate
+      title takes the SHORTEST value seen across the order-valid attempts (operator's choice, 2026-10-02)
+      and the AIOSEO fields take the values closest to their windows, rather than failing the publish.
     """
     system_prompt = build_system_prompt(show_name)
     base_user_message = build_user_message(episode_date, final_script)
@@ -314,7 +347,7 @@ def generate_metadata_for_episode(anthropic_generate, show_name, episode_date, f
             tools=[],
             response_schema=RESPONSE_SCHEMA,
         )
-        metadata = json.loads(text)
+        metadata = _finalize(json.loads(text))   # measure the search-result text as it will be published
 
         try:
             audit = audit_story_order(anthropic_generate, final_script, metadata)
@@ -329,11 +362,15 @@ def generate_metadata_for_episode(anthropic_generate, show_name, episode_date, f
             continue
 
         over = overlong_titles(metadata)
-        if not over:
+        search_problems = search_field_problems(metadata)
+        if not over and not search_problems:
             return _finalize(metadata)
         valid_attempts.append(metadata)
-        logger.warning("Title over %d characters (attempt %d of %d): %s", TITLE_MAX_CHARS, attempt, MAX_METADATA_ATTEMPTS, over)
-        feedback = ""
+        logger.warning(
+            "Field length out of range (attempt %d of %d): titles over %d characters: %s; AIOSEO fields: %s",
+            attempt, MAX_METADATA_ATTEMPTS, TITLE_MAX_CHARS, over, search_problems,
+        )
+        feedback = _length_feedback(over, search_problems)
 
     if not valid_attempts:
         raise StoryOrderError(
@@ -344,8 +381,12 @@ def generate_metadata_for_episode(anthropic_generate, show_name, episode_date, f
     result = dict(valid_attempts[-1])
     for field in TITLE_FIELDS:
         result[field] = min((a.get(field) or "" for a in valid_attempts), key=len)
+    closest = min(valid_attempts, key=search_field_distance)
+    for field in ("aioseo_title", "aioseo_description"):
+        result[field] = closest.get(field) or ""
     logger.warning(
-        "No attempt had every title within %d characters; using the shortest of each: %s",
-        TITLE_MAX_CHARS, {f: len(result[f]) for f in TITLE_FIELDS},
+        "No attempt had every field within its limits; using the shortest Captivate title (%s) and the AIOSEO "
+        "fields closest to their windows: %s",
+        {f: len(result[f]) for f in TITLE_FIELDS}, search_field_problems(result),
     )
     return _finalize(result)

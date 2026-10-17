@@ -134,6 +134,36 @@ class Net_Gain_AIOSEO_Integration {
 		return $data;
 	}
 
+	/**
+	 * Writes the episode's SEO title and description into AIOSEO's own row for the public post. With no row of its
+	 * own AIOSEO falls back to the Search Appearance template ("#post_title #separator_sa #site_title"), which
+	 * appends the site name and pushes the title past the width AIOSEO scores as good; an explicit row keeps the
+	 * generated title exactly as written. Called after every website publish and by the backfill. aioseo_save_post
+	 * (filter_save_post) also fills both from the episode meta, so the arguments here only need to be non-empty.
+	 */
+	public static function sync_post( $wp_post_id, $episode_id ) {
+		$title       = trim( (string) get_post_meta( $episode_id, 'ng_meta_aioseo_title', true ) );
+		$description = trim( (string) get_post_meta( $episode_id, 'ng_meta_aioseo_description', true ) );
+		if ( ! $wp_post_id || ( '' === $title && '' === $description ) || ! class_exists( '\\AIOSEO\\Plugin\\Common\\Models\\Post' ) ) {
+			return false;
+		}
+
+		$data = array();
+		if ( '' !== $title ) {
+			$data['title'] = $title;
+		}
+		if ( '' !== $description ) {
+			$data['description'] = $description;
+		}
+
+		try {
+			\AIOSEO\Plugin\Common\Models\Post::savePost( (int) $wp_post_id, $data );
+		} catch ( \Throwable $e ) {
+			return false;
+		}
+		return true;
+	}
+
 	private static function source_episode_id( $wp_post_id ) {
 		if ( ! $wp_post_id ) {
 			return 0;

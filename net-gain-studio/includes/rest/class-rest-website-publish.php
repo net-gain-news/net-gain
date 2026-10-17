@@ -176,6 +176,8 @@ class Net_Gain_REST_Website_Publish {
 
 		wp_set_object_terms( $post_id, array( $term_id ), 'series' );
 
+		Net_Gain_AIOSEO_Integration::sync_post( $post_id, $episode_id );
+
 		return $post_id;
 	}
 

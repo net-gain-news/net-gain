@@ -101,11 +101,17 @@ class GenerateMetadataForEpisodeTests(unittest.TestCase):
         self.assertIn("2026-09-07", captured["user_content"])
 
 
+# Inside AIOSEO's green windows (555 px wide; 155 characters).
+GOOD_TITLE = "Frederick County Bans Student AI as Spokane Breach Widens"
+GOOD_DESC = ("Frederick County schools ban student AI weeks after a Gemini pilot, while Spokane Public Schools "
+             "widens its cyberattack assessment to include student data.")
+
+
 class TitleLimitGuardTests(unittest.TestCase):
-    def _meta(self, captivate="Short title", aioseo="Short SEO title"):
+    def _meta(self, captivate="Short title", aioseo=GOOD_TITLE, description=GOOD_DESC):
         return {
             "captivate_title": captivate, "captivate_notes": "n", "aioseo_title": aioseo,
-            "aioseo_description": "d", "website_excerpt": "e", "youtube_title": "y" * 95,
+            "aioseo_description": description, "website_excerpt": "e", "youtube_title": "y" * 95,
             "youtube_description": "yd", "youtube_tags": ["t"],
         }
 
@@ -128,16 +134,52 @@ class TitleLimitGuardTests(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         self.assertEqual(result["captivate_title"], "Fits fine")
 
-    def test_when_no_attempt_complies_each_title_takes_its_shortest_attempt(self):
+    def test_when_no_attempt_complies_the_captivate_title_takes_its_shortest_attempt(self):
         metas = [
-            self._meta(captivate="c" * 90, aioseo="a" * 70),
-            self._meta(captivate="c" * 70, aioseo="a" * 85),
-            self._meta(captivate="c" * 80, aioseo="a" * 75),
+            self._meta(captivate="c" * 90),
+            self._meta(captivate="c" * 70),
+            self._meta(captivate="c" * 80),
         ]
         calls, result = self._run(metas)
         self.assertEqual(len(calls), MAX_METADATA_ATTEMPTS)
         self.assertEqual(len(result["captivate_title"]), 70)
-        self.assertEqual(len(result["aioseo_title"]), 70)
+
+    def test_an_aioseo_title_or_description_outside_the_green_window_is_regenerated_with_the_measurement(self):
+        too_wide = "Districts Urged to Disable YouTube and Gemini AI as Vermont District Refuses Ransom"
+        too_long = GOOD_DESC + " Plus a long extra sentence that pushes this well past the limit."
+        calls, result = self._run([self._meta(aioseo=too_wide, description=too_long), self._meta()])
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(result["aioseo_title"], GOOD_TITLE)
+        self.assertEqual(result["aioseo_description"], GOOD_DESC)
+        self.assertNotIn("LENGTH RULE", calls[0])
+        self.assertIn("BROKE A LENGTH RULE", calls[1])
+        self.assertIn("aioseo_title is", calls[1])
+        self.assertIn("px wide", calls[1])
+        self.assertIn("aioseo_description is", calls[1])
+
+    def test_a_too_short_aioseo_title_is_regenerated_too(self):
+        calls, result = self._run([self._meta(aioseo="Burnaby Breach Confirmed"), self._meta()])
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(result["aioseo_title"], GOOD_TITLE)
+
+    def test_when_no_attempt_complies_the_aioseo_fields_take_the_attempt_closest_to_the_window(self):
+        far = self._meta(aioseo="Short", description="Tiny.")
+        near = self._meta(aioseo="Frederick County Bans Student AI", description=GOOD_DESC[:100])
+        calls, result = self._run([far, near, far, far])
+        self.assertEqual(len(calls), MAX_METADATA_ATTEMPTS)
+        self.assertEqual(result["aioseo_title"], "Frederick County Bans Student AI")
+        self.assertEqual(result["aioseo_description"], GOOD_DESC[:100])
+
+
+class AioseoWindowPromptTests(unittest.TestCase):
+    def test_the_prompt_states_aioseos_title_width_and_description_windows(self):
+        prompt = build_system_prompt("Net Gain Edtech")
+        self.assertIn("between 430 and 580 pixels at 20px Arial", prompt)
+        self.assertIn("between 130 and 156 CHARACTERS", prompt)
+        self.assertIn("never a list of tickers", prompt)
+
+    def test_the_aioseo_title_is_no_longer_held_to_the_character_count(self):
+        self.assertEqual(overlong_titles({"captivate_title": "x" * 10, "aioseo_title": "y" * 90}), {})
 
 
 class StoryOrderRuleTests(unittest.TestCase):
@@ -195,7 +237,7 @@ class FindOrderViolationsTests(unittest.TestCase):
 
 
 class StoryOrderGuardTests(unittest.TestCase):
-    META = {"captivate_title": "T", "captivate_notes": "N", "aioseo_title": "A", "aioseo_description": "D",
+    META = {"captivate_title": "T", "captivate_notes": "N", "aioseo_title": GOOD_TITLE, "aioseo_description": GOOD_DESC,
             "website_excerpt": "E", "youtube_title": "Y", "youtube_description": "YD", "youtube_tags": ["t"]}
 
     def test_a_wrongly_ordered_attempt_is_regenerated_with_the_script_order_spelled_out(self):
@@ -231,12 +273,12 @@ class StoryOrderGuardTests(unittest.TestCase):
         self.assertEqual(calls["meta"], MAX_METADATA_ATTEMPTS)
 
     def test_the_shortest_title_fallback_never_borrows_from_a_wrongly_ordered_attempt(self):
-        wrong_but_short = dict(self.META, captivate_title="x" * 10, aioseo_title="y" * 10)
-        right_but_long = dict(self.META, captivate_title="c" * 80, aioseo_title="a" * 80)
+        wrong_but_short = dict(self.META, captivate_title="x" * 10, aioseo_title=GOOD_TITLE[:30])
+        right_but_long = dict(self.META, captivate_title="c" * 80, aioseo_title=GOOD_TITLE + " and More")
         fake, log = route([wrong_but_short, right_but_long], [audit_with(captivate_title=[3, 1]), good_audit()])
         result = generate_metadata_for_episode(fake, "Net Gain Edtech", "2026-10-06", "script")
         self.assertEqual(len(result["captivate_title"]), 80)   # NOT the 10-character one from the mis-ordered attempt
-        self.assertEqual(len(result["aioseo_title"]), 80)
+        self.assertEqual(result["aioseo_title"], GOOD_TITLE + " and More")
 
 
 
@@ -245,8 +287,10 @@ class SearchResultHyphenTests(unittest.TestCase):
         return GenerateMetadataForEpisodeTests._fake_metadata(self)
     def test_search_result_fields_get_an_ordinary_hyphen_while_other_fields_keep_the_non_breaking_one(self):
         nb = "K\u201112"
-        meta = dict(self._fake_metadata(), captivate_title="A " + nb + " title", aioseo_title="A " + nb + " title",
-                    aioseo_description="News for " + nb + " leaders", youtube_tags=[nb + " schools"])
+        seo_title = "Frederick County Bans Student AI in " + nb + " as Spokane Widens"
+        seo_desc = "News for " + nb + " leaders: " + GOOD_DESC[:120]
+        meta = dict(self._fake_metadata(), captivate_title="A " + nb + " title", aioseo_title=seo_title,
+                    aioseo_description=seo_desc, youtube_tags=[nb + " schools"])
 
         def fake_generate(system, user_content, tools, response_schema):
             if response_schema is AUDIT_SCHEMA:
@@ -254,8 +298,8 @@ class SearchResultHyphenTests(unittest.TestCase):
             return json.dumps(meta)
 
         result = generate_metadata_for_episode(fake_generate, "Net Gain Edtech", "2026-10-06", "script")
-        self.assertEqual(result["aioseo_title"], "A K-12 title")
-        self.assertEqual(result["aioseo_description"], "News for K-12 leaders")
+        self.assertEqual(result["aioseo_title"], seo_title.replace("\u2011", "-"))
+        self.assertEqual(result["aioseo_description"], seo_desc.replace("\u2011", "-"))
         self.assertEqual(result["youtube_tags"], ["K-12 schools"])
         self.assertEqual(result["captivate_title"], "A " + nb + " title")
 
