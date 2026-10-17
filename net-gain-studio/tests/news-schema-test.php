@@ -67,5 +67,29 @@ $own[1]['description'] = 'AIOSEO wrote this';
 check( 'description: one AIOSEO already set is never overwritten', Net_Gain_News_Schema::apply( $own, array( 'images' => array(), 'logo' => null, 'description' => 'Ours' ) )[1]['description'] === 'AIOSEO wrote this' );
 check( 'description: an empty description adds nothing', ! isset( Net_Gain_News_Schema::apply( $base, array( 'images' => array(), 'logo' => null, 'description' => '' ) )[1]['description'] ) );
 
-echo $fail ? "FAILED: $fail\n" : "ALL PASSED\n";
+// Audio and headquarters
+$audio = array( 'url' => 'https://x/ep.mp3', 'seconds' => 254, 'mime' => 'audio/mpeg' );
+$hq    = Net_Gain_News_Schema::headquarters();
+$base2 = $base;
+$base2[1]['@id'] = 'https://netgain.news/edtech/ep/#newsarticle';
+$base2[1]['headline'] = 'Headline';
+$base2[1]['description'] = 'Desc';
+$base2[1]['datePublished'] = '2026-10-16T14:16:10-07:00';
+$withaudio = Net_Gain_News_Schema::apply( $base2, array( 'audio' => $audio, 'address' => $hq ) );
+$ao = $withaudio[1]['audio'];
+check( 'NewsArticle gets an AudioObject', $ao['@type'] === 'AudioObject' && $ao['contentUrl'] === 'https://x/ep.mp3' && $ao['encodingFormat'] === 'audio/mpeg' );
+check( 'AudioObject duration is ISO 8601 from the file length', $ao['duration'] === 'PT4M14S' );
+check( 'AudioObject takes name, description and upload date from the article', $ao['name'] === 'Headline' && $ao['description'] === 'Desc' && $ao['uploadDate'] === '2026-10-16T14:16:10-07:00' );
+check( 'AudioObject id hangs off the article page', $ao['@id'] === 'https://netgain.news/edtech/ep/#audio' );
+check( 'organization gets region and country only', $withaudio[2]['address'] === array( '@type' => 'PostalAddress', 'addressRegion' => 'BC', 'addressCountry' => 'CA' ) );
+$noaudio = Net_Gain_News_Schema::apply( $base2, array( 'audio' => null ) );
+check( 'no audio yet: no audio node, no address unless supplied', ! isset( $noaudio[1]['audio'] ) && ! isset( $noaudio[2]['address'] ) );
+$own = $base2; $own[2]['address'] = 'kept';
+check( 'an address set elsewhere is never overwritten', Net_Gain_News_Schema::apply( $own, array( 'address' => $hq ) )[2]['address'] === 'kept' );
+check( 'iso_duration: exact minutes', Net_Gain_News_Schema::iso_duration( 300 ) === 'PT5M' );
+check( 'iso_duration: hours', Net_Gain_News_Schema::iso_duration( 3725 ) === 'PT1H2M5S' );
+check( 'iso_duration: unknown length gives nothing', Net_Gain_News_Schema::iso_duration( 0 ) === '' );
+check( 'audio object without a length omits duration', ! isset( Net_Gain_News_Schema::audio_object( array( 'url' => 'u', 'seconds' => 0, 'mime' => 'audio/mpeg' ), array( 'id' => 'i', 'name' => 'n' ) )['duration'] ) );
+
+echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit( $fail ? 1 : 0 );

@@ -22,7 +22,6 @@ class Net_Gain_Schema_Output {
 		}
 
 		$post_id   = get_the_ID();
-		$audio_url = get_post_meta( $post_id, 'audio_file', true );
 
 		$terms     = get_the_terms( $post_id, 'series' );
 		$show_name = ( ! empty( $terms ) && ! is_wp_error( $terms ) ) ? $terms[0]->name : get_bloginfo( 'name' );
@@ -39,11 +38,27 @@ class Net_Gain_Schema_Output {
 			),
 		);
 
-		if ( $audio_url ) {
-			$schema['associatedMedia'] = array(
-				'@type'      => 'MediaObject',
-				'contentUrl' => $audio_url,
-			);
+		$episode_id  = (int) get_post_meta( $post_id, '_ng_source_episode_id', true );
+		$audio       = Net_Gain_News_Schema::audio_context( $post_id, $episode_id );
+		$description = trim( (string) get_post_meta( $episode_id, 'ng_meta_aioseo_description', true ) );
+		if ( '' === $description ) {
+			$description = trim( wp_strip_all_tags( get_the_excerpt( $post_id ) ) );
+		}
+		if ( '' !== $description ) {
+			$schema['description'] = $description;
+		}
+
+		if ( $audio ) {
+			$schema['associatedMedia'] = Net_Gain_News_Schema::audio_object( $audio, array(
+				'id'          => get_permalink( $post_id ) . '#audio',
+				'name'        => get_the_title( $post_id ),
+				'description' => $description,
+				'published'   => get_the_date( 'c', $post_id ),
+			) );
+			$duration = Net_Gain_News_Schema::iso_duration( $audio['seconds'] );
+			if ( '' !== $duration ) {
+				$schema['duration'] = $duration;
+			}
 		}
 
 		// The same Person (and @id) AIOSEO publishes and the anchor's bio page

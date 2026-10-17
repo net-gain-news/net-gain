@@ -19,6 +19,13 @@
  *     (ng_meta_aioseo_description, the text already used as the page's meta description), falling back to the
  *     episode excerpt, so every published episode - and every future one - carries it with no per-episode step.
  *
+ *   - audio: an AudioObject on the NewsArticle (contentUrl, encodingFormat, duration from the served file's own
+ *     attachment metadata, so it always matches the file a listener gets). The PodcastEpisode block
+ *     (class-schema-output.php) carries the same AudioObject.
+ *
+ *   - headquarters: the site Organization gets a PostalAddress of region and country only (BC, CA) on every page -
+ *     deliberately no street, city or phone.
+ *
  * The BreadcrumbList is rewritten to Home > show > Episodes > episode (see context()).
  *
  * Nothing changes for an episode without art or a logo setting.
@@ -34,22 +41,96 @@ class Net_Gain_News_Schema {
 		add_filter( 'aioseo_schema_output', array( __CLASS__, 'enrich_graph' ), 20 );
 	}
 
+	/** Region and country only, by the operator's choice. */
+	public static function headquarters() {
+		return array( '@type' => 'PostalAddress', 'addressRegion' => 'BC', 'addressCountry' => 'CA' );
+	}
+
 	public static function enrich_graph( $graphs ) {
-		if ( ! is_array( $graphs ) || ! is_singular( 'podcast' ) ) {
+		if ( ! is_array( $graphs ) ) {
 			return $graphs;
 		}
 
-		$episode_id = (int) get_post_meta( get_the_ID(), '_ng_source_episode_id', true );
-		if ( ! $episode_id ) {
-			return $graphs;
+		$context = array( 'address' => self::headquarters() );
+
+		if ( is_singular( 'podcast' ) ) {
+			$episode_id = (int) get_post_meta( get_the_ID(), '_ng_source_episode_id', true );
+			if ( $episode_id ) {
+				$context = array_merge( $context, self::context( $episode_id ) );
+			}
 		}
 
-		return self::apply( $graphs, self::context( $episode_id ) );
+		return self::apply( $graphs, $context );
+	}
+
+	/**
+	 * The episode's audio as the page serves it: the public post's audio file, with the length WordPress read from
+	 * that very file (the stored Captivate length includes the post-roll the website copy does not have). Null when
+	 * the episode has no audio yet.
+	 */
+	public static function audio_context( $post_id, $episode_id ) {
+		$attachment_id = $episode_id ? (int) get_post_meta( $episode_id, 'ng_audio_attachment_id', true ) : 0;
+		$url           = (string) get_post_meta( $post_id, 'audio_file', true );
+		if ( '' === $url && $attachment_id ) {
+			$url = (string) wp_get_attachment_url( $attachment_id );
+		}
+		if ( '' === $url ) {
+			return null;
+		}
+
+		$seconds = 0;
+		$mime    = 'audio/mpeg';
+		if ( $attachment_id ) {
+			$meta    = wp_get_attachment_metadata( $attachment_id );
+			$seconds = is_array( $meta ) && ! empty( $meta['length'] ) ? (int) $meta['length'] : 0;
+			$type    = get_post_mime_type( $attachment_id );
+			if ( $type ) {
+				$mime = $type;
+			}
+		}
+
+		return array( 'url' => $url, 'seconds' => $seconds, 'mime' => $mime );
+	}
+
+	/** Pure: schema.org duration (ISO 8601) from whole seconds, '' when unknown. */
+	public static function iso_duration( $seconds ) {
+		$seconds = (int) $seconds;
+		if ( $seconds <= 0 ) {
+			return '';
+		}
+		$h = intdiv( $seconds, 3600 );
+		$m = intdiv( $seconds % 3600, 60 );
+		$s = $seconds % 60;
+		return 'PT' . ( $h ? $h . 'H' : '' ) . ( $m ? $m . 'M' : '' ) . ( $s || ( ! $h && ! $m ) ? $s . 'S' : '' );
+	}
+
+	/** Pure: the AudioObject node. $parts = array( 'id', 'name', 'description', 'published' ). */
+	public static function audio_object( array $audio, array $parts ) {
+		$object = array(
+			'@type'          => 'AudioObject',
+			'@id'            => $parts['id'],
+			'name'           => $parts['name'],
+			'contentUrl'     => $audio['url'],
+			'encodingFormat' => $audio['mime'],
+			'inLanguage'     => 'en-US',
+		);
+		if ( ! empty( $parts['description'] ) ) {
+			$object['description'] = $parts['description'];
+		}
+		$duration = self::iso_duration( $audio['seconds'] );
+		if ( '' !== $duration ) {
+			$object['duration'] = $duration;
+		}
+		if ( ! empty( $parts['published'] ) ) {
+			$object['uploadDate'] = $parts['published'];
+		}
+		return $object;
 	}
 
 	/** Everything the graph needs, read from WordPress: the episode's images and the publisher logo. Pure data out. */
 	private static function context( $episode_id ) {
-		$context = array( 'images' => array(), 'logo' => null, 'breadcrumbs' => array(), 'description' => '' );
+		$context = array( 'images' => array(), 'logo' => null, 'breadcrumbs' => array(), 'description' => '', 'audio' => null );
+		$context['audio'] = self::audio_context( get_the_ID(), $episode_id );
 
 		$description = trim( (string) get_post_meta( $episode_id, 'ng_meta_aioseo_description', true ) );
 		if ( '' === $description ) {
@@ -125,6 +206,23 @@ class Net_Gain_News_Schema {
 			if ( self::is_news_article( $node ) && empty( $node['description'] ) && ! empty( $context['description'] ) ) {
 				$node['description'] = $context['description'];
 				$graphs[ $i ]        = $node;
+			}
+
+			if ( self::is_news_article( $node ) && ! empty( $context['audio'] ) && empty( $node['audio'] ) ) {
+				$base          = isset( $node['@id'] ) ? preg_replace( '/#.*$/', '', $node['@id'] ) : '';
+				$node['audio'] = self::audio_object( $context['audio'], array(
+					'id'          => $base . '#audio',
+					'name'        => isset( $node['headline'] ) ? $node['headline'] : '',
+					'description' => isset( $node['description'] ) ? $node['description'] : '',
+					'published'   => isset( $node['datePublished'] ) ? $node['datePublished'] : '',
+				) );
+				$graphs[ $i ]  = $node;
+			}
+
+			if ( isset( $node['@id'], $node['@type'] ) && $organization_id === $node['@id'] && 'Organization' === $node['@type']
+				&& empty( $node['address'] ) && ! empty( $context['address'] ) ) {
+				$node['address'] = $context['address'];
+				$graphs[ $i ]    = $node;
 			}
 
 			if ( isset( $node['@id'], $node['@type'] ) && $organization_id === $node['@id'] && 'Organization' === $node['@type']
