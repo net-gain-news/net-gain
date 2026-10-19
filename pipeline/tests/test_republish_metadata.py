@@ -147,10 +147,19 @@ class YouTube(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "does not match"):
                 rm.push_to_youtube(self.WP(), self.SHOW, 600, self.META)
 
-    def test_a_title_that_did_not_change_is_reported(self):
-        with self._patches([{"categoryId": "25"}, {"title": "Still old"}]):
-            with self.assertRaisesRegex(RuntimeError, "YouTube title is"):
-                rm.push_to_youtube(self.WP(), self.SHOW, 600, self.META)
+    def test_a_title_that_never_changes_is_reported_after_several_reads(self):
+        waits = []
+        with self._patches([{"categoryId": "25"}] + [{"title": "Still old"}] * 6):
+            with self.assertRaisesRegex(RuntimeError, "still 'Still old'"):
+                rm.push_to_youtube(self.WP(), self.SHOW, 600, self.META, sleep=waits.append)
+        self.assertEqual(len(waits), rm.READ_BACK_ATTEMPTS - 1)
+
+    def test_a_read_that_lags_the_write_is_waited_out(self):
+        waits = []
+        with self._patches([{"categoryId": "25"}, {"title": "Old"}, {"title": "Old"}, {"title": "New YT title"}]):
+            result = rm.push_to_youtube(self.WP(), self.SHOW, 600, self.META, sleep=waits.append)
+        self.assertTrue(result.startswith("https://www.youtube.com/watch?v="))
+        self.assertEqual(len(waits), 2)
 
 
 if __name__ == "__main__":

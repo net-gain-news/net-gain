@@ -14,6 +14,7 @@ import argparse
 import logging
 import re
 import sys
+import time
 
 import anthropic
 
@@ -81,7 +82,11 @@ def push_to_website(wp, episode_id, aioseo_title, rename=True):
     return result["permalink"]
 
 
-def push_to_youtube(wp, show, episode_id, meta):
+READ_BACK_ATTEMPTS = 6
+READ_BACK_WAIT_SECONDS = 10
+
+
+def push_to_youtube(wp, show, episode_id, meta, sleep=time.sleep):
     video_id = meta.get("ng_youtube_video_id")
     if not video_id:
         return "skipped (no YouTube video yet)"
@@ -105,9 +110,14 @@ def push_to_youtube(wp, show, episode_id, meta):
         "defaultLanguage": current.get("defaultLanguage", "en"), "defaultAudioLanguage": current.get("defaultAudioLanguage", "en"),
     }
     yt.update_video_snippet(service, video_id, snippet)
-    after = yt.get_video_snippet(service, video_id)
-    if (after or {}).get("title") != title:
-        raise RuntimeError(f"YouTube title is {(after or {}).get('title')!r}, expected {title!r}")
+    for attempt in range(READ_BACK_ATTEMPTS):      # YouTube's own reads can lag a write by several seconds
+        after = yt.get_video_snippet(service, video_id)
+        if (after or {}).get("title") == title:
+            break
+        if attempt < READ_BACK_ATTEMPTS - 1:
+            sleep(READ_BACK_WAIT_SECONDS)
+    else:
+        raise RuntimeError(f"YouTube title is still {(after or {}).get('title')!r} after {READ_BACK_ATTEMPTS} reads, expected {title!r}")
     return f"https://www.youtube.com/watch?v={video_id}"
 
 
