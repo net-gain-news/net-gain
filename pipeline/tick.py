@@ -49,6 +49,7 @@ from image_generation import FALLBACK_META_KEYS, IMAGE_META_KEYS, build_vertex_c
 from metadata_generation import generate_metadata_for_episode
 from notify import notify_failure, send_notice
 from script_generation import generate_script_for_show
+from signature_strip import refresh_signature_strip
 from video_composition import render_still_video
 from wp_client import WPClient
 from youtube_checklist import evaluate as evaluate_youtube_checklist
@@ -698,6 +699,7 @@ def process_website_publishes(wp, client, config, show, captivate=None):
             verify_website_publish(result.get("permalink"), wp.get_episode(episode_id).get("meta", {}))
             wp.update_step(episode_id, "website_published", "done")
             logger.info("Published episode %s to the website for %s.", episode_id, show["name"])
+            refresh_signature_strip(wp, show, episode_id)    # never raises; the founder's email signature shows the latest newscast
         except Exception as exc:
             logger.exception("Website publish failed for episode %s (%s)", episode_id, show["name"])
             wp.update_step(episode_id, "website_published", "failed", note=str(exc)[:500])

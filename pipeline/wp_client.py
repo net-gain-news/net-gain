@@ -201,6 +201,10 @@ class WPClient:
     def publish_website(self, episode_id):
         return self._request("POST", f"/wp-json/net-gain/v1/episodes/{episode_id}/publish-website")
 
+    def store_signature_strip(self, show_id, payload):
+        """The founder's email-signature "latest newscast" images (light + dark PNG, base64) for this show."""
+        return self._request("POST", f"/wp-json/net-gain/v1/shows/{show_id}/signature-strip", json=payload)
+
     # --- YouTube (Phase 9) -----------------------------------------------------
 
     def get_youtube_access_token(self, show_id):
