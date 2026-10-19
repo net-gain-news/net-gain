@@ -135,6 +135,22 @@ def delete_video(service, video_id):
         raise YouTubeError(f"videos.delete failed for {video_id}: {_http_error_body(exc)}") from exc
 
 
+def get_video_snippet(service, video_id):
+    """The video's current snippet (title, description, tags...), or None when it no longer exists."""
+    response = _execute_with_retry(service.videos().list(part="snippet", id=video_id))
+    items = response.get("items") or []
+    return items[0].get("snippet") if items else None
+
+
+def update_video_snippet(service, video_id, snippet):
+    """
+    Edits a published video's title/description/tags in place (needs the youtube.force-ssl scope, which the OAuth
+    connect flow already requests): same video id and URL, no re-upload. videos.update replaces the whole snippet,
+    so the caller sends every field it wants kept - title and categoryId are required.
+    """
+    return _execute_with_retry(service.videos().update(part="snippet", body={"id": video_id, "snippet": snippet}))
+
+
 def get_video_state(service, video_id):
     """
     Normalized snapshot of a video's processing/publish state. An empty

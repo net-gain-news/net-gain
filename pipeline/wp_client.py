@@ -201,6 +201,10 @@ class WPClient:
     def publish_website(self, episode_id):
         return self._request("POST", f"/wp-json/net-gain/v1/episodes/{episode_id}/publish-website")
 
+    def rename_public_page(self, episode_id, slug):
+        """Renames a just-published episode page's address, leaving no redirect record (plugin refuses aged pages)."""
+        return self._request("POST", f"/wp-json/net-gain/v1/episodes/{episode_id}/page-slug", json={"slug": slug})
+
     def store_signature_strip(self, show_id, payload):
         """The founder's email-signature "latest newscast" images (light + dark PNG, base64) for this show."""
         return self._request("POST", f"/wp-json/net-gain/v1/shows/{show_id}/signature-strip", json=payload)

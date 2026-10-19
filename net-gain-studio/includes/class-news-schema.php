@@ -26,7 +26,7 @@
  *   - headquarters: the site Organization gets a PostalAddress of region and country only (BC, CA) on every page -
  *     deliberately no street, city or phone.
  *
- * The BreadcrumbList is rewritten to Home > show > Episodes > episode (see context()).
+ * The BreadcrumbList is rewritten to Home > show > <listing page title> > episode (see context()).
  *
  * Nothing changes for an episode without art or a logo setting.
  */
@@ -146,7 +146,8 @@ class Net_Gain_News_Schema {
 			}
 		}
 
-		// Breadcrumbs: Home > the show > Episodes > this episode. AIOSEO's own trail points at the /podcast/ and
+		// Breadcrumbs: Home > the show > the show's listing page > this episode. The listing page's own title is the crumb's name
+		// ("Newscasts"), so the markup and the page it links to always agree. AIOSEO's own trail points at the /podcast/ and
 		// /series/ archive pages, which are duplicates of the show and episode list pages and are kept out of search.
 		$terms = get_the_terms( get_the_ID(), 'series' );
 		$term  = ( ! empty( $terms ) && ! is_wp_error( $terms ) ) ? $terms[0] : null;
@@ -157,7 +158,7 @@ class Net_Gain_News_Schema {
 				$context['breadcrumbs'] = array(
 					array( 'name' => 'Home', 'url' => home_url( '/' ) ),
 					array( 'name' => $term->name, 'url' => get_permalink( $show_page ) ),
-					array( 'name' => 'Episodes', 'url' => get_permalink( $episodes_page ) ),
+					array( 'name' => html_entity_decode( get_the_title( $episodes_page ), ENT_QUOTES, 'UTF-8' ), 'url' => get_permalink( $episodes_page ) ),
 					array( 'name' => html_entity_decode( get_the_title(), ENT_QUOTES, 'UTF-8' ), 'url' => '' ),
 				);
 			}

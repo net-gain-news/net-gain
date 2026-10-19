@@ -326,15 +326,53 @@ def captivate_publish_due(show, episode):
     return datetime.now(timezone.utc) >= compute_target_publish_moment(show, finalization)
 
 
-def generate_metadata(wp, client, show, episode_id):
+RECENT_HEADLINES_LIMIT = 14
+
+
+def recent_headlines(wp, show_id, episode_date, limit=RECENT_HEADLINES_LIMIT):
+    """
+    The show's most recent published headlines before this episode (newest first), shown to the model as context
+    so it can recognise follow-up stories - "new reporting on a breach reported last month" must not be headlined
+    as if the breach were new. Best effort: any failure just means no context.
+    """
+    try:
+        episodes = wp.list_episodes_for_show(show_id)
+    except Exception:
+        logger.warning("Could not read recent headlines for show %s; generating without them.", show_id, exc_info=True)
+        return []
+    rows = []
+    for episode in episodes or []:
+        meta = episode.get("meta", {}) or {}
+        day = meta.get("ng_episode_date") or ""
+        title = meta.get("ng_meta_aioseo_title") or (episode.get("title") or {}).get("rendered", "")
+        if day and day < (episode_date or "9999") and title:
+            rows.append((day, html.unescape(title)))
+    rows.sort(reverse=True)
+    return [title for _day, title in rows[:limit]]
+
+
+def generate_metadata(wp, client, show, episode_id, force=False):
+    """
+    Generates and stores the episode's metadata (titles, notes, descriptions...). Idempotent: the Captivate, website
+    and YouTube paths each call this, and each decides from a status snapshot that can be stale within one tick -
+    on 2026-10-19 the Captivate path and the website path both generated, so Captivate and the website published
+    different titles for the same episode. So the stored record is checked first and a finished set is never
+    regenerated unless force is set (an explicit operator re-run).
+    """
     episode = wp.get_episode(episode_id)
     meta = episode.get("meta", {})
+
+    status = ((meta.get("ng_step_status") or {}).get("metadata_generated") or {}).get("status")
+    if not force and status in ("done", "degraded") and meta.get("ng_meta_captivate_title") and meta.get("ng_meta_aioseo_title"):
+        logger.info("Metadata for episode %s is already generated; not regenerating.", episode_id)
+        return
 
     metadata = generate_metadata_for_episode(
         lambda **kwargs: anthropic_generate(client, **kwargs),
         show["name"],
         meta.get("ng_episode_date", ""),
         meta.get("ng_script_final", ""),
+        recent_titles=recent_headlines(wp, show.get("id"), meta.get("ng_episode_date", "")),
     )
 
     # ng_meta_youtube_description stores only the AI-written story content -

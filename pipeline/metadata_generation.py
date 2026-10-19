@@ -90,11 +90,29 @@ def build_system_prompt(show_name):
         "ticker symbol; that is the producer's call, not yours. A title names story 1 "
         "first and, only if it fits, ONE later story after it (in script order) - never "
         "a later story ahead of an earlier one, and never more than two stories.\n\n"
+        "HEADLINES REPORT THE NEWS, NOT THE TOPIC. This is a daily newscast: a headline must tell the "
+        "listener what HAPPENED in story 1 TODAY - the new development, the new fact, the outcome - not just "
+        "name the subject. Many stories continue ones the audience already knows (a breach reported weeks "
+        "ago, a lawsuit, a bankruptcy); for those the new development is the whole point of the story and "
+        "the headline MUST carry it. The script itself usually tells you what is new: look for \"new "
+        "reporting\", \"today\", \"latest\", \"now\", \"newly\", \"confirmed\", \"found\", \"filed\". A bare "
+        "label such as \"ETS Student Data Breach\" or \"Character.AI Bankruptcy\" is NOT a headline: it could "
+        "have run unchanged weeks ago and reads as old news. State the development in plain, active "
+        "language instead, e.g. \"ETS Breach Traced to a Single Stolen Login\" or \"Wisconsin Joins 38 States "
+        "Fighting Character.AI Sale\". Use the full length available to tell ONE story well, including its "
+        "new angle - do not shrink it to a label to make room for a second story. Add a second story only "
+        "when it fits without cutting the first story's development; a headline that fully reports story 1 "
+        "and names nothing else is better than one that names two stories as bare labels. Searchability "
+        "still matters - keep the real names (company, agency, place) in the headline - but it never "
+        "outranks stating what is new. When the user message lists \"Headlines already published\", that is "
+        "what the audience has already been told: use it to recognise follow-ups and make sure today's "
+        "headline adds the new information instead of repeating an earlier headline.\n\n"
         "Field-specific rules:\n"
         f"- captivate_title: a concise, compelling episode title of at most {TITLE_MAX_CHARS} "
         "characters - a hard limit, so count them (podcast apps cut titles off around "
-        "40-60 characters). Name at most TWO of the episode's stories: story 1 first "
-        "and, only if it fits, one later story second - never try to fit all of the "
+        "40-60 characters). Tell story 1's new development (see HEADLINES REPORT THE NEWS); "
+        "name at most TWO of the episode's stories - a second one, in script order, only if it "
+        "fits without cutting story 1's development - never try to fit all of the "
         "day's stories into the title. Put story 1's key name or term first, since cutoffs "
         "remove the end. Join two stories with a comma, a semicolon, or \"as\" where one "
         "reads naturally as the other's backdrop (e.g. \"X Hits Y as Z Pushes Back\") - "
@@ -125,29 +143,30 @@ def build_system_prompt(show_name):
         f"{TITLE_PX_TARGET_MIN} and {TITLE_PX_TARGET_MAX} pixels at 20px Arial (roughly 46-58 characters of "
         "ordinary mixed-case text; wide letters like W and M and capitals cost more, narrow ones like i, l, t "
         "and punctuation cost less). Aim for the middle of that range. It is checked after you write it and "
-        "rewritten if it is outside. Name at most TWO stories, story 1 first and then, only if it fits, one "
-        "later story, joined the same ways as captivate_title. Lead with story 1's most searchable names and "
-        "terms. Do not append the show name or any show/site name suffix (e.g. no "
+        "rewritten if it is outside. Tell story 1's new development (see HEADLINES REPORT THE NEWS), keeping "
+        "its real searchable names in it; name a second story (at most TWO in all, in script order) only if "
+        "it fits without cutting that development. Do not append the show name or any show/site name suffix (e.g. no "
         f"\"... - {show_name}\" or \"... | {show_name}\"): the site's own branding establishes it elsewhere on "
         "the page.\n"
         "- aioseo_description: the page's meta description and the text under the title in search results. "
         f"It must be between {DESC_CHARS_TARGET_MIN} and {DESC_CHARS_TARGET_MAX} CHARACTERS including spaces "
         "(AIOSEO scores 121-160 as good; Google cuts off around 155-160) - count them, and aim for 140-155. "
-        "It is checked after you write it and rewritten if it is outside. Plain, keyword-rich sentences "
+        "It is checked after you write it and rewritten if it is outside. Open with what happened in story 1 today "
+        "(its new development), then plain, keyword-rich sentences "
         "naming the real companies, places, products, agencies and events in the stories, in script order; "
         "no ticker symbols unless the rule below allows one.\n"
         "- website_excerpt: a genuine excerpt, not a teaser at any length - under 160 "
         "characters (roughly a search-result meta-description length; WordPress does "
         "not truncate a manually-set excerpt on its own, so this field is the actual "
-        "hard ceiling, not a suggestion), 1-2 sentences. Draw on whatever the script's "
+        "hard ceiling, not a suggestion), 1-2 sentences. Open with what is new in story 1 today. Draw on whatever the script's "
         "own opening lines set up as that day's preview/summary (a natural newscast "
         "convention, not guaranteed to be a single clean sentence) - written to make "
         "someone want to click through and listen, not a compressed table of contents "
         "of every story.\n"
         "- youtube_title: under 100 characters (aim for under 70 so it isn't truncated "
-        "in search results and suggested-video rows). Lead with story 1's real subject "
-        "(the story order is fixed - see the story-order rule) and front-load its most "
-        "search-relevant keyword or phrase, rather than a generic show-name-first "
+        "in search results and suggested-video rows). Lead with story 1 and what happened in it "
+        "(the story order is fixed - see the story-order rule; see HEADLINES REPORT THE NEWS), "
+        "front-loading its real names and the key fact, rather than a generic show-name-first "
         "framing. Written "
         "for genuine discovery, not clickbait.\n"
         "- youtube_description: the first ~125 characters are what's visible before "
@@ -179,8 +198,15 @@ def build_system_prompt(show_name):
     )
 
 
-def build_user_message(episode_date, final_script):
-    return f"Episode date: {episode_date}\n\nFinal script:\n\n{final_script}"
+def build_user_message(episode_date, final_script, recent_titles=None):
+    recent = ""
+    if recent_titles:
+        lines = "\n".join(f"- {t}" for t in recent_titles)
+        recent = (
+            "Headlines already published in the last two weeks (context only - the audience has been told "
+            f"these; do not copy them):\n{lines}\n\n"
+        )
+    return f"Episode date: {episode_date}\n\n{recent}Final script:\n\n{final_script}"
 
 
 def overlong_titles(metadata):
@@ -210,6 +236,9 @@ MUST_START_WITH_STORY_1 = ("captivate_title", "aioseo_title", "youtube_title")
 # Titles that may name at most two stories: story 1 plus, optionally, one later story.
 TWO_STORY_TITLES = ("captivate_title", "aioseo_title")
 
+# Titles that must state story 1's NEW development, not just name its subject (operator rule, 2026-10-19).
+DEVELOPMENT_FIELDS = ("captivate_title", "aioseo_title", "youtube_title")
+
 AUDIT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -220,8 +249,15 @@ AUDIT_SCHEMA = {
             "required": list(AUDIT_FIELDS),
             "additionalProperties": False,
         },
+        "lead_development": {"type": "string"},
+        "states_development": {
+            "type": "object",
+            "properties": {f: {"type": "boolean"} for f in DEVELOPMENT_FIELDS},
+            "required": list(DEVELOPMENT_FIELDS),
+            "additionalProperties": False,
+        },
     },
-    "required": ["stories", "order"],
+    "required": ["stories", "order", "lead_development", "states_development"],
     "additionalProperties": False,
 }
 
@@ -246,7 +282,13 @@ def build_audit_system_prompt():
         "that mentions no story gets an empty list. If a field mentions the same story "
         "twice, list it twice. For captivate_notes, list the stories in the order its "
         "story paragraphs appear, ignoring the 'Stories & links' section at the end.\n\n"
-        "Be literal and careful: your only job is to report the true order."
+        "Step 3 - development: in at most 15 words, say what is NEW in story 1 today according to the "
+        "script's own wording (the latest development, finding, outcome or step - not the background "
+        "subject), as lead_development. Then, for each of captivate_title, aioseo_title and youtube_title, "
+        "answer states_development: true only if the title tells the listener that new development (or its "
+        "clear equivalent); false if it merely names the subject or the ongoing story. Test: a title that "
+        "could have run unchanged weeks ago (for example a bare label such as \"X Data Breach\") is false.\n\n"
+        "Be literal and careful: your only job is to report the true order and the true state of the titles."
     )
 
 
@@ -292,6 +334,23 @@ def find_order_violations(audit):
     return problems
 
 
+def find_development_problems(audit):
+    """Titles the audit says only name the subject instead of stating story 1's new development ([] when none).
+    A missing answer counts as a pass, so an audit that predates this check never blocks a publish."""
+    verdicts = audit.get("states_development") or {}
+    return [f for f in DEVELOPMENT_FIELDS if verdicts.get(f) is False]
+
+
+def _development_feedback(fields, audit):
+    new = (audit.get("lead_development") or "").strip()
+    return (
+        "\n\nYOUR PREVIOUS ATTEMPT NAMED THE TOPIC BUT NOT THE NEWS. These titles read like old news because they "
+        f"only name the subject: {', '.join(fields)}. What is new in story 1 today: {new or '(see the script)'}. "
+        "Rewrite ALL fields so every title tells the listener that new development in plain, active language "
+        "(keep the real names), using the full length available for that one story."
+    )
+
+
 def _retry_feedback(audit, problems):
     labels = "; ".join(f"{i}. {s}" for i, s in enumerate(audit.get("stories") or [], 1))
     return (
@@ -322,22 +381,29 @@ def _finalize(metadata):
     return metadata
 
 
-def generate_metadata_for_episode(anthropic_generate, show_name, episode_date, final_script):
+def generate_metadata_for_episode(anthropic_generate, show_name, episode_date, final_script, recent_titles=None):
     """
-    Two independent guards, both regenerating on failure:
+    Three independent guards, each regenerating on failure:
     - story order (never relaxed): every field must inherit the script's story order,
       checked by a separate audit call; if no attempt passes, StoryOrderError is raised
       so the step fails loudly instead of publishing a wrongly ordered headline.
+    - the news, not the topic (2026-10-19): the same audit call says what is NEW in story 1 today and whether
+      each title states it. A title that only names the subject ("ETS Student Data Breach") reads as old news
+      when the story is a follow-up, so it is regenerated with the new development spelled out. If no attempt
+      gets every title right, the attempt with the fewest topic-only titles is used (a weaker headline is
+      published with a logged warning; it never blocks the episode).
     - field length: an over-limit Captivate title, or an AIOSEO title/description outside AIOSEO's
       green window (title width in pixels, description in characters - see title_width.py), is regenerated
-      with the measured problem fed back; if no order-valid attempt is within the limits, the Captivate
-      title takes the SHORTEST value seen across the order-valid attempts (operator's choice, 2026-10-02)
-      and the AIOSEO fields take the values closest to their windows, rather than failing the publish.
+      with the measured problem fed back; if no attempt is within the limits, the Captivate title takes the
+      SHORTEST value seen (operator's choice, 2026-10-02) and the AIOSEO fields the values closest to their
+      windows, rather than failing the publish.
+    recent_titles: headlines already published in the last two weeks, shown to the model as context so it can
+    recognise follow-ups.
     """
     system_prompt = build_system_prompt(show_name)
-    base_user_message = build_user_message(episode_date, final_script)
+    base_user_message = build_user_message(episode_date, final_script, recent_titles)
 
-    valid_attempts = []   # order-correct attempts (possibly with over-limit titles)
+    valid_attempts = []   # (metadata, titles-that-only-name-the-topic) for order-correct attempts
     feedback = ""
     last_problems = []
     for attempt in range(1, MAX_METADATA_ATTEMPTS + 1):
@@ -361,16 +427,22 @@ def generate_metadata_for_episode(anthropic_generate, show_name, episode_date, f
             feedback = _retry_feedback(audit, problems)
             continue
 
+        topic_only = find_development_problems(audit)
         over = overlong_titles(metadata)
         search_problems = search_field_problems(metadata)
-        if not over and not search_problems:
+        if not over and not search_problems and not topic_only:
             return _finalize(metadata)
-        valid_attempts.append(metadata)
+        valid_attempts.append((metadata, topic_only))
         logger.warning(
-            "Field length out of range (attempt %d of %d): titles over %d characters: %s; AIOSEO fields: %s",
-            attempt, MAX_METADATA_ATTEMPTS, TITLE_MAX_CHARS, over, search_problems,
+            "Metadata not ready (attempt %d of %d): titles that only name the topic: %s (lead development: %r); "
+            "titles over %d characters: %s; AIOSEO fields: %s",
+            attempt, MAX_METADATA_ATTEMPTS, topic_only, audit.get("lead_development"), TITLE_MAX_CHARS, over, search_problems,
         )
-        feedback = _length_feedback(over, search_problems)
+        feedback = ""
+        if topic_only:
+            feedback += _development_feedback(topic_only, audit)
+        if over or search_problems:
+            feedback += _length_feedback(over, search_problems)
 
     if not valid_attempts:
         raise StoryOrderError(
@@ -378,15 +450,17 @@ def generate_metadata_for_episode(anthropic_generate, show_name, episode_date, f
             + "; ".join(last_problems)
         )
 
-    result = dict(valid_attempts[-1])
+    fewest = min(len(topic_only) for _, topic_only in valid_attempts)
+    candidates = [m for m, topic_only in valid_attempts if len(topic_only) == fewest]
+    result = dict(candidates[-1])
     for field in TITLE_FIELDS:
-        result[field] = min((a.get(field) or "" for a in valid_attempts), key=len)
-    closest = min(valid_attempts, key=search_field_distance)
+        result[field] = min((a.get(field) or "" for a in candidates), key=len)
+    closest = min(candidates, key=search_field_distance)
     for field in ("aioseo_title", "aioseo_description"):
         result[field] = closest.get(field) or ""
     logger.warning(
-        "No attempt had every field within its limits; using the shortest Captivate title (%s) and the AIOSEO "
-        "fields closest to their windows: %s",
-        {f: len(result[f]) for f in TITLE_FIELDS}, search_field_problems(result),
+        "No attempt had every field right; using the shortest Captivate title (%s) and the AIOSEO fields closest "
+        "to their windows (%s); %d title(s) still only name the topic.",
+        {f: len(result[f]) for f in TITLE_FIELDS}, search_field_problems(result), fewest,
     )
     return _finalize(result)

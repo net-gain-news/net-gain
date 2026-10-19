@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.9.16
+ * Version:           0.9.17
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -27,7 +27,7 @@ if ( ! isset( $_SERVER['HTTP_AUTHORIZATION'] ) && isset( $_SERVER['REDIRECT_HTTP
 	$_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
 }
 
-define( 'NET_GAIN_VERSION', '0.9.16' );
+define( 'NET_GAIN_VERSION', '0.9.17' );
 define( 'NET_GAIN_PLUGIN_FILE', __FILE__ );
 define( 'NET_GAIN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -52,6 +52,7 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-audio-replacement.p
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-secrets.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-website-publish.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-signature-strip.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-page-slug.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-index-snapshot.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-photos.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-website-rewrite.php';
@@ -112,6 +113,7 @@ add_action(
 		( new Net_Gain_REST_Secrets() )->register_routes();
 		( new Net_Gain_REST_Website_Publish() )->register_routes();
 		( new Net_Gain_REST_Signature_Strip() )->register_routes();
+		( new Net_Gain_REST_Page_Slug() )->register_routes();
 		( new Net_Gain_REST_Index_Snapshot() )->register_routes();
 		( new Net_Gain_REST_Photos() )->register_routes();
 	}
