@@ -30,5 +30,7 @@ check( 'show slug from the per-show path', Net_Gain_News_Sitemap::show_slug( 'ne
 check( 'hyphenated show slug', Net_Gain_News_Sitemap::show_slug( 'news-sitemap-real-estate.xml' ) === 'real-estate' );
 check( 'the old single-file path and other paths are not a show', Net_Gain_News_Sitemap::show_slug( 'news-sitemap.xml' ) === '' && Net_Gain_News_Sitemap::show_slug( 'sitemap.xml' ) === '' && Net_Gain_News_Sitemap::show_slug( 'news-sitemap-.xml' ) === '' && Net_Gain_News_Sitemap::show_slug( 'news-sitemap-a/b.xml' ) === '' );
 
+check( 'gone paths are listed and are not shows', in_array( 'sitemap.rss', Net_Gain_News_Sitemap::GONE_PATHS, true ) && in_array( 'news-sitemap.xml', Net_Gain_News_Sitemap::GONE_PATHS, true ) && Net_Gain_News_Sitemap::show_slug( 'sitemap.rss' ) === '' );
+
 echo $fail ? "FAILED: $fail\n" : "ALL PASSED\n";
 exit( $fail ? 1 : 0 );

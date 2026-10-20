@@ -18,7 +18,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Net_Gain_News_Sitemap {
 
-	const LEGACY_PATH = 'news-sitemap.xml';          // the single site-wide file this replaced (2026-10-20); now 410 Gone
+	// Sitemap paths Search Console still lists that must answer 410 Gone (2026-10-20): the single site-wide news file
+	// this replaced, and AIOSEO's optional RSS sitemap, which this site does not use. Enabling that AIOSEO feature
+	// would need sitemap.rss taken off this list, since this handler runs first.
+	const GONE_PATHS  = array( 'news-sitemap.xml', 'sitemap.rss' );
 	const WINDOW_DAYS = 2;
 	const MAX_URLS    = 1000;
 
@@ -34,7 +37,7 @@ class Net_Gain_News_Sitemap {
 			$path = (string) wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 		}
 		$path = trim( $path, '/' );
-		if ( self::LEGACY_PATH === $path ) {
+		if ( in_array( $path, self::GONE_PATHS, true ) ) {
 			status_header( 410 );
 			header( 'X-Robots-Tag: noindex' );
 			exit;
