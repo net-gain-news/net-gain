@@ -2,7 +2,9 @@
 The slim "latest newscast" line for the founder's email signature.
 
 A transparent PNG (drawn at 3x so it is sharp on retina and phone screens) holding: the site's red LATEST flash, a
-small caption ("NEWSCAST - OCT 16, 2026 - 5:06"), a LISTEN cue, and the headline. It is drawn in two colourways, one
+small caption ("NEWSCAST - OCT 16, 2026 - 5:06"), a LISTEN cue, and the headline, wrapped to at most two lines. It is
+340 display pixels wide so it fits a phone screen at its real size (a wider image is shrunk by mail apps, which is
+what made the headline unreadably small on an iPhone, 2026-10-20). It is drawn in two colourways, one
 for light mail canvases and one for dark, because the text is baked into the image; the signature swaps between them
 with a dark-mode style rule. The pipeline renders both after every website publish and the plugin stores them at
 fixed URLs, so a signature that points at them always shows the current newscast.
@@ -23,7 +25,7 @@ from cards import archivo, mono
 logger = logging.getLogger("net_gain.signature_strip")
 
 SCALE = 3
-WIDTH, HEIGHT = 512, 40      # display pixels; the signature shows the image at exactly this size
+WIDTH, HEIGHT = 340, 54      # display pixels; the signature shows the image at exactly this size
 
 RED = (0xD0, 0x20, 0x2C)
 WHITE = (255, 255, 255)
@@ -73,16 +75,62 @@ def _draw_tracked(canvas, x, baseline, text, font, tracking, color):
     return cx - tracking
 
 
-def _fit_headline(text, max_width):
-    """Archivo Bold at 13 display px, shrunk to 11.5 and then ellipsised only if the headline will not fit."""
+def _wrap_lines(words, font, max_width):
+    """Greedy word wrap; returns the list of lines (a single over-long word stays on its own line)."""
+    lines, line = [], ""
+    for word in words:
+        trial = f"{line} {word}".strip()
+        if line and font.getlength(trial) > max_width:
+            lines.append(line)
+            line = word
+        else:
+            line = trial
+    if line:
+        lines.append(line)
+    return lines
+
+
+def _balance(words, font, lines):
+    """A headline that wraps to two lines is split where the two come out most even, so no single word is stranded."""
+    if len(lines) != 2 or len(words) < 3:
+        return lines
+    best = min(range(1, len(words)),
+               key=lambda i: max(font.getlength(" ".join(words[:i])), font.getlength(" ".join(words[i:]))))
+    return [" ".join(words[:best]), " ".join(words[best:])]
+
+
+def _fit_headline(text, max_width, max_lines=2):
+    """
+    Archivo Bold at 13 display px on one line if it fits, otherwise wrapped to two; shrunk to 11.5 before giving up,
+    and only then ellipsised on the last line. Returns (lines, font).
+    """
+    words = text.split()
     for size in (13, 12.5, 12, 11.5):
         font = archivo(round(size * SCALE), 700, 100)
-        if font.getlength(text) <= max_width:
-            return text, font
+        lines = _balance(words, font, _wrap_lines(words, font, max_width))
+        if len(lines) <= max_lines and all(font.getlength(l) <= max_width for l in lines):
+            return lines, font
     font = archivo(round(11.5 * SCALE), 700, 100)
-    while text and font.getlength(text + "…") > max_width:
-        text = text[:-1].rstrip()
-    return text + "…", font
+    lines = _wrap_lines(words, font, max_width)[:max_lines]
+    last = lines[-1] if lines else ""
+    while last and font.getlength(last + "…") > max_width:
+        last = last[:-1].rstrip()
+    if lines:
+        lines[-1] = last + "…"
+    return lines, font
+
+
+def row1_layout():
+    """(right edge of the longest caption, left edge of the LISTEN cue), in display pixels; the first must stay left of the second."""
+    s = SCALE
+    flash_font = mono(round(9 * s), medium=True)
+    flash_w = _tracked_width(flash_font, "LATEST", 0.12 * 9 * s) + 12 * s
+    cap_font = mono(round(9.5 * s), medium=False)
+    longest = _tracked_width(cap_font, "NEWSCAST · SEP 30, 2026 · 1:02:03", 0.1 * 9.5 * s)
+    listen_font = mono(round(9.5 * s), medium=False)
+    listen_w = _tracked_width(listen_font, "LISTEN", 0.12 * 9.5 * s)
+    cue_left = WIDTH * s - listen_w - 5 * s - 6 * s
+    return (flash_w + 8 * s + longest) / s, cue_left / s
 
 
 def render_strip(title, episode_date, seconds, theme):
@@ -118,10 +166,12 @@ def render_strip(title, episode_date, seconds, theme):
     underline_y = baseline1 + round(2.2 * s)
     draw.rectangle([tx, underline_y, right - 1, underline_y + max(1, round(0.8 * s)) - 1], fill=colors["link"] + (255,))
 
-    # Row 2: the headline.
-    text, font = _fit_headline((title or "").replace("‑", "-").strip(), WIDTH * s)
+    # Row 2: the headline, one or two lines.
+    lines, font = _fit_headline((title or "").replace("‑", "-").strip(), WIDTH * s)
     mask = Image.new("L", canvas.size, 0)
-    ImageDraw.Draw(mask).text((0, round(31.5 * s)), text, font=font, fill=255, anchor="ls")
+    mdraw = ImageDraw.Draw(mask)
+    for i, line in enumerate(lines):
+        mdraw.text((0, round((31.5 + 16.5 * i) * s)), line, font=font, fill=255, anchor="ls")
     canvas.paste(colors["ink"] + (255,), (0, 0), mask)
 
     out = io.BytesIO()

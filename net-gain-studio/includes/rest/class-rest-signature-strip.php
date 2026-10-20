@@ -8,6 +8,11 @@
  *   {uploads}/ng-signature/{show-slug}-newscast-light.png
  *   {uploads}/ng-signature/{show-slug}-newscast-dark.png
  *
+ * The images are SERVED from /ng-signature/{show-slug}-newscast-{light,dark}.png (not from the uploads URL): the host's
+ * web server hands real files out with a Last-Modified header and no cache directive, so every cache (Apple Mail's image
+ * proxy kept the strip for a whole day, 2026-10-19) invents its own lifetime. The route answers with "revalidate every
+ * time" headers, an ETag and 304s, which is the most a signature can ask of a cache.
+ *
  * An episode older than the one already shown is ignored, so republishing or re-running an old day never rolls the
  * signature backwards. Files are validated as real PNGs of a sane size and written atomically.
  */
@@ -21,6 +26,68 @@ class Net_Gain_REST_Signature_Strip {
 	const DIR       = 'ng-signature';
 	const MAX_BYTES = 262144;
 	const MAX_WIDTH = 3200;
+
+	const IMAGE_PATTERN = '#^ng-signature/([a-z0-9][a-z0-9-]*)-newscast-(light|dark)\.png$#';
+
+	/** Serves the stored image at a path no real file occupies, so the request reaches WordPress and can carry cache headers. */
+	public static function register() {
+		add_action( 'parse_request', array( __CLASS__, 'maybe_serve_image' ), 1 );
+	}
+
+	/** Pure: 'ng-signature/edtech-newscast-dark.png' -> array( 'edtech', 'dark' ), or null. */
+	public static function image_request( $path ) {
+		return preg_match( self::IMAGE_PATTERN, trim( (string) $path, '/' ), $m ) ? array( $m[1], $m[2] ) : null;
+	}
+
+	/** Pure: the validators for a file's size and modification time. */
+	public static function validators( $size, $mtime ) {
+		return array(
+			'etag'          => '"' . md5( $size . '|' . $mtime ) . '"',
+			'last_modified' => gmdate( 'D, d M Y H:i:s', (int) $mtime ) . ' GMT',
+		);
+	}
+
+	/** Pure: true when the request's validators say the client already holds this exact file. */
+	public static function is_not_modified( $if_none_match, $if_modified_since, $etag, $mtime ) {
+		if ( '' !== (string) $if_none_match ) {
+			return in_array( $etag, array_map( 'trim', explode( ',', (string) $if_none_match ) ), true );
+		}
+		$since = '' !== (string) $if_modified_since ? strtotime( (string) $if_modified_since ) : false;
+		return false !== $since && (int) $mtime <= $since;
+	}
+
+	public static function maybe_serve_image( $wp = null ) {
+		$path = isset( $wp->request ) ? (string) $wp->request : '';
+		if ( '' === $path && isset( $_SERVER['REQUEST_URI'] ) ) {
+			$path = (string) wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+		}
+		$match = self::image_request( $path );
+		if ( null === $match ) {
+			return;
+		}
+		$file = trailingslashit( wp_upload_dir()['basedir'] ) . self::DIR . "/{$match[0]}-newscast-{$match[1]}.png";
+		if ( ! is_file( $file ) ) {
+			return;    // normal 404 handling
+		}
+
+		$size = (int) filesize( $file );
+		$v    = self::validators( $size, filemtime( $file ) );
+		header( 'Content-Type: image/png' );
+		header( 'Cache-Control: no-cache, max-age=0, must-revalidate' );
+		header( 'ETag: ' . $v['etag'] );
+		header( 'Last-Modified: ' . $v['last_modified'] );
+		header( 'X-Robots-Tag: noindex' );
+		if ( self::is_not_modified( $_SERVER['HTTP_IF_NONE_MATCH'] ?? '', $_SERVER['HTTP_IF_MODIFIED_SINCE'] ?? '', $v['etag'], filemtime( $file ) ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+			status_header( 304 );
+			exit;
+		}
+		status_header( 200 );
+		header( 'Content-Length: ' . $size );
+		if ( isset( $_SERVER['REQUEST_METHOD'] ) && 'HEAD' !== $_SERVER['REQUEST_METHOD'] ) {
+			readfile( $file );
+		}
+		exit;
+	}
 
 	public function register_routes() {
 		register_rest_route(
@@ -95,7 +162,7 @@ class Net_Gain_REST_Signature_Strip {
 			if ( false === file_put_contents( $tmp, $bytes ) || ! rename( $tmp, $dir . '/' . $name ) ) {
 				return new WP_Error( 'ng_storage', 'Could not write the image.', array( 'status' => 500 ) );
 			}
-			$urls[ $theme ] = trailingslashit( wp_upload_dir()['baseurl'] ) . self::DIR . '/' . $name;
+			$urls[ $theme ] = home_url( '/' . self::DIR . '/' . $name );
 		}
 
 		update_post_meta( $show_id, 'ng_signature_strip_date', $date );

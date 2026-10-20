@@ -54,12 +54,37 @@ class Rendering(unittest.TestCase):
         self.assertEqual(light[0][:3], ss.THEMES["light"]["ink"])
         self.assertEqual(dark[0][:3], ss.THEMES["dark"]["ink"])
 
+    def test_a_long_headline_wraps_to_a_second_line_inside_the_image(self):
+        im = self._img("light")                                          # 61 characters: too wide for one 340 px line
+        alpha = im.getchannel("A")
+        line1 = alpha.crop((0, 80, im.width, 96)).getbbox()              # first headline line (display y ~ 27-32)
+        line2 = alpha.crop((0, 100, im.width, 150)).getbbox()            # second headline line
+        self.assertIsNotNone(line1)
+        self.assertIsNotNone(line2)
+        self.assertLessEqual(line2[2], im.width)
+
+    def test_a_two_line_headline_is_balanced_not_left_with_a_stranded_word(self):
+        words = "Report: Education Ransomware Attacks Jump 54% in Q3".split()
+        lines, font = ss._fit_headline(" ".join(words), ss.WIDTH * ss.SCALE)
+        self.assertEqual(len(lines), 2)
+        self.assertGreater(len(lines[1].split()), 1)
+
+    def test_a_short_headline_stays_on_one_line(self):
+        im = self._img("light", "Skillsoft jumps 10%")
+        self.assertIsNone(im.getchannel("A").crop((0, 108, im.width, im.height)).getbbox())
+
     def test_a_very_long_headline_is_shrunk_then_ellipsised_to_stay_inside_the_image(self):
-        long_title = "Districts Urged to Disable YouTube and Gemini AI as Vermont District Refuses Ransom Demand After Cyberattack"
+        long_title = ("Districts Urged to Disable YouTube and Gemini AI as Vermont District Refuses Ransom Demand "
+                      "After Cyberattack and Regulators Open an Inquiry Into the Vendor Responsible for the Breach")
         im = self._img("light", long_title)
         box = im.getchannel("A").crop((0, 70, im.width, im.height)).getbbox()
         self.assertIsNotNone(box)
         self.assertLessEqual(box[2], im.width)
+        self.assertLessEqual(box[3], im.height)
+
+    def test_the_caption_never_runs_into_the_listen_cue(self):
+        caption_end, cue_left = ss.row1_layout()
+        self.assertLess(caption_end, cue_left - 8)
 
     def test_non_breaking_hyphen_is_drawn_as_an_ordinary_hyphen(self):
         a = ss.render_strip("K‑12 breach", "2026-10-16", 306, "light")

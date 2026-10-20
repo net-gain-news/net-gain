@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.9.20
+ * Version:           0.9.21
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -27,7 +27,7 @@ if ( ! isset( $_SERVER['HTTP_AUTHORIZATION'] ) && isset( $_SERVER['REDIRECT_HTTP
 	$_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
 }
 
-define( 'NET_GAIN_VERSION', '0.9.20' );
+define( 'NET_GAIN_VERSION', '0.9.21' );
 define( 'NET_GAIN_PLUGIN_FILE', __FILE__ );
 define( 'NET_GAIN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -131,6 +131,7 @@ Net_Gain_Anchor_Profile::register();
 Net_Gain_Schema_Output::register();
 Net_Gain_News_Schema::register();
 Net_Gain_News_Sitemap::register();
+Net_Gain_REST_Signature_Strip::register();
 Net_Gain_Email_Feed::register();
 Net_Gain_Public_Surface::register();
 Net_Gain_Shortcodes::register();
