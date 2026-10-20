@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Net_Gain_News_Sitemap {
 
-	const LEGACY_PATH = 'news-sitemap.xml';          // the single site-wide file this replaced (2026-10-20); redirects to Edtech's
+	const LEGACY_PATH = 'news-sitemap.xml';          // the single site-wide file this replaced (2026-10-20); now 410 Gone
 	const WINDOW_DAYS = 2;
 	const MAX_URLS    = 1000;
 
@@ -35,7 +35,8 @@ class Net_Gain_News_Sitemap {
 		}
 		$path = trim( $path, '/' );
 		if ( self::LEGACY_PATH === $path ) {
-			wp_redirect( home_url( '/news-sitemap-edtech.xml' ), 301 ); // phpcs:ignore WordPress.Security.SafeRedirect -- fixed local URL
+			status_header( 410 );
+			header( 'X-Robots-Tag: noindex' );
 			exit;
 		}
 		$slug = self::show_slug( $path );
