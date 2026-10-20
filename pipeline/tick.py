@@ -515,6 +515,12 @@ def record_audio_seconds(wp, captivate, episode_id, captivate_episode_id, wait_s
     it `amie_status: complete`. Production 2026-10-13: the length recorded right after creation (4:58) was the earlier
     one, while listeners got 5:50. So a read only counts once Captivate says complete; with `wait_seconds` it polls
     until then, and it always overwrites the stored value with the latest read. Best effort and never fatal.
+
+    Production 2026-10-20: a late publish ran the Captivate and website steps seconds apart, and the website step read
+    a complete-looking status with the upload's length (4:08) just before the swap to the processed copy (4:59).
+    `amie_status` alone cannot tell the two apart; the processed copy exists once `original_media_id` is set, so a read
+    counts only then. The length is truncated, not rounded, to match what Captivate and its player display (299.99 s
+    reads 4:59).
     """
     deadline = time.monotonic() + max(0, wait_seconds)
     seconds, ready = 0, False
@@ -525,8 +531,8 @@ def record_audio_seconds(wp, captivate, episode_id, captivate_episode_id, wait_s
                 episode = episode.get("episode", episode)
             if isinstance(episode, list):
                 episode = episode[0] if episode else {}
-            seconds = int(round(float(episode.get("media_duration") or 0)))
-            ready = episode.get("amie_status") in (None, "complete")
+            seconds = int(float(episode.get("media_duration") or 0))
+            ready = episode.get("amie_status") in (None, "complete") and ("original_media_id" not in episode or bool(episode.get("original_media_id")))
         except Exception:
             logger.warning("Could not read the length of Captivate episode %s", captivate_episode_id, exc_info=True)
             return 0

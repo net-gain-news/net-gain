@@ -824,7 +824,7 @@ class RecordAudioSecondsTests(unittest.TestCase):
                 raise self.error
             return self.reply
 
-    def test_stores_the_length_captivate_reports_rounded_to_seconds(self):
+    def test_stores_the_length_captivate_reports_in_whole_seconds(self):
         wp = self.WP()
         got = record_audio_seconds(wp, self.Cap({"episode": {"media_duration": 293.277}}), 7, "cap-1")
         self.assertEqual(got, 293)
@@ -905,6 +905,16 @@ class RecordAudioSecondsWaitTests(unittest.TestCase):
         cap = self.Cap([{"media_duration": 298.0, "amie_status": "processing"}])
         self.assertEqual(record_audio_seconds(wp, cap, 7, "c"), 298)
         self.assertEqual(cap.reads, 1)
+
+    def test_a_complete_status_before_the_processed_copy_exists_is_not_final(self):
+        # Production 2026-10-20: 248 s (the upload) read as complete moments before the 299.99 s processed copy landed.
+        wp, naps = self.WP(), []
+        cap = self.Cap([{"media_duration": 248.0, "amie_status": "complete", "original_media_id": None},
+                        {"media_duration": 299.99, "amie_status": "complete", "original_media_id": "orig-1"}])
+        got = record_audio_seconds(wp, cap, 7, "c", wait_seconds=120, sleep=naps.append)
+        self.assertEqual(got, 299)     # truncated: Captivate shows 4:59, not 5:00
+        self.assertEqual(wp.updates, [(7, {"ng_audio_seconds": 299})])
+        self.assertEqual(naps, [10])
 
     def test_gives_up_waiting_at_the_deadline_and_keeps_the_latest_read(self):
         wp = self.WP()
