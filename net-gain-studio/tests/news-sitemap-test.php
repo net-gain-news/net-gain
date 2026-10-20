@@ -26,5 +26,9 @@ check( 'title with &, quotes and tags round-trips escaped', (string) $doc->xpath
 $empty = simplexml_load_string( Net_Gain_News_Sitemap::build_xml( array() ) );
 check( 'no recent episodes: a valid, empty urlset', $empty !== false && count( $empty->children( 'http://www.sitemaps.org/schemas/sitemap/0.9' ) ) === 0 );
 
+check( 'show slug from the per-show path', Net_Gain_News_Sitemap::show_slug( 'news-sitemap-edtech.xml' ) === 'edtech' );
+check( 'hyphenated show slug', Net_Gain_News_Sitemap::show_slug( 'news-sitemap-real-estate.xml' ) === 'real-estate' );
+check( 'the old single-file path and other paths are not a show', Net_Gain_News_Sitemap::show_slug( 'news-sitemap.xml' ) === '' && Net_Gain_News_Sitemap::show_slug( 'sitemap.xml' ) === '' && Net_Gain_News_Sitemap::show_slug( 'news-sitemap-.xml' ) === '' && Net_Gain_News_Sitemap::show_slug( 'news-sitemap-a/b.xml' ) === '' );
+
 echo $fail ? "FAILED: $fail\n" : "ALL PASSED\n";
 exit( $fail ? 1 : 0 );

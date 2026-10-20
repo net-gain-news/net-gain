@@ -1,13 +1,15 @@
 <?php
 /**
- * Google News sitemap at /news-sitemap.xml (2026-10-09), episodes only.
+ * Google News sitemaps, one per show, at /news-sitemap-{show-slug}.xml (e.g. /news-sitemap-edtech.xml), episodes only.
  *
  * AIOSEO's own News Sitemap is a separate add-on that this site's licence tier does not include, so the plugin
- * serves the file itself. Per Google's news sitemap format it lists only articles published in the last two days
- * (up to 1000), each with its publication name, language, publication date and title. There is ONE sitemap for the
- * whole site and the publication is the site's name ("Net Gain News") for every show: Google News keys a publication
- * to the website and names it from the site name, so this must agree with the site name and the publisher in each
- * episode's NewsArticle structured data (class-news-schema.php). Blog posts and pages are never listed.
+ * serves the files itself. Per Google's news sitemap format each lists only articles published in the last two days
+ * (up to 1000), each with its publication name, language, publication date and title. Every show is its own
+ * publication in Google Publisher Center (2026-10-20: "Net Gain Edtech", scoped to /edtech, under the "Net Gain News"
+ * organization), and Google requires news:name to match that publication's name exactly, so a show's sitemap names
+ * the show (its 'series' term name). Onboarding a show means registering its publication in Publisher Center and
+ * submitting its /news-sitemap-{slug}.xml in Search Console. The structured-data publisher stays the organization
+ * (class-news-schema.php). Blog posts and pages are never listed.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -16,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Net_Gain_News_Sitemap {
 
-	const PATH        = 'news-sitemap.xml';
+	const LEGACY_PATH = 'news-sitemap.xml';          // the single site-wide file this replaced (2026-10-20); redirects to Edtech's
 	const WINDOW_DAYS = 2;
 	const MAX_URLS    = 1000;
 
@@ -31,8 +33,18 @@ class Net_Gain_News_Sitemap {
 		if ( '' === $path && isset( $_SERVER['REQUEST_URI'] ) ) {
 			$path = (string) wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 		}
-		if ( self::PATH !== trim( $path, '/' ) ) {
+		$path = trim( $path, '/' );
+		if ( self::LEGACY_PATH === $path ) {
+			wp_redirect( home_url( '/news-sitemap-edtech.xml' ), 301 ); // phpcs:ignore WordPress.Security.SafeRedirect -- fixed local URL
+			exit;
+		}
+		$slug = self::show_slug( $path );
+		if ( '' === $slug ) {
 			return;
+		}
+		$term = get_term_by( 'slug', $slug, 'series' );
+		if ( ! $term ) {
+			return;    // not a show: leave it to the normal 404 handling
 		}
 
 		$posts = get_posts(
@@ -43,11 +55,12 @@ class Net_Gain_News_Sitemap {
 				'orderby'        => 'date',
 				'order'          => 'DESC',
 				'date_query'     => array( array( 'after' => self::WINDOW_DAYS . ' days ago', 'inclusive' => true ) ),
+				'tax_query'      => array( array( 'taxonomy' => 'series', 'field' => 'term_id', 'terms' => $term->term_id ) ),
 			)
 		);
 
-		// One sitemap, one publication: the site's own name, for every show.
-		$publication = html_entity_decode( get_bloginfo( 'name' ), ENT_QUOTES, 'UTF-8' );
+		// One sitemap, one publication: this show's own name.
+		$publication = html_entity_decode( $term->name, ENT_QUOTES, 'UTF-8' );
 		$items       = array();
 		foreach ( $posts as $post ) {
 			$items[] = array(
@@ -64,6 +77,11 @@ class Net_Gain_News_Sitemap {
 		header( 'X-Robots-Tag: noindex, follow' );                     // the sitemap file itself, as is usual; the URLs inside are what get indexed
 		echo self::build_xml( $items ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in build_xml
 		exit;
+	}
+
+	/** Pure: 'news-sitemap-edtech.xml' -> 'edtech'; '' for any other path. */
+	public static function show_slug( $path ) {
+		return preg_match( '/^news-sitemap-([a-z0-9][a-z0-9-]*)\.xml$/', (string) $path, $m ) ? $m[1] : '';
 	}
 
 	/** Pure: items = list of array(loc, name, language, date, title) -> the sitemap document. */
