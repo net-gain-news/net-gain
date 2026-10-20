@@ -128,13 +128,14 @@ WP_SITE_TIMEZONE = ZoneInfo("America/Vancouver")
 # market's clock, not the show's. The buffer gives the sheet's own hourly
 # GOOGLEFINANCE recalculation (confirmed set with the user, 2026-09-21) a
 # little room to have already settled by the time this checks. Deliberately
-# kept short (5 min, not a wider margin) per the user's explicit call
-# (2026-09-24): this refresh has to land before Net Gain Edtech's 13:10
-# Pacific (=16:10 ET) script-generation target_time picks it up same-day -
-# freshness matters more here than settling margin.
+# kept short (10 min, not a wider margin) per the user's explicit call
+# (2026-10-20, up from 5 after the 16:05 ET pull caught unsettled day-change
+# figures): this refresh has to land before Net Gain Edtech's script
+# generation (no earlier than 16:15 ET) picks it up same-day - freshness
+# matters more here than settling margin.
 MARKET_TIMEZONE = ZoneInfo("America/New_York")
 MARKET_CLOSE_HOUR = 16
-MARKET_CLOSE_BUFFER_MINUTES = 5
+MARKET_CLOSE_BUFFER_MINUTES = 10
 
 
 def _gmt_mysql(dt):
