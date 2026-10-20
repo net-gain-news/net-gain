@@ -23,9 +23,9 @@ check( 'an older episode is ignored', Net_Gain_REST_Signature_Strip::is_older( '
 check( 'the same or a newer episode is accepted', ! Net_Gain_REST_Signature_Strip::is_older( '2026-10-16', '2026-10-16' ) && ! Net_Gain_REST_Signature_Strip::is_older( '2026-10-19', '2026-10-16' ) );
 check( 'nothing stored yet accepts anything', ! Net_Gain_REST_Signature_Strip::is_older( '2026-10-01', '' ) );
 
-check( 'image path is recognised', Net_Gain_REST_Signature_Strip::image_request( 'ng-signature/edtech-newscast-dark.png' ) === array( 'edtech', 'dark' ) );
-check( 'hyphenated show slug in the image path', Net_Gain_REST_Signature_Strip::image_request( '/ng-signature/real-estate-newscast-light.png/' ) === array( 'real-estate', 'light' ) );
-check( 'other paths and traversal are not images', null === Net_Gain_REST_Signature_Strip::image_request( 'ng-signature/../wp-config.php' ) && null === Net_Gain_REST_Signature_Strip::image_request( 'ng-signature/edtech-newscast-blue.png' ) && null === Net_Gain_REST_Signature_Strip::image_request( 'wp-content/uploads/ng-signature/edtech-newscast-light.png' ) );
+check( 'image path is recognised', Net_Gain_REST_Signature_Strip::image_request( 'ng-signature/edtech-strip-dark.png' ) === array( 'edtech', 'dark' ) );
+check( 'hyphenated show slug in the image path', Net_Gain_REST_Signature_Strip::image_request( '/ng-signature/real-estate-strip-light.png/' ) === array( 'real-estate', 'light' ) );
+check( 'other paths and traversal are not images', null === Net_Gain_REST_Signature_Strip::image_request( 'ng-signature/../wp-config.php' ) && null === Net_Gain_REST_Signature_Strip::image_request( 'ng-signature/edtech-strip-blue.png' ) && null === Net_Gain_REST_Signature_Strip::image_request( 'wp-content/uploads/ng-signature/edtech-strip-light.png' ) );
 $v = Net_Gain_REST_Signature_Strip::validators( 18628, 1792000000 );
 check( 'validators carry a quoted etag and an HTTP date', 0 === strpos( $v['etag'], '"' ) && substr( $v['last_modified'], -4 ) === ' GMT' );
 check( 'a changed file has a different etag', $v['etag'] !== Net_Gain_REST_Signature_Strip::validators( 18700, 1792000000 )['etag'] && $v['etag'] !== Net_Gain_REST_Signature_Strip::validators( 18628, 1792000100 )['etag'] );

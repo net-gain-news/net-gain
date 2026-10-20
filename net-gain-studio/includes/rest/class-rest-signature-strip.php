@@ -5,10 +5,13 @@
  * files at fixed URLs under uploads/ng-signature/, so a signature that points at them always shows the newest
  * newscast without any change to the signature itself.
  *
- *   {uploads}/ng-signature/{show-slug}-newscast-light.png
- *   {uploads}/ng-signature/{show-slug}-newscast-dark.png
+ *   {uploads}/ng-signature/{show-slug}-strip-light.png
+ *   {uploads}/ng-signature/{show-slug}-strip-dark.png
+
+ * (The earlier 512x40 files, {show-slug}-newscast-{light,dark}.png, are left as they were: signatures sent before the
+ * 340 px redesign size their image at 512x40 and would show a squashed strip if that file changed shape.)
  *
- * The images are SERVED from /ng-signature/{show-slug}-newscast-{light,dark}.png (not from the uploads URL): the host's
+ * The images are SERVED from /ng-signature/{show-slug}-strip-{light,dark}.png (not from the uploads URL): the host's
  * web server hands real files out with a Last-Modified header and no cache directive, so every cache (Apple Mail's image
  * proxy kept the strip for a whole day, 2026-10-19) invents its own lifetime. The route answers with "revalidate every
  * time" headers, an ETag and 304s, which is the most a signature can ask of a cache.
@@ -27,14 +30,14 @@ class Net_Gain_REST_Signature_Strip {
 	const MAX_BYTES = 262144;
 	const MAX_WIDTH = 3200;
 
-	const IMAGE_PATTERN = '#^ng-signature/([a-z0-9][a-z0-9-]*)-newscast-(light|dark)\.png$#';
+	const IMAGE_PATTERN = '#^ng-signature/([a-z0-9][a-z0-9-]*)-strip-(light|dark)\.png$#';
 
 	/** Serves the stored image at a path no real file occupies, so the request reaches WordPress and can carry cache headers. */
 	public static function register() {
 		add_action( 'parse_request', array( __CLASS__, 'maybe_serve_image' ), 1 );
 	}
 
-	/** Pure: 'ng-signature/edtech-newscast-dark.png' -> array( 'edtech', 'dark' ), or null. */
+	/** Pure: 'ng-signature/edtech-strip-dark.png' -> array( 'edtech', 'dark' ), or null. */
 	public static function image_request( $path ) {
 		return preg_match( self::IMAGE_PATTERN, trim( (string) $path, '/' ), $m ) ? array( $m[1], $m[2] ) : null;
 	}
@@ -65,7 +68,7 @@ class Net_Gain_REST_Signature_Strip {
 		if ( null === $match ) {
 			return;
 		}
-		$file = trailingslashit( wp_upload_dir()['basedir'] ) . self::DIR . "/{$match[0]}-newscast-{$match[1]}.png";
+		$file = trailingslashit( wp_upload_dir()['basedir'] ) . self::DIR . "/{$match[0]}-strip-{$match[1]}.png";
 		if ( ! is_file( $file ) ) {
 			return;    // normal 404 handling
 		}
@@ -157,7 +160,7 @@ class Net_Gain_REST_Signature_Strip {
 
 		$urls = array();
 		foreach ( array( 'light' => $light, 'dark' => $dark ) as $theme => $bytes ) {
-			$name = "{$slug}-newscast-{$theme}.png";
+			$name = "{$slug}-strip-{$theme}.png";
 			$tmp  = $dir . '/.' . $name . '.tmp';
 			if ( false === file_put_contents( $tmp, $bytes ) || ! rename( $tmp, $dir . '/' . $name ) ) {
 				return new WP_Error( 'ng_storage', 'Could not write the image.', array( 'status' => 500 ) );
