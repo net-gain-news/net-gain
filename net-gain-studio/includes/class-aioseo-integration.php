@@ -81,6 +81,44 @@ class Net_Gain_AIOSEO_Integration {
 	}
 
 	/**
+	 * Pure: true when a submitted title/description is something a person wrote, not empty and not AIOSEO's default
+	 * template (which carries smart tags such as "#post_title #separator_sa #site_title").
+	 */
+	public static function is_hand_written( $value ) {
+		$value = trim( (string) $value );
+		return '' !== $value && ! preg_match( '/#(?:[a-z]+_[a-z_]+|tagline|separator|site_title)\b/i', $value );
+	}
+
+	/**
+	 * Pure: decides what AIOSEO saves for the SEO title and description.
+	 *
+	 * A hand-written value that differs from the stored one is the editor's own edit: it is kept, and returned under
+	 * 'edited' so it can be written back to the episode record (otherwise the next publish or regeneration would put
+	 * the generated text back, which is what happened to the 2026-10-21 edits on the Arbor episode). An empty value
+	 * or AIOSEO's default template is filled from the stored (generated) text, as before. Returns
+	 * array( 'title' => ..., 'description' => ..., 'edited' => array( field => value ) ).
+	 */
+	public static function resolve_save_fields( $submitted_title, $submitted_description, $stored_title, $stored_description ) {
+		$out    = array( 'edited' => array() );
+		$fields = array(
+			'title'       => array( (string) $submitted_title, trim( (string) $stored_title ) ),
+			'description' => array( (string) $submitted_description, trim( (string) $stored_description ) ),
+		);
+		foreach ( $fields as $key => $pair ) {
+			list( $submitted, $stored ) = $pair;
+			if ( self::is_hand_written( $submitted ) ) {
+				$out[ $key ] = trim( $submitted );
+				if ( trim( $submitted ) !== $stored ) {
+					$out['edited'][ $key ] = trim( $submitted );
+				}
+			} else {
+				$out[ $key ] = '' !== $stored ? $stored : $submitted;
+			}
+		}
+		return $out;
+	}
+
+	/**
 	 * aioseo_save_post: apply_filters( 'aioseo_save_post', array $data, Post $model ) - confirmed against
 	 * AIOSEO Pro 5.0.3's Models/Post.php::savePost() on 2026-10-09. The FIRST argument is the plain ARRAY of
 	 * fields about to be saved (keys such as 'title' and 'description'), the second AIOSEO's Post model.
@@ -88,6 +126,10 @@ class Net_Gain_AIOSEO_Integration {
 	 * Fixed 2026-10-09: this was written for an object ("$post->title = ...", marked TODO(verify)) and fataled
 	 * ("Attempt to assign property \"title\" on array") whenever an episode page was saved from the editor.
 	 * Both shapes are handled now, and anything unexpected is returned untouched rather than risk a fatal.
+	 *
+	 * Reworked 2026-10-21: the generated title/description used to replace whatever was submitted, so an editor's
+	 * own wording never stuck. Now a hand-written value wins and is mirrored to the episode record
+	 * (resolve_save_fields), with ng_seo_hand_edited set so publishing and regeneration leave it alone.
 	 */
 	public static function filter_save_post( $data, $the_post = null ) {
 		if ( ! is_array( $data ) && ! is_object( $data ) ) {
@@ -116,19 +158,32 @@ class Net_Gain_AIOSEO_Integration {
 			return $data;
 		}
 
-		$overrides = array(
-			'title'       => get_post_meta( $episode_id, 'ng_meta_aioseo_title', true ),
-			'description' => get_post_meta( $episode_id, 'ng_meta_aioseo_description', true ),
+		$get = function ( $key ) use ( $data ) {
+			return is_array( $data ) ? ( $data[ $key ] ?? '' ) : ( $data->$key ?? '' );
+		};
+		$resolved = self::resolve_save_fields(
+			$get( 'title' ),
+			$get( 'description' ),
+			get_post_meta( $episode_id, 'ng_meta_aioseo_title', true ),
+			get_post_meta( $episode_id, 'ng_meta_aioseo_description', true )
 		);
-		foreach ( $overrides as $key => $value ) {
-			if ( ! $value ) {
+
+		foreach ( array( 'title', 'description' ) as $key ) {
+			if ( '' === (string) $resolved[ $key ] || (string) $resolved[ $key ] === (string) $get( $key ) ) {
 				continue;
 			}
 			if ( is_array( $data ) ) {
-				$data[ $key ] = $value;
+				$data[ $key ] = $resolved[ $key ];
 			} else {
-				$data->$key = $value;
+				$data->$key = $resolved[ $key ];
 			}
+		}
+
+		foreach ( $resolved['edited'] as $key => $value ) {
+			update_post_meta( $episode_id, "ng_meta_aioseo_{$key}", $value );
+		}
+		if ( $resolved['edited'] ) {
+			update_post_meta( $episode_id, 'ng_seo_hand_edited', current_time( 'mysql' ) );
 		}
 
 		return $data;

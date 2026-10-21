@@ -352,6 +352,15 @@ def recent_headlines(wp, show_id, episode_date, limit=RECENT_HEADLINES_LIMIT):
     return [title for _day, title in rows[:limit]]
 
 
+# Stored fields an editor has taken over: when ng_seo_hand_edited is set (the plugin sets it when the SEO title or
+# description is written by hand in AIOSEO), regeneration leaves these alone (2026-10-21, Arbor episode).
+HAND_EDITED_FIELDS = ("ng_meta_aioseo_title", "ng_meta_aioseo_description", "ng_meta_website_excerpt")
+
+
+def hand_edited_fields(meta):
+    return HAND_EDITED_FIELDS if (meta or {}).get("ng_seo_hand_edited") else ()
+
+
 def generate_metadata(wp, client, show, episode_id, force=False):
     """
     Generates and stores the episode's metadata (titles, notes, descriptions...). Idempotent: the Captivate, website
@@ -383,19 +392,19 @@ def generate_metadata(wp, client, show, episode_id, force=False):
     # before the website has actually published and gotten a real URL, so
     # assembling the final description has to wait until actual upload time
     # instead, when a real link is guaranteed to exist.
-    wp.update_episode_meta(
-        episode_id,
-        {
-            "ng_meta_captivate_title": metadata["captivate_title"],
-            "ng_meta_captivate_notes": metadata["captivate_notes"],
-            "ng_meta_aioseo_title": metadata["aioseo_title"],
-            "ng_meta_aioseo_description": metadata["aioseo_description"],
-            "ng_meta_website_excerpt": metadata["website_excerpt"],
-            "ng_meta_youtube_title": metadata["youtube_title"],
-            "ng_meta_youtube_description": metadata["youtube_description"],
-            "ng_meta_youtube_tags": metadata["youtube_tags"],
-        },
-    )
+    fields = {
+        "ng_meta_captivate_title": metadata["captivate_title"],
+        "ng_meta_captivate_notes": metadata["captivate_notes"],
+        "ng_meta_aioseo_title": metadata["aioseo_title"],
+        "ng_meta_aioseo_description": metadata["aioseo_description"],
+        "ng_meta_website_excerpt": metadata["website_excerpt"],
+        "ng_meta_youtube_title": metadata["youtube_title"],
+        "ng_meta_youtube_description": metadata["youtube_description"],
+        "ng_meta_youtube_tags": metadata["youtube_tags"],
+    }
+    for key in hand_edited_fields(meta):
+        fields.pop(key, None)
+    wp.update_episode_meta(episode_id, fields)
     wp.update_step(episode_id, "metadata_generated", "done")
 
 

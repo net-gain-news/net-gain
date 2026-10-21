@@ -56,6 +56,24 @@ class GenerateOnce(unittest.TestCase):
         self.assertEqual(wp.updates[0]["ng_meta_captivate_title"], "C")
         self.assertIn(("metadata_generated", "done"), wp.steps)
 
+    def test_hand_edited_seo_text_and_excerpt_survive_a_forced_regeneration(self):
+        # 2026-10-21: an editor's AIOSEO title/description on the Arbor episode kept being replaced by generated text.
+        wp = FakeWP(dict(DONE, ng_seo_hand_edited="2026-10-21 14:19:15"))
+        with mock.patch.object(tick, "generate_metadata_for_episode", return_value=GENERATED):
+            tick.generate_metadata(wp, object(), {"id": 16, "name": "Show"}, 600, force=True)
+        stored = wp.updates[0]
+        for key in ("ng_meta_aioseo_title", "ng_meta_aioseo_description", "ng_meta_website_excerpt"):
+            self.assertNotIn(key, stored)
+        self.assertEqual(stored["ng_meta_captivate_title"], "C")      # the other destinations still regenerate
+        self.assertEqual(stored["ng_meta_youtube_title"], "Y")
+
+    def test_without_the_flag_everything_regenerates(self):
+        wp = FakeWP(dict(DONE))
+        with mock.patch.object(tick, "generate_metadata_for_episode", return_value=GENERATED):
+            tick.generate_metadata(wp, object(), {"id": 16, "name": "Show"}, 600, force=True)
+        self.assertEqual(wp.updates[0]["ng_meta_aioseo_title"], "A")
+        self.assertEqual(wp.updates[0]["ng_meta_website_excerpt"], "E")
+
     def test_a_pending_episode_generates(self):
         meta = {"ng_episode_date": "2026-10-19", "ng_script_final": "script", "ng_step_status": {"metadata_generated": {"status": "pending"}}}
         wp = FakeWP(meta)

@@ -127,6 +127,8 @@ def main(argv):
     ap.add_argument("episode_id", type=int)
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--keep-slug", action="store_true")
+    ap.add_argument("--override-hand-edits", action="store_true",
+                    help="regenerate even the SEO title/description and excerpt an editor wrote by hand (otherwise they are kept)")
     ap.add_argument("--skip", nargs="*", default=[], choices=["captivate", "website", "youtube", "signature"])
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO)
@@ -147,6 +149,12 @@ def main(argv):
             print(f"  {key}: {result[key]}")
         return 0
 
+    if meta.get("ng_seo_hand_edited"):
+        if args.override_hand_edits:
+            wp.update_episode_meta(args.episode_id, {"ng_seo_hand_edited": ""})
+            print("hand edits will be overridden")
+        else:
+            print("NOTE: an editor wrote this episode's SEO title/description by hand; they (and the page title and excerpt) are kept. Use --override-hand-edits to regenerate them too.")
     generate_metadata(wp, client, show, args.episode_id, force=True)
     meta = wp.get_episode(args.episode_id).get("meta", {})
     print("stored titles:", meta["ng_meta_captivate_title"], "|", meta["ng_meta_aioseo_title"], "|", meta["ng_meta_youtube_title"])

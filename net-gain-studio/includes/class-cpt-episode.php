@@ -73,6 +73,9 @@ class Net_Gain_CPT_Episode {
 			'ng_meta_captivate_notes'  => array( 'type' => 'string', 'default' => '' ),
 			'ng_meta_aioseo_title'       => array( 'type' => 'string', 'default' => '' ),
 			'ng_meta_aioseo_description' => array( 'type' => 'string', 'default' => '' ),
+			// When an editor wrote the SEO title/description by hand (class-aioseo-integration.php): website publish keeps the
+			// public post's title and excerpt, and metadata regeneration keeps the SEO text.
+			'ng_seo_hand_edited'         => array( 'type' => 'string', 'default' => '' ),
 			'ng_meta_website_excerpt'     => array( 'type' => 'string', 'default' => '' ),
 			'ng_meta_youtube_title'       => array( 'type' => 'string', 'default' => '' ),
 			'ng_meta_youtube_description' => array( 'type' => 'string', 'default' => '' ),

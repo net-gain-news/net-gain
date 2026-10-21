@@ -165,6 +165,11 @@ class Net_Gain_REST_Website_Publish {
 		}
 
 		if ( $meta['ng_website_post_id'] ) {
+			if ( get_post_meta( $episode_id, 'ng_seo_hand_edited', true ) ) {
+				// An editor has taken over this page's wording: republishing must not put the generated title or
+				// excerpt back (it did on the Arbor episode, 2026-10-21).
+				unset( $postarr['post_title'], $postarr['post_excerpt'] );
+			}
 			$postarr['ID'] = $meta['ng_website_post_id'];
 			$post_id       = wp_update_post( $postarr, true );
 		} else {
