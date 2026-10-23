@@ -19,6 +19,7 @@ show-notes editor is a styled-text (rich text) editor, not plain text.
 """
 
 import json
+import re
 import logging
 
 from text_rules import K12_PROMPT_RULE, machine_safe
@@ -127,7 +128,10 @@ def build_system_prompt(show_name):
         "the episode itself. Still write it to be rich in the specific names, terms, "
         "and phrases a search engine or an AI answer engine would match against - dense "
         "rather than long, not padded prose. One <p>...</p> per story - never one "
-        "unbroken block of text. Never include the day's Net Gain Edtech Index/market-"
+        "unbroken block of text. Plain text inside the story paragraphs: NO bold, italics, "
+        "underline or any other emphasis - names of districts, companies, people and places are "
+        "ordinary text, however important they are. The only emphasised text in the whole field is "
+        "the 'Stories &amp; links:' header described below. Never include the day's Net Gain Edtech Index/market-"
         "data recap here, even though the script itself covers it - show notes are for "
         "the day's actual news stories, not the market-index segment. After the story "
         "paragraphs, if the script below ends with its own \"story names and links\" section (and, if "
@@ -370,10 +374,35 @@ def _length_feedback(over, search_problems):
     )
 
 
+_EMPHASIS_TAG = re.compile(r"</?(?:strong|b|em|i|u|mark)\b[^>]*>", re.I)
+_NOTES_HEADER = re.compile(r"<p>\s*<strong>\s*Stories\s*(?:&amp;|&)\s*links:?\s*</strong>\s*</p>", re.I)
+
+
+def strip_stray_emphasis(notes):
+    """
+    Show notes carry exactly one emphasised thing, the "Stories & links:" header. Anything else the model bolded
+    or italicised (2026-10-23: the first story's district name, in the Captivate notes and on the website) is
+    removed, whatever the prompt said. Returns (cleaned notes, whether anything was removed).
+    """
+    if not isinstance(notes, str) or not notes:
+        return notes, False
+    marker = "\x00STORIES-HEADER\x00"
+    headers = _NOTES_HEADER.findall(notes)
+    protected = _NOTES_HEADER.sub(marker, notes)
+    cleaned = _EMPHASIS_TAG.sub("", protected)
+    for header in headers:
+        cleaned = cleaned.replace(marker, header, 1)
+    return cleaned, cleaned != notes
+
+
 def _finalize(metadata):
     """YouTube tags and the AIOSEO title/description are search keys or search-result text, where an
     ordinary hyphen matches what people type: keep ordinary hyphens there (text_rules.machine_safe)."""
     metadata = dict(metadata)
+    notes, changed = strip_stray_emphasis(metadata.get("captivate_notes"))
+    if changed:
+        logger.warning("Removed stray bold/italic from the show notes (only the Stories & links header may be emphasised).")
+        metadata["captivate_notes"] = notes
     for key in SEARCH_RESULT_FIELDS:
         if isinstance(metadata.get(key), str):
             metadata[key] = machine_safe(metadata[key])
