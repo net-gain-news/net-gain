@@ -5,10 +5,9 @@ Keeps netgain.news's server-side page cache (60 minutes) warm, so a real visitor
 Run from cron every 5 minutes: cached pages answer in ~0.2 s and cost the server nothing, and a page whose cache has
 just expired is rebuilt here, within five minutes, instead of by the next visitor.
 
-The host's cache keeps a separate copy per User-Agent string (the account .htaccess adds "Vary: User-Agent"), so a warm-up only
-covers the browsers listed in USER_AGENTS. Once the Vary header is gone from netgain.news any one User-Agent warms
-the copy every visitor gets, and this list stops mattering. Browser versions drift: refresh the list from the
-access log now and then (top human User-Agents).
+Until 2026-10-24 the host's cache kept a separate copy per User-Agent string (the account .htaccess adds "Vary: User-Agent"),
+so a warm-up only covered the browsers it imitated. A site-only line in netgain.news/.htaccess now switches that header off,
+so one User-Agent warms the copy every visitor gets; cache_check.py verifies daily that this still holds.
 
 Silent when everything is quick and fine; writes one line when a page is slow or fails.
 """
@@ -24,7 +23,6 @@ PATHS = ["/", "/edtech/", "/edtech/episodes/", "/edtech/index/", "/about/"]
 LATEST = "/edtech/latest/"          # redirects to the newest episode page, which is the page most visitors want
 USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
 ]
 TIMEOUT = 60
 SLOW_SECONDS = 2.0
