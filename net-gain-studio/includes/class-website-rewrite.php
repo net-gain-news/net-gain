@@ -47,7 +47,7 @@ class Net_Gain_Website_Rewrite {
 	 * Every show gets these same child pages (see the design handoff's site
 	 * map) - reserved so they never get mistaken for an episode's post_name.
 	 */
-	const RESERVED_CHILD_SLUGS = array( 'episodes', 'index', 'subscribe', 'welcome' );
+	const RESERVED_CHILD_SLUGS = array( 'episodes', 'index', 'subscribe', 'welcome', 'listen' );
 
 	public static function register() {
 		add_filter( 'post_type_link', array( __CLASS__, 'filter_permalink' ), 10, 2 );

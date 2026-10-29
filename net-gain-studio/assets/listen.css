@@ -1,0 +1,103 @@
+/* Invitation landing page (includes/class-listen-page.php). Uses the site's Denim tokens (--ac, --acl, --mu, --bd, --hbg, --th). */
+
+body.ng-listen-page .header-cta,
+body.ng-listen-page #ast-scroll-top { display: none !important; }   /* the one filled button on this page is the email signup */
+
+.ngl { color: var(--fg); }
+.ngl-wrap { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+.ngl-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ngl .mono { font-family: 'IBM Plex Mono', monospace; }
+.ngl p { margin: 0 0 14px; line-height: 1.6; }
+
+/* ---- the signup band (top and bottom) ---- */
+.ngl-hero { background: var(--ac); color: #fff; }
+.ngl-hero-grid, .ngl-bottom-grid { display: grid; grid-template-columns: 1fr; gap: 26px; padding-top: 34px; padding-bottom: 38px; align-items: center; }
+.ngl-eyebrow { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: rgba(255, 255, 255, .78); margin: 0 0 14px; }
+.ngl-h1 { font-weight: 700; font-size: clamp(31px, 8.4vw, 54px); line-height: 1.06; letter-spacing: -.03em; margin: 0 0 14px; text-wrap: balance; }
+.ngl .ngl-hero .ngl-h1 { color: #fff !important; }   /* the theme sets every heading colour with !important */
+.ngl-lede { font-size: 17px; line-height: 1.55; color: rgba(255, 255, 255, .92); margin: 0; max-width: 34em; }
+.ngl-card { background: #fff; color: #22293a; padding: 22px 20px 20px; box-shadow: 0 10px 28px rgba(14, 25, 45, .28); border-top: 6px solid #d0202c; }
+.ngl-kicker { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--mu); margin: 0 0 12px; }
+.ngl-card .ngl-kicker { color: #22293a; font-weight: 500; }
+
+.ngl .ngl-fields { display: flex; flex-direction: column; gap: 12px; }
+.ngl .ngl-input { display: block; width: 100%; height: 58px; padding: 0 16px; font: 400 18px/1.2 'IBM Plex Sans', system-ui, sans-serif; color: #22293a; background: #fff; border: 2px solid #22293a; border-radius: 0; margin: 0; -webkit-appearance: none; appearance: none; box-shadow: none; }
+.ngl .ngl-input::placeholder { color: #6e7280; opacity: 1; }
+.ngl .ngl-input:focus { outline: 3px solid rgba(47, 83, 121, .45); outline-offset: 2px; }
+.ngl .ngl-btn { display: block; width: 100%; min-height: 62px; padding: 16px 20px; margin: 0; border: 0; border-radius: 0; background: #d0202c; color: #fff; font: 700 clamp(16px, 4.5vw, 19px)/1.2 'IBM Plex Sans', system-ui, sans-serif; letter-spacing: .005em; cursor: pointer; text-align: center; transition: background .12s; }
+.ngl .ngl-btn:hover { background: #ae1a24; }
+.ngl .ngl-btn:focus-visible { outline: 3px solid #22293a; outline-offset: 3px; }
+.ngl .ngl-arrow { display: inline-block; margin-left: 4px; font-weight: 400; }
+.ngl .ngl-btn:hover .ngl-arrow { transform: translateX(3px); }
+.ngl .ngl-fine { font-size: 13.5px; line-height: 1.5; color: var(--mu); margin: 12px 0 0; }
+.ngl .ngl-fine a { text-decoration: underline; }
+.ngl .ngl-first { margin: 12px 0 0; font-size: 14.5px; }
+.ngl .ngl-first a { color: var(--ac); text-decoration: underline; text-underline-offset: 3px; }
+.ngl .ngl-errors { list-style: none; margin: 0 0 10px; padding: 0; color: #b3361f; font-size: 14px; }
+.ngl .ngl-errors:empty { display: none; }
+.ngl .ngl-ok { border-left: 5px solid #2f7a52; background: #eef5f0; padding: 14px 16px; font-size: 15.5px; line-height: 1.5; }
+.ngl .ngl-ok[hidden] { display: none; }
+.ngl .ngl-ok strong { display: block; font-size: 20px; margin-bottom: 4px; }
+.ngl .ngl-form:has(.ngl-ok:not([hidden])) .ngl-fields,
+.ngl .ngl-form:has(.ngl-ok:not([hidden])) + .ngl-fine { display: none; }
+
+/* ---- the rest of the page ---- */
+.ngl-sect { padding: 44px 0; }
+.ngl-sect-alt { background: var(--hbg); border-top: 1px solid var(--bd); border-bottom: 1px solid var(--bd); }
+.ngl-h2 { font-weight: 700; font-size: 26px; letter-spacing: -.02em; line-height: 1.15; margin: 0 0 20px; }
+
+.ngl-listen { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: center; }
+.ngl-art { position: relative; display: block; aspect-ratio: 1200 / 630; overflow: hidden; border: 1px solid var(--bd); background: var(--th); }
+.ngl-meta { font-size: 11px; letter-spacing: .06em; color: var(--mu); margin: 0 0 8px; }
+.ngl-ep-title { font-weight: 700; font-size: 24px; line-height: 1.18; letter-spacing: -.015em; margin: 0 0 18px; }
+.ngl .ngl-btn-2 { display: inline-block; padding: 12px 22px; border: 2px solid var(--ac); color: var(--ac); font-weight: 700; font-size: 16px; background: transparent; }
+.ngl .ngl-btn-2:hover { background: var(--ac); color: #fff; opacity: 1; }
+.ngl .ngl-note { font-size: 13.5px; color: var(--mu); margin: 0; }
+
+.ngl-three { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.ngl-box { background: #f6f0e6; border: 1px solid var(--bd); padding: 20px 20px 8px; }
+.ngl-box h3 { font-weight: 700; font-size: 19px; margin: 0 0 8px; }
+.ngl-box p { color: var(--mu); font-size: 15.5px; }
+.ngl-recent { margin-top: 26px; }
+.ngl-recent ul { list-style: none; margin: 0; padding: 0; }
+.ngl-recent li { padding: 9px 0 9px 14px; border-left: 3px solid var(--bd); margin: 0 0 8px; font-size: 16px; line-height: 1.4; }
+
+.ngl-who { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; }
+.ngl-who-photo img, .ngl-who-photo .ng-anchor-ph { display: block; }
+.ngl-who-text { flex: 1 1 320px; min-width: 0; }
+.ngl-who-text .ngl-h2 { margin-bottom: 10px; }
+.ngl-name { color: var(--mu); margin-bottom: 8px; }
+.ngl-sponsor { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 20px; font-size: 14.5px; color: var(--mu); }
+.ngl-sponsor a { text-decoration: underline; }
+
+.ngl-why { max-width: 720px; border-left: 4px solid var(--ac); padding-left: 20px; }
+.ngl-why h2 { font-weight: 700; font-size: 18px; margin: 0 0 8px; }
+.ngl-why p { color: var(--mu); font-size: 15.5px; margin: 0; }
+.ngl-why a { text-decoration: underline; }
+
+.ngl-bottom-h { margin: 0; }
+.ngl-apps { padding-top: 34px; padding-bottom: 40px; }
+.ngl-apps-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ---- phone signup bar ---- */
+.ngl-bar { display: none; }
+@media (max-width: 760px) {
+	.ngl-bar.is-on { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--ac); color: #fff; box-shadow: 0 -6px 18px rgba(14, 25, 45, .25); }
+	.ngl-bar-text { font-weight: 600; font-size: 15px; line-height: 1.25; }
+	.ngl-bar-btn { flex: none; border: 0; border-radius: 0; background: #d0202c; color: #fff; font: 700 16px/1 'IBM Plex Sans', system-ui, sans-serif; padding: 13px 18px; cursor: pointer; }
+}
+
+/* ---- wider screens ---- */
+@media (min-width: 761px) {
+	.ngl-wrap { padding: 0 32px; }
+	.ngl-three { grid-template-columns: repeat(3, 1fr); gap: 18px; }
+	.ngl-listen { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 36px; }
+	.ngl-sect { padding: 60px 0; }
+	.ngl-ep-title { font-size: 30px; }
+}
+@media (min-width: 900px) {
+	.ngl-hero-grid, .ngl-bottom-grid { grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: 64px; padding-top: 76px; padding-bottom: 80px; }
+	.ngl-bottom-grid { padding-top: 56px; padding-bottom: 60px; }
+	.ngl-lede { font-size: 19px; }
+	.ngl-card { padding: 30px 30px 26px; }
+}
