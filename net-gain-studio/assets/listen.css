@@ -92,11 +92,15 @@ body.ng-listen-page #ast-scroll-top { display: none !important; }   /* the one f
 
 /* ---- wider screens ---- */
 @media (min-width: 761px) {
-	.ngl-wrap { padding: 0 32px; }
+	.ngl-wrap { padding-left: 32px; padding-right: 32px; }   /* sides only: the signup bands set their own top and bottom */
+	.ngl-hero-grid, .ngl-bottom-grid { padding-top: 52px; padding-bottom: 56px; }
 	.ngl-three { grid-template-columns: repeat(3, 1fr); gap: 18px; }
 	.ngl-listen { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 36px; }
 	.ngl-sect { padding: 60px 0; }
 	.ngl-ep-title { font-size: 30px; }
+}
+@media (min-width: 761px) and (max-width: 899px) {
+	.ngl-card { max-width: 640px; }   /* stacked on a tablet: keep the signup box from stretching edge to edge */
 }
 @media (min-width: 900px) {
 	.ngl-hero-grid, .ngl-bottom-grid { grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: 64px; padding-top: 76px; padding-bottom: 80px; }
