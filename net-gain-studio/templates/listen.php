@@ -69,6 +69,10 @@ get_header();
 					<div class="ngl-listen-text">
 						<p class="ngl-meta mono"><?php echo esc_html( get_the_date( 'F j, Y', $ngl_latest ) ); ?></p>
 						<h3 class="arch ngl-ep-title"><?php echo esc_html( Net_Gain_Listen_Page::k12( get_the_title( $ngl_latest ) ) ); ?></h3>
+						<?php $ngl_summary = trim( wp_strip_all_tags( get_the_excerpt( $ngl_latest ) ) ); ?>
+						<?php if ( '' !== $ngl_summary ) : ?>
+							<p class="ngl-summary"><?php echo esc_html( Net_Gain_Listen_Page::k12( $ngl_summary ) ); ?></p>
+						<?php endif; ?>
 						<?php if ( $ngl_player ) : ?>
 							<?php /* Same player and crop as the episode page: the iframe is pulled up inside a clipping wrapper to hide Captivate's own title row. */ ?>
 							<div class="ngl-player">
