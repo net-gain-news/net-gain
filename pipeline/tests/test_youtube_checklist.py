@@ -74,6 +74,16 @@ class TitleKeywordWordMatchTests(unittest.TestCase):
         failures = self._failures("Spokanes of the world", tags=["Spokane Public Schools"])
         self.assertTrue(any("keyword" in f.lower() for f in failures))
 
+    def test_a_title_word_that_is_the_stem_of_a_tag_word_counts(self):
+        # 2026-10-29: the real title and tags that were rejected.
+        tags = ["K-12 cybersecurity", "phishing", "credential theft", "MS-ISAC", "E-Rate", "student data privacy"]
+        self.assertEqual(self._failures("Hackers Use One Hijacked District Login to Phish Other Schools", tags=tags), [])
+
+    def test_a_stem_must_be_five_letters_and_the_ending_short(self):
+        tags = ["phishing", "one", "two", "three", "four"]
+        self.assertTrue(any("keyword" in f.lower() for f in self._failures("Phi report today", tags=tags)))
+        self.assertTrue(any("keyword" in f.lower() for f in self._failures("Crede report today", tags=["credentialing system", "one", "two", "three", "four"])))
+
     def test_title_with_the_non_breaking_k12_hyphen_matches_a_plain_hyphen_tag(self):
         self.assertEqual(self._failures("Why K\u201112 leaders worry", tags=["K-12 AI policy", "one", "two", "three", "four"]), [])
 

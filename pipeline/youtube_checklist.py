@@ -105,6 +105,22 @@ def _title_contains_keyword(title, tags, show_name):
                 if re.search(r"(?<![a-z0-9])" + re.escape(word) + r"(?![a-z0-9])", title_lower):
                     return True
 
+    # A title often uses the stem of a tag's word ("Phish" for the tag "phishing"). Counts when a title word is at least five
+    # letters and one tag word is that word plus a short ending (up to four letters). One way only: a title word LONGER than
+    # the tag word ("Spokanes" against "Spokane") still does not count. Added 2026-10-29 after "Hackers Use One Hijacked
+    # District Login to Phish Other Schools" was rejected against the tag "phishing".
+    title_words = [
+        w for w in re.findall(r"[a-z0-9][a-z0-9'\-]*", title_lower)
+        if len(w) >= 5 and w not in _STOPWORDS and w not in _GENERIC_TAG_WORDS
+    ]
+    for tag in tags or []:
+        for word in re.findall(r"[a-z0-9][a-z0-9'\-]*", machine_safe(str(tag or "")).lower()):
+            if word in _STOPWORDS or word in _GENERIC_TAG_WORDS:
+                continue
+            for stem in title_words:
+                if len(word) > len(stem) and len(word) - len(stem) <= 4 and word.startswith(stem):
+                    return True
+
     for word in (show_name or "").split():
         word = word.strip().lower().strip(",.:;!?'\"")
         if len(word) > 2 and word not in _STOPWORDS and word in title_lower:
