@@ -35,11 +35,9 @@ body.ng-listen-page #ast-scroll-top { display: none !important; }   /* the one f
 .ngl .ngl-first a { color: var(--ac); text-decoration: underline; text-underline-offset: 3px; }
 .ngl .ngl-errors { list-style: none; margin: 0 0 10px; padding: 0; color: #b3361f; font-size: 14px; }
 .ngl .ngl-errors:empty { display: none; }
-.ngl .ngl-ok { border-left: 5px solid #2f7a52; background: #eef5f0; padding: 14px 16px; font-size: 15.5px; line-height: 1.5; }
-.ngl .ngl-ok[hidden] { display: none; }
+.ngl .ngl-ok { border-left: 5px solid #2f7a52; background: #eef5f0; color: #22293a; padding: 14px 16px; font-size: 15.5px; line-height: 1.5; }
 .ngl .ngl-ok strong { display: block; font-size: 20px; margin-bottom: 4px; }
-.ngl .ngl-form:has(.ngl-ok:not([hidden])) .ngl-fields,
-.ngl .ngl-form:has(.ngl-ok:not([hidden])) + .ngl-fine { display: none; }
+.ngl .ngl-form:has(.ngl-ok) + .ngl-fine { display: none; }
 
 /* ---- the rest of the page ---- */
 .ngl-sect { padding: 44px 0; }

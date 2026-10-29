@@ -439,14 +439,13 @@ class Net_Gain_Listen_Page {
 		$id = 'ngl-email-' . sanitize_key( $which );
 		ob_start();
 		?>
-		<form class="ngl-form" action="https://app.kit.com/forms/<?php echo esc_attr( self::KIT_FORM ); ?>/subscriptions" method="post" data-sv-form="<?php echo esc_attr( self::KIT_FORM ); ?>" data-uid="<?php echo esc_attr( self::KIT_UID ); ?>" data-format="inline" data-version="5" data-ngl-form="<?php echo esc_attr( $which ); ?>">
+		<form class="ngl-form" action="https://app.kit.com/forms/<?php echo esc_attr( self::KIT_FORM ); ?>/subscriptions" method="post" data-sv-form="<?php echo esc_attr( self::KIT_FORM ); ?>" data-uid="<?php echo esc_attr( self::KIT_UID ); ?>" data-format="inline" data-version="5" data-ngl-form="<?php echo esc_attr( $which ); ?>" data-ngl-ok-title="<?php echo esc_attr( self::k12( $copy['ok_title'] ) ); ?>" data-ngl-ok-text="<?php echo esc_attr( self::k12( $copy['ok_text'] ) ); ?>">
 			<ul data-element="errors" data-group="alert" class="ngl-errors"></ul>
 			<div data-element="fields" class="ngl-fields">
 				<label class="ngl-sr" for="<?php echo esc_attr( $id ); ?>">Email address</label>
 				<input id="<?php echo esc_attr( $id ); ?>" class="ngl-input" type="email" name="email_address" placeholder="<?php echo esc_attr( self::k12( $copy['placeholder'] ) ); ?>" required autocomplete="email" inputmode="email">
 				<button type="submit" class="ngl-btn"><span><?php echo self::text( $copy, 'button' ); ?></span> <span class="ngl-arrow" aria-hidden="true">&rarr;</span></button>
 			</div>
-			<div data-element="success" data-group="alert" class="ngl-ok" hidden><strong class="arch"><?php echo self::text( $copy, 'ok_title' ); ?></strong><span><?php echo self::text( $copy, 'ok_text' ); ?></span></div>
 		</form>
 		<p class="ngl-fine"><?php echo self::rich( $copy, 'fine' ); ?></p>
 		<?php
