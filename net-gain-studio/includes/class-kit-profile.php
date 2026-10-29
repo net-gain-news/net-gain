@@ -145,7 +145,6 @@ class Net_Gain_Kit_Profile {
 		return 200 === $code || 202 === $code;
 	}
 
-	/** At most this many requests per address and per visitor each hour. */
 	private static function throttled( $email ) {
 		$ip   = isset( $_SERVER['REMOTE_ADDR'] ) ? (string) $_SERVER['REMOTE_ADDR'] : '';
 		$keys = array( 'ng_kp_e_' . md5( $email ) => 6, 'ng_kp_i_' . md5( $ip ) => 20 );
