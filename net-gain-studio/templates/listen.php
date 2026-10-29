@@ -63,9 +63,12 @@ get_header();
 				<h2 class="arch ngl-h2"><?php echo $ngl_t( 'listen_heading' ); ?></h2>
 				<div class="ngl-listen">
 					<div class="ngl-art">
-						<span class="ng-badge-latest">&#9679; Latest</span>
 						<?php echo function_exists( 'ng_episode_thumb_img' ) ? ng_episode_thumb_img( $ngl_latest->ID ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?>
-						<?php echo function_exists( 'ng_picture_overlay_html' ) && function_exists( 'ng_episode_length_label' ) ? ng_picture_overlay_html( ng_episode_length_label( $ngl_latest->ID ) ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?>
+						<?php /* Only the length tag is drawn over the picture, not the play disc: the graphic is deliberately not a click target (the player below is). */ ?>
+						<?php $ngl_len = function_exists( 'ng_episode_length_label' ) ? ng_episode_length_label( $ngl_latest->ID ) : ''; ?>
+						<?php if ( '' !== $ngl_len ) : ?>
+							<span class="ng-len" aria-label="Length <?php echo esc_attr( $ngl_len ); ?>"><?php echo esc_html( $ngl_len ); ?></span>
+						<?php endif; ?>
 					</div>
 					<div class="ngl-listen-text">
 						<p class="ngl-meta mono"><span class="ngl-chip">Latest</span><span><?php echo esc_html( get_the_date( 'F j, Y', $ngl_latest ) ); ?></span></p>
@@ -122,7 +125,7 @@ get_header();
 				<?php endif; ?>
 				<p><?php echo $ngl_r( 'who_text' ); ?></p>
 				<?php if ( '' !== trim( $ngl_copy['sponsor'] ) ) : ?>
-					<p class="ngl-sponsor"><?php echo function_exists( 'ng_edsby_logo_img' ) ? ng_edsby_logo_img() : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?><span><?php echo $ngl_r( 'sponsor' ); ?></span></p>
+					<p class="ngl-sponsor"><a class="ngl-sponsor-logo" href="https://www.edsby.com/" target="_blank" rel="sponsored noopener" aria-label="Edsby"><?php echo function_exists( 'ng_edsby_logo_img' ) ? ng_edsby_logo_img() : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?></a><span><?php echo $ngl_r( 'sponsor' ); ?></span></p>
 				<?php endif; ?>
 			</div>
 		</div>
