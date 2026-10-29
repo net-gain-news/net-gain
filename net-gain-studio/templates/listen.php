@@ -23,11 +23,11 @@ $ngl_show_pid = ( $ngl_show && function_exists( 'ng_show_id' ) ) ? (int) ng_show
 $ngl_cap_id   = $ngl_show_pid ? (string) get_post_meta( $ngl_show_pid, 'ng_captivate_show_id', true ) : '';
 $ngl_player   = ( $ngl_latest && $ngl_cap_id && function_exists( 'ng_episode_captivate_embed_url' ) ) ? ng_episode_captivate_embed_url( $ngl_latest->ID, $ngl_cap_id ) : '';
 $ngl_anchor  = ( $ngl_show && function_exists( 'ng_show_primary_anchor' ) ) ? ng_show_primary_anchor( $ngl_show ) : null;
-$ngl_apps    = array(
-	'Apple Podcasts' => 'https://podcasts.apple.com/us/podcast/net-gain-edtech/id6821241606',
-	'Spotify'        => 'https://open.spotify.com/show/4gtuU4Ox1mwAKuVINfXDjT',
-	'Other apps'     => 'https://net-gain-edtech.captivate.fm/listen',
-	'RSS'            => 'https://feeds.captivate.fm/netgain-edtech/',
+$ngl_apps    = array(   // field holding the link's name => where it goes
+	'app_apple'   => 'https://podcasts.apple.com/us/podcast/net-gain-edtech/id6821241606',
+	'app_spotify' => 'https://open.spotify.com/show/4gtuU4Ox1mwAKuVINfXDjT',
+	'app_other'   => 'https://net-gain-edtech.captivate.fm/listen',
+	'app_rss'     => 'https://feeds.captivate.fm/netgain-edtech/',
 );
 
 get_header();
@@ -63,11 +63,12 @@ get_header();
 				<h2 class="arch ngl-h2"><?php echo $ngl_t( 'listen_heading' ); ?></h2>
 				<div class="ngl-listen">
 					<div class="ngl-art">
+						<span class="ng-badge-latest">&#9679; Latest</span>
 						<?php echo function_exists( 'ng_episode_thumb_img' ) ? ng_episode_thumb_img( $ngl_latest->ID ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?>
 						<?php echo function_exists( 'ng_picture_overlay_html' ) && function_exists( 'ng_episode_length_label' ) ? ng_picture_overlay_html( ng_episode_length_label( $ngl_latest->ID ) ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?>
 					</div>
 					<div class="ngl-listen-text">
-						<p class="ngl-meta mono"><?php echo esc_html( get_the_date( 'F j, Y', $ngl_latest ) ); ?></p>
+						<p class="ngl-meta mono"><span class="ngl-chip">Latest</span><span><?php echo esc_html( get_the_date( 'F j, Y', $ngl_latest ) ); ?></span></p>
 						<h3 class="arch ngl-ep-title"><?php echo esc_html( Net_Gain_Listen_Page::k12( get_the_title( $ngl_latest ) ) ); ?></h3>
 						<?php $ngl_summary = trim( wp_strip_all_tags( get_the_excerpt( $ngl_latest ) ) ); ?>
 						<?php if ( '' !== $ngl_summary ) : ?>
@@ -152,8 +153,8 @@ get_header();
 			<div class="ngl-wrap">
 				<p class="mono ngl-kicker"><?php echo $ngl_t( 'apps_heading' ); ?></p>
 				<div class="ngl-apps-row">
-					<?php foreach ( $ngl_apps as $ngl_label => $ngl_url ) : ?>
-						<a href="<?php echo esc_url( $ngl_url ); ?>" target="_blank" rel="noopener" class="mono ng-platform-link"><?php echo esc_html( $ngl_label ); ?></a>
+					<?php foreach ( $ngl_apps as $ngl_key => $ngl_url ) : ?>
+						<a href="<?php echo esc_url( $ngl_url ); ?>" target="_blank" rel="noopener" class="mono ng-platform-link"><?php echo $ngl_t( $ngl_key ); ?></a>
 					<?php endforeach; ?>
 				</div>
 			</div>

@@ -89,7 +89,11 @@ class Net_Gain_Listen_Page {
 				'intro'  => 'A second signup box at the end of the page for visitors who read all the way down. It uses the same email box, button wording and small print as the top.',
 				'fields' => array(
 					'bottom_heading' => array( 'Heading above the second signup box', 'text', 'default', 'Get tomorrow’s briefing in your inbox.', 'Empty restores the standard wording.' ),
-					'apps_heading'   => array( 'Heading above the podcast-app links', 'text', 'hide', 'Prefer a podcast app?', 'The Apple Podcasts, Spotify, other-apps and RSS links appear under this heading. Empty hides the links.' ),
+					'apps_heading'   => array( 'Heading above the podcast-app links', 'text', 'hide', 'Prefer a podcast app?', 'The four podcast-app links below appear under this heading. Empty hides all four.' ),
+					'app_apple'      => array( 'Podcast link 1: name', 'text', 'default', 'Apple Podcasts', 'The words on the first podcast-app link, which goes to the show on Apple Podcasts. Only the name is edited here; the address is fixed. Empty restores the standard wording.' ),
+					'app_spotify'    => array( 'Podcast link 2: name', 'text', 'default', 'Spotify', 'The words on the second link, which goes to the show on Spotify. Empty restores the standard wording.' ),
+					'app_other'      => array( 'Podcast link 3: name', 'text', 'default', 'Other apps', 'The words on the third link, which goes to Captivate’s page listing every other podcast app. Empty restores the standard wording.' ),
+					'app_rss'        => array( 'Podcast link 4: name', 'text', 'default', 'RSS', 'The words on the fourth link, which goes to the show’s podcast feed for apps that take a feed address. Empty restores the standard wording.' ),
 				),
 			),
 			'phone'    => array(
