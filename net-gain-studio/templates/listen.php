@@ -19,6 +19,9 @@ $ngl_r       = function ( $key ) use ( $ngl_copy ) {
 $ngl_show    = function_exists( 'ng_current_show_slug' ) ? (string) ng_current_show_slug() : '';
 $ngl_eps     = Net_Gain_Listen_Page::recent_episodes( $ngl_show, 4 );
 $ngl_latest  = $ngl_eps ? $ngl_eps[0] : null;
+$ngl_show_pid = ( $ngl_show && function_exists( 'ng_show_id' ) ) ? (int) ng_show_id( $ngl_show ) : 0;
+$ngl_cap_id   = $ngl_show_pid ? (string) get_post_meta( $ngl_show_pid, 'ng_captivate_show_id', true ) : '';
+$ngl_player   = ( $ngl_latest && $ngl_cap_id && function_exists( 'ng_episode_captivate_embed_url' ) ) ? ng_episode_captivate_embed_url( $ngl_latest->ID, $ngl_cap_id ) : '';
 $ngl_anchor  = ( $ngl_show && function_exists( 'ng_show_primary_anchor' ) ) ? ng_show_primary_anchor( $ngl_show ) : null;
 $ngl_apps    = array(
 	'Apple Podcasts' => 'https://podcasts.apple.com/us/podcast/net-gain-edtech/id6821241606',
@@ -59,16 +62,18 @@ get_header();
 			<div class="ngl-wrap">
 				<h2 class="arch ngl-h2"><?php echo $ngl_t( 'listen_heading' ); ?></h2>
 				<div class="ngl-listen">
-					<a class="ngl-art" href="<?php echo esc_url( get_permalink( $ngl_latest ) . '?autoplay=1' ); ?>">
+					<div class="ngl-art">
 						<?php echo function_exists( 'ng_episode_thumb_img' ) ? ng_episode_thumb_img( $ngl_latest->ID ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?>
 						<?php echo function_exists( 'ng_picture_overlay_html' ) && function_exists( 'ng_episode_length_label' ) ? ng_picture_overlay_html( ng_episode_length_label( $ngl_latest->ID ) ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?>
-					</a>
+					</div>
 					<div class="ngl-listen-text">
 						<p class="ngl-meta mono"><?php echo esc_html( get_the_date( 'F j, Y', $ngl_latest ) ); ?></p>
 						<h3 class="arch ngl-ep-title"><?php echo esc_html( Net_Gain_Listen_Page::k12( get_the_title( $ngl_latest ) ) ); ?></h3>
-						<p><a class="ngl-btn-2" href="<?php echo esc_url( get_permalink( $ngl_latest ) . '?autoplay=1' ); ?>"><span aria-hidden="true">&#9658;</span> <?php echo $ngl_t( 'listen_button' ); ?></a></p>
-						<?php if ( '' !== trim( $ngl_copy['listen_note'] ) ) : ?>
-							<p class="ngl-note"><?php echo $ngl_t( 'listen_note' ); ?></p>
+						<?php if ( $ngl_player ) : ?>
+							<?php /* Same player and crop as the episode page: the iframe is pulled up inside a clipping wrapper to hide Captivate's own title row. */ ?>
+							<div class="ngl-player">
+								<iframe src="<?php echo esc_url( $ngl_player ); ?>" title="Episode player" frameborder="no" scrolling="no" allow="clipboard-write" seamless loading="lazy"></iframe>
+							</div>
 						<?php endif; ?>
 					</div>
 				</div>

@@ -48,11 +48,9 @@ class Net_Gain_Listen_Page {
 			),
 			'listen'   => array(
 				'title'  => 'Hear today’s episode first',
-				'intro'  => 'A box that plays the newest episode before the visitor signs up. The headline, picture, date and length are pulled in automatically, so this box is never out of date. If the show has no published episode yet, the whole section disappears.',
+				'intro'  => 'The newest episode with its Captivate player, so a visitor can hear it before signing up. The headline, picture, date, length and player are pulled in automatically, so this section is never out of date. The picture is not clickable; the player is what plays. If the show has no published episode yet, the whole section disappears.',
 				'fields' => array(
 					'listen_heading' => array( 'Section heading', 'text', 'default', 'Hear today’s episode first', 'The heading above the episode box. Empty restores the standard wording.' ),
-					'listen_button'  => array( 'Play button', 'text', 'default', 'Listen now', 'The words on the outlined button. A play symbol is added automatically. The button opens the episode page and starts playing. Empty restores the standard wording.' ),
-					'listen_note'    => array( 'Note under the play button', 'text', 'hide', 'Opens the episode page. No app or account needed.', 'A short reassurance under the button. Empty hides it.' ),
 				),
 			),
 			'benefits' => array(
