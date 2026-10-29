@@ -43,7 +43,7 @@ class Net_Gain_Listen_Page {
 					'fine'         => array( 'Small print under the button', 'rich', 'default', 'One email per business day. Unsubscribe any time. We never sell your address.', 'Promises about the email, shown directly under the button. Only state what is true of the Kit list. Empty restores the standard wording.' ),
 					'listen_first' => array( 'Link that jumps down to the sample episode', 'text', 'hide', 'Or hear today’s episode first', 'A quiet text link under the signup box that scrolls to the "hear today’s episode" section. A down arrow is added automatically. Empty hides the link.' ),
 					'ok_title'     => array( 'After signing up: heading', 'text', 'default', 'You’re on the list', 'Replaces the email box once the visitor has signed up. Empty restores the standard wording.' ),
-					'ok_text'      => array( 'After signing up: message', 'text', 'default', 'Check your inbox for a confirmation email from Net Gain Edtech. Tomorrow’s briefing arrives on its own.', 'Shown under that heading. The confirmation email comes from Kit, so keep this consistent with what Kit sends. Empty restores the standard wording.' ),
+					'ok_text'      => array( 'After signing up: message', 'text', 'default', 'Tomorrow’s briefing arrives in your inbox on its own.', 'Shown under that heading. The list does not send a confirmation email (Kit’s confirmation email is switched off for the daily form), so do not tell people to confirm anything. If that is ever turned back on, say so here. Empty restores the standard wording.' ),
 				),
 			),
 			'listen'   => array(
