@@ -49,6 +49,7 @@ class Net_Gain_Listen_Page {
 				'intro'  => 'The newest episode with its Captivate player, so a visitor can hear it before signing up. The headline, one-sentence summary, picture, date, length and player are pulled in automatically, so this section is never out of date. The picture is not clickable; the player is what plays. If the show has no published episode yet, the whole section disappears.',
 				'fields' => array(
 					'listen_heading' => array( 'Section heading', 'text', 'default', 'Hear today’s episode first', 'The heading above the episode box. Empty restores the standard wording.' ),
+					'sponsor'        => array( 'Sponsor line', 'rich', 'hide', 'Brought to you by the <a href="https://www.edsby.com/" target="_blank" rel="sponsored noopener">Edsby</a> student success platform for K-12.', 'Shown with the Edsby logo under the episode player. Empty hides the line and the logo.' ),
 				),
 			),
 			'benefits' => array(
@@ -67,11 +68,10 @@ class Net_Gain_Listen_Page {
 			),
 			'who'      => array(
 				'title'  => 'Who makes it',
-				'intro'  => 'The anchor’s photo, name and credential line come from the anchor’s profile (Users, then the anchor’s profile page), so change those there. The paragraph and the sponsor line are edited here.',
+				'intro'  => 'The anchor’s photo, name and credential line come from the anchor’s profile (Users, then the anchor’s profile page), so change those there. The paragraph is edited here.',
 				'fields' => array(
 					'who_heading' => array( 'Section heading', 'text', 'default', 'Who makes it', 'Empty restores the standard wording.' ),
 					'who_text'    => array( 'Paragraph about the anchor', 'rich', 'default', 'Net Gain Edtech is written and anchored by Dallas Kachan. Early in his career he wrote and anchored hourly national newscasts for the Canadian Press news service. He is also Edsby’s vice president of marketing.', 'Two or three sentences. The last sentence discloses the Edsby connection; keep some form of that, because the page exists because of an Edsby invitation. Links are allowed. Empty restores the standard wording.' ),
-					'sponsor'     => array( 'Sponsor line', 'rich', 'hide', 'Brought to you by the <a href="https://www.edsby.com/" target="_blank" rel="sponsored noopener">Edsby</a> student success platform for K-12.', 'Shown with the Edsby logo under the paragraph. Empty hides the line and the logo.' ),
 				),
 			),
 			'why'      => array(

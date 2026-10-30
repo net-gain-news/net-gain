@@ -67,6 +67,7 @@ body.ng-listen-page #ast-scroll-top { display: none !important; }   /* the one f
 .ngl-name { color: var(--mu); margin-bottom: 8px; }
 .ngl-sponsor { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 20px; font-size: 14.5px; color: var(--mu); }
 .ngl-sponsor a { text-decoration: underline; }
+.ngl-listen-text .ngl-sponsor { margin-top: 30px; color: var(--fg); }
 
 .ngl-why { max-width: 720px; border-left: 4px solid var(--ac); padding-left: 20px; }
 .ngl-why h2 { font-weight: 700; font-size: 18px; margin: 0 0 8px; }

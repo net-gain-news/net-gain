@@ -83,6 +83,9 @@ get_header();
 								<iframe src="<?php echo esc_url( $ngl_player ); ?>" title="Episode player" frameborder="no" scrolling="no" allow="clipboard-write" seamless loading="lazy"></iframe>
 							</div>
 						<?php endif; ?>
+						<?php if ( '' !== trim( $ngl_copy['sponsor'] ) ) : ?>
+							<p class="ngl-sponsor"><a class="ngl-sponsor-logo" href="https://www.edsby.com/" target="_blank" rel="sponsored noopener" aria-label="Edsby"><?php echo function_exists( 'ng_edsby_logo_img' ) ? ng_edsby_logo_img() : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?></a><span><?php echo $ngl_r( 'sponsor' ); ?></span></p>
+						<?php endif; ?>
 					</div>
 				</div>
 			</div>
@@ -124,9 +127,6 @@ get_header();
 					<p class="ngl-name"><strong><?php echo esc_html( $ngl_anchor['name'] ); ?></strong><?php echo ! empty( $ngl_anchor['title'] ) ? ' &middot; ' . esc_html( $ngl_anchor['title'] ) : ''; ?></p>
 				<?php endif; ?>
 				<p><?php echo $ngl_r( 'who_text' ); ?></p>
-				<?php if ( '' !== trim( $ngl_copy['sponsor'] ) ) : ?>
-					<p class="ngl-sponsor"><a class="ngl-sponsor-logo" href="https://www.edsby.com/" target="_blank" rel="sponsored noopener" aria-label="Edsby"><?php echo function_exists( 'ng_edsby_logo_img' ) ? ng_edsby_logo_img() : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?></a><span><?php echo $ngl_r( 'sponsor' ); ?></span></p>
-				<?php endif; ?>
 			</div>
 		</div>
 	</section>
