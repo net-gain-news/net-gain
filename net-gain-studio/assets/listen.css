@@ -66,10 +66,11 @@ body.ng-listen-page #ast-scroll-top { display: none !important; }   /* the one f
 .ngl-who-text .ngl-h2 { margin-bottom: 10px; }
 .ngl-name { color: var(--mu); margin-bottom: 8px; }
 .ngl-sponsor { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin-top: 20px; font-size: 14.5px; color: var(--mu); }
+.ngl-sponsor > span { text-wrap: balance; }
 .ngl-sponsor-logo { display: block; margin-left: -6.4px; }
 .ngl-sponsor-logo span { -webkit-mask-position: left center !important; mask-position: left center !important; }
 .ngl-sponsor a { text-decoration: underline; }
-.ngl-listen-text .ngl-sponsor { margin-top: 30px; color: var(--fg); }
+.ngl-listen > .ngl-sponsor { margin-top: 0; padding-top: 16px; border-top: 1px solid var(--bd); color: var(--fg); }
 
 .ngl-why { max-width: 720px; border-left: 4px solid var(--ac); padding-left: 20px; }
 .ngl-why h2 { font-weight: 700; font-size: 18px; margin: 0 0 8px; }
@@ -93,7 +94,10 @@ body.ng-listen-page #ast-scroll-top { display: none !important; }   /* the one f
 	.ngl-wrap { padding-left: 32px; padding-right: 32px; }   /* sides only: the signup bands set their own top and bottom */
 	.ngl-hero-grid, .ngl-bottom-grid { padding-top: 52px; padding-bottom: 56px; }
 	.ngl-three { grid-template-columns: repeat(3, 1fr); gap: 18px; }
-	.ngl-listen { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 36px; }
+	.ngl-listen { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 20px 36px; }
+	.ngl-art { grid-column: 1; grid-row: 1; }
+	.ngl-listen-text { grid-column: 2; grid-row: 1 / span 2; }
+	.ngl-listen > .ngl-sponsor { grid-column: 1; grid-row: 2; }
 	.ngl-sect { padding: 60px 0; }
 	.ngl-ep-title { font-size: 30px; }
 }
