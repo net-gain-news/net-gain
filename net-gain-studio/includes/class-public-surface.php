@@ -14,6 +14,8 @@
  *     did); a bot can still guess one, and gets a 404.
  *  3. The podcast plugin's own archive (/podcast/, and its older /ssp-podcast-archive/ page) renders the newest episode
  *     under a second URL, so it is a duplicate; both 301 to the episode list instead of being left to search engines.
+ *     The plugin also answers every episode at /podcast/<slug>/ (its own, unprefixed URL) alongside the show URL
+ *     /<show>/<slug>/ that the site links to; the former 301s to the latter (2026-10-30, after Search Console listed both).
  *  4. Comments and pings are closed everywhere, always: the site has no use for them, an open comment form is a spam
  *     surface on every episode, and the pipeline creates new posts that would otherwise inherit WordPress's "open" default.
  *  5. The REST discovery pointers (the <link rel="https://api.w.org/"> tag and Link header) are dropped from public pages.
@@ -32,6 +34,7 @@ class Net_Gain_Public_Surface {
 
 	const PRIVATE_ROUTES   = '#^/wp/v2/(ng_episode|ng_show|ng_vertical|users)(/|$)#';
 	const DUPLICATE_ARCHIVE = '#^/?(podcast|ssp-podcast-archive)(/page/\d+)?/?$#';
+	const DUPLICATE_EPISODE = '#^/?podcast/[^/]+/?$#';
 
 	/** Show slug => the feed listeners add to their podcast apps. Filterable: net_gain_podcast_feeds. */
 	const PODCAST_FEEDS = array( 'edtech' => 'https://feeds.captivate.fm/netgain-edtech/' );
@@ -40,6 +43,7 @@ class Net_Gain_Public_Surface {
 		add_filter( 'rest_pre_dispatch', array( __CLASS__, 'guard_rest' ), 5, 3 );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_404_author' ), 1 );
 		add_action( 'template_redirect', array( __CLASS__, 'redirect_duplicate_archive' ), 0 );
+		add_action( 'template_redirect', array( __CLASS__, 'redirect_duplicate_episode' ), 1 );
 		add_filter( 'comments_open', '__return_false', 99 );
 		add_filter( 'pings_open', '__return_false', 99 );
 		add_filter( 'feed_links_show_comments_feed', '__return_false' );
@@ -139,6 +143,35 @@ class Net_Gain_Public_Surface {
 		}
 
 		wp_safe_redirect( $target, 301 );
+		exit;
+	}
+
+	/** Pure: is this request path an episode under the podcast plugin's own /podcast/<slug>/ URL? */
+	public static function is_duplicate_episode_path( $path ) {
+		return (bool) preg_match( self::DUPLICATE_EPISODE, (string) $path );
+	}
+
+	/** Pure: where /podcast/<slug>/ should go. An episode with no show has no other URL, so it stays put. */
+	public static function duplicate_episode_target( $request_path, $permalink ) {
+		if ( ! self::is_duplicate_episode_path( $request_path ) || ! $permalink ) {
+			return null;
+		}
+		return self::is_duplicate_episode_path( (string) wp_parse_url( $permalink, PHP_URL_PATH ) ) ? null : $permalink;
+	}
+
+	public static function redirect_duplicate_episode() {
+		if ( ! is_singular( 'podcast' ) ) {
+			return;
+		}
+
+		$uri    = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+		$target = self::duplicate_episode_target( (string) wp_parse_url( $uri, PHP_URL_PATH ), get_permalink() );
+		if ( ! $target ) {
+			return;
+		}
+
+		$query = (string) wp_parse_url( $uri, PHP_URL_QUERY );
+		wp_safe_redirect( '' === $query ? $target : $target . '?' . $query, 301 );
 		exit;
 	}
 

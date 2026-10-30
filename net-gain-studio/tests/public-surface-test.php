@@ -35,6 +35,19 @@ foreach ( array( '/edtech/episodes/', '/feed/podcast/', '/podcast-download/335/x
 	check( "not a duplicate archive path: $p", ! $S::is_duplicate_archive_path( $p ) );
 }
 
+function wp_parse_url( $url, $component = -1 ) { return parse_url( $url, $component ); }
+foreach ( array( '/podcast/frederick-county-bans/', '/podcast/frederick-county-bans', 'podcast/x/' ) as $p ) {
+	check( "duplicate episode path: $p", $S::is_duplicate_episode_path( $p ) );
+}
+foreach ( array( '/podcast/', '/podcast', '/edtech/frederick-county-bans/', '/podcast/a/b/', '/podcast-download/335/x', '/podcasts/x/', '/' ) as $p ) {
+	check( "not a duplicate episode path: $p", ! $S::is_duplicate_episode_path( $p ) );
+}
+$permalink = 'https://netgain.news/edtech/frederick-county-bans/';
+check( 'a duplicate episode URL goes to the show URL', $permalink === $S::duplicate_episode_target( '/podcast/frederick-county-bans/', $permalink ) );
+check( 'the show URL itself stays put', null === $S::duplicate_episode_target( '/edtech/frederick-county-bans/', $permalink ) );
+check( 'an episode whose permalink is also /podcast/ stays put (no loop)', null === $S::duplicate_episode_target( '/podcast/x/', 'https://netgain.news/podcast/x/' ) );
+check( 'an empty permalink stays put', null === $S::duplicate_episode_target( '/podcast/x/', '' ) );
+
 $feeds = array( 'edtech' => 'https://feeds.captivate.fm/netgain-edtech/' );
 check( 'the edtech slug maps to its Captivate feed', 'https://feeds.captivate.fm/netgain-edtech/' === $S::podcast_feed_target( 'edtech', $feeds ) );
 check( 'no slug maps to the only show', 'https://feeds.captivate.fm/netgain-edtech/' === $S::podcast_feed_target( '', $feeds ) );
