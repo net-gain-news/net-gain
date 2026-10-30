@@ -439,7 +439,7 @@ class Net_Gain_Listen_Page {
 		$id = 'ngl-email-' . sanitize_key( $which );
 		ob_start();
 		?>
-		<form class="ngl-form" action="https://app.kit.com/forms/<?php echo esc_attr( self::KIT_FORM ); ?>/subscriptions" method="post" data-sv-form="<?php echo esc_attr( self::KIT_FORM ); ?>" data-uid="<?php echo esc_attr( self::KIT_UID ); ?>" data-format="inline" data-version="5" data-ngl-form="<?php echo esc_attr( $which ); ?>" data-ngl-ok-title="<?php echo esc_attr( self::k12( $copy['ok_title'] ) ); ?>" data-ngl-ok-text="<?php echo esc_attr( self::k12( $copy['ok_text'] ) ); ?>">
+		<form class="ngl-form" action="https://app.kit.com/forms/<?php echo esc_attr( self::KIT_FORM ); ?>/subscriptions" method="post" data-sv-form="<?php echo esc_attr( self::KIT_FORM ); ?>" data-uid="<?php echo esc_attr( self::KIT_UID ); ?>" data-format="inline" data-version="5" data-options="<?php echo esc_attr( wp_json_encode( array( 'settings' => array( 'after_subscribe' => array( 'action' => 'redirect', 'success_message' => '', 'redirect_url' => home_url( '/edtech/welcome/' ) ) ) ) ) ); ?>" data-ngl-form="<?php echo esc_attr( $which ); ?>" data-ngl-ok-title="<?php echo esc_attr( self::k12( $copy['ok_title'] ) ); ?>" data-ngl-ok-text="<?php echo esc_attr( self::k12( $copy['ok_text'] ) ); ?>">
 			<ul data-element="errors" data-group="alert" class="ngl-errors"></ul>
 			<div data-element="fields" class="ngl-fields">
 				<label class="ngl-sr" for="<?php echo esc_attr( $id ); ?>">Email address</label>
