@@ -84,7 +84,7 @@ get_header();
 							</div>
 						<?php endif; ?>
 						<?php if ( '' !== trim( $ngl_copy['sponsor'] ) ) : ?>
-							<p class="ngl-sponsor"><a class="ngl-sponsor-logo" href="https://www.edsby.com/" target="_blank" rel="sponsored noopener" aria-label="Edsby"><?php echo function_exists( 'ng_edsby_logo_img' ) ? ng_edsby_logo_img() : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?></a><span><?php echo $ngl_r( 'sponsor' ); ?></span></p>
+							<p class="ngl-sponsor"><span><?php echo $ngl_r( 'sponsor' ); ?></span><a class="ngl-sponsor-logo" href="https://www.edsby.com/" target="_blank" rel="sponsored noopener" aria-label="Edsby"><?php echo function_exists( 'ng_edsby_logo_img' ) ? ng_edsby_logo_img() : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?></a></p>
 						<?php endif; ?>
 					</div>
 				</div>
