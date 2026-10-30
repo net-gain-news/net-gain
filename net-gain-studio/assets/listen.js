@@ -20,29 +20,6 @@
 		} );
 	} );
 
-	// Kit's own script swaps the fields for a message built from the setting in Kit ("Thank you for signing up." by default), so the
-	// page's wording is put in its place the moment that message appears.
-	document.querySelectorAll( '.ngl-form' ).forEach( function ( form ) {
-		var holder = form.parentNode;
-		var title = form.getAttribute( 'data-ngl-ok-title' ) || '';
-		var text = form.getAttribute( 'data-ngl-ok-text' ) || '';
-		if ( ! ( 'MutationObserver' in window ) || ( ! title && ! text ) ) return;
-		new MutationObserver( function () {
-			var ok = holder.querySelector( '[data-element="success"]' );
-			if ( ! ok || ok.getAttribute( 'data-ngl-done' ) ) return;
-			ok.setAttribute( 'data-ngl-done', '1' );
-			ok.className = 'ngl-ok';
-			ok.textContent = '';
-			var h = document.createElement( 'strong' );
-			h.className = 'arch';
-			h.textContent = title;
-			var p = document.createElement( 'span' );
-			p.textContent = text;
-			ok.appendChild( h );
-			ok.appendChild( p );
-		} ).observe( holder, { childList: true, subtree: true } );
-	} );
-
 	if ( ! bar || ! ( 'IntersectionObserver' in window ) ) return;
 
 	// The phone bar shows only while neither signup box (nor the footer) is on screen.

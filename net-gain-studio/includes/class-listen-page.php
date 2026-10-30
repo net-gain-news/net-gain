@@ -42,8 +42,6 @@ class Net_Gain_Listen_Page {
 					'button'       => array( 'Signup button', 'text', 'default', 'Send me the daily episode', 'The words on the big red button. An arrow is added after them automatically; do not type one. The same wording is used on the lower signup box. Empty restores the standard wording.' ),
 					'fine'         => array( 'Small print under the button', 'rich', 'default', 'One email per business day. Unsubscribe any time. We never sell your address.', 'Promises about the email, shown directly under the button. Only state what is true of the Kit list. Empty restores the standard wording.' ),
 					'listen_first' => array( 'Link that jumps down to the sample episode', 'text', 'hide', 'Or hear today’s episode first', 'A quiet text link under the signup box that scrolls to the "hear today’s episode" section. A down arrow is added automatically. Empty hides the link.' ),
-					'ok_title'     => array( 'After signing up: heading', 'text', 'default', 'You’re on the list', 'Replaces the email box once the visitor has signed up. Empty restores the standard wording.' ),
-					'ok_text'      => array( 'After signing up: message', 'text', 'default', 'Tomorrow’s briefing arrives in your inbox on its own.', 'Shown under that heading. The list does not send a confirmation email (Kit’s confirmation email is switched off for the daily form), so do not tell people to confirm anything. If that is ever turned back on, say so here. Empty restores the standard wording.' ),
 				),
 			),
 			'listen'   => array(
@@ -439,7 +437,7 @@ class Net_Gain_Listen_Page {
 		$id = 'ngl-email-' . sanitize_key( $which );
 		ob_start();
 		?>
-		<form class="ngl-form" action="https://app.kit.com/forms/<?php echo esc_attr( self::KIT_FORM ); ?>/subscriptions" method="post" data-sv-form="<?php echo esc_attr( self::KIT_FORM ); ?>" data-uid="<?php echo esc_attr( self::KIT_UID ); ?>" data-format="inline" data-version="5" data-options="<?php echo esc_attr( wp_json_encode( array( 'settings' => array( 'after_subscribe' => array( 'action' => 'redirect', 'success_message' => '', 'redirect_url' => home_url( '/edtech/welcome/' ) ) ) ) ) ); ?>" data-ngl-form="<?php echo esc_attr( $which ); ?>" data-ngl-ok-title="<?php echo esc_attr( self::k12( $copy['ok_title'] ) ); ?>" data-ngl-ok-text="<?php echo esc_attr( self::k12( $copy['ok_text'] ) ); ?>">
+		<form class="ngl-form" action="https://app.kit.com/forms/<?php echo esc_attr( self::KIT_FORM ); ?>/subscriptions" method="post" data-sv-form="<?php echo esc_attr( self::KIT_FORM ); ?>" data-uid="<?php echo esc_attr( self::KIT_UID ); ?>" data-format="inline" data-version="5" data-options="<?php echo esc_attr( wp_json_encode( array( 'settings' => array( 'after_subscribe' => array( 'action' => 'redirect', 'success_message' => '', 'redirect_url' => home_url( '/edtech/welcome/' ) ) ) ) ) ); ?>" data-ngl-form="<?php echo esc_attr( $which ); ?>">
 			<ul data-element="errors" data-group="alert" class="ngl-errors"></ul>
 			<div data-element="fields" class="ngl-fields">
 				<label class="ngl-sr" for="<?php echo esc_attr( $id ); ?>">Email address</label>
