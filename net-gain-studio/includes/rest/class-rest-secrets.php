@@ -142,6 +142,14 @@ class Net_Gain_REST_Secrets {
 			return $this->redirect_to_edit_show( $show_id, 'youtube_connect_failed' );
 		}
 
+		$expected = Net_Gain_YouTube_Channel_Guard::expected(
+			get_post_meta( $show_id, Net_Gain_YouTube_Channel_Guard::PIN_META, true ),
+			get_post_meta( $show_id, 'ng_youtube_channel_id', true )
+		);
+		if ( ! Net_Gain_YouTube_Channel_Guard::allows( $expected, $channel['id'] ) ) {
+			return $this->redirect_to_edit_show( $show_id, 'youtube_wrong_channel' );
+		}
+
 		$payload = array(
 			'refresh_token' => $refresh_token,
 			'scope'         => $token_response['scope'] ?? '',
@@ -151,6 +159,7 @@ class Net_Gain_REST_Secrets {
 		);
 		Net_Gain_Secrets::set( 'show', $show_id, self::SECRET_KEY, wp_json_encode( $payload ) );
 
+		update_post_meta( $show_id, Net_Gain_YouTube_Channel_Guard::PIN_META, $channel['id'] );
 		update_post_meta( $show_id, 'ng_youtube_channel_id', $channel['id'] );
 		update_post_meta( $show_id, 'ng_youtube_channel_title', $channel['title'] );
 		update_post_meta( $show_id, 'ng_youtube_phone_verified', $channel['long_uploads_status'] );

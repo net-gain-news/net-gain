@@ -472,11 +472,12 @@ class Net_Gain_Edit_Show_Page {
 				'captivate_connected'   => 'Captivate show ID saved.',
 				'youtube_connected'     => 'YouTube channel connected.',
 				'youtube_disconnected'  => 'YouTube channel disconnected.',
+				'youtube_wrong_channel' => 'That Google sign-in is a different YouTube channel from the one this show publishes to, so nothing was changed. Connect again and pick the show’s own channel in Google’s account picker (a brand channel appears as its own entry, not under your personal name). To move the show to another channel on purpose, ask the developer to unlock it.',
 				'youtube_connect_failed' => 'Could not connect the YouTube channel — Google rejected or did not complete the connection. Try again; if it keeps failing, this needs a human operator to check the GCP OAuth client configuration.',
 			);
 			$notice = sanitize_key( wp_unslash( $_GET['ng_notice'] ) );
 			if ( isset( $messages[ $notice ] ) ) {
-				$css_class = false !== strpos( $notice, 'failed' ) ? 'notice-error' : 'notice-success';
+				$css_class = false !== strpos( $notice, 'failed' ) || 'youtube_wrong_channel' === $notice ? 'notice-error' : 'notice-success';
 				printf( '<div class="notice %s is-dismissible"><p>%s</p></div>', esc_attr( $css_class ), esc_html( $messages[ $notice ] ) );
 			}
 		}

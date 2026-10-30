@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.9.26
+ * Version:           0.9.27
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -27,7 +27,7 @@ if ( ! isset( $_SERVER['HTTP_AUTHORIZATION'] ) && isset( $_SERVER['REDIRECT_HTTP
 	$_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
 }
 
-define( 'NET_GAIN_VERSION', '0.9.26' );
+define( 'NET_GAIN_VERSION', '0.9.27' );
 define( 'NET_GAIN_PLUGIN_FILE', __FILE__ );
 define( 'NET_GAIN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -49,6 +49,7 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-show-actions.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-show-talent.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-episode-steps.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-audio-replacement.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/class-youtube-channel-guard.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-secrets.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-website-publish.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/rest/class-rest-signature-strip.php';
