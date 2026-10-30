@@ -131,17 +131,6 @@ get_header();
 		</div>
 	</section>
 
-	<?php if ( '' !== trim( $ngl_copy['why_text'] ) ) : ?>
-		<section class="ngl-sect ngl-sect-alt">
-			<div class="ngl-wrap">
-				<div class="ngl-why">
-					<h2 class="arch"><?php echo $ngl_t( 'why_heading' ); ?></h2>
-					<p><?php echo $ngl_r( 'why_text' ); ?></p>
-				</div>
-			</div>
-		</section>
-	<?php endif; ?>
-
 	<section class="ngl-hero ngl-bottom">
 		<div class="ngl-wrap ngl-bottom-grid">
 			<h2 class="arch ngl-h1 ngl-bottom-h"><?php echo $ngl_t( 'bottom_heading' ); ?></h2>

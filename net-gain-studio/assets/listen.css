@@ -72,10 +72,6 @@ body.ng-listen-page #ast-scroll-top { display: none !important; }   /* the one f
 .ngl-sponsor a { text-decoration: underline; }
 .ngl-listen > .ngl-sponsor { margin-top: 0; padding-top: 16px; border-top: 1px solid var(--bd); color: var(--fg); }
 
-.ngl-why { max-width: 720px; border-left: 4px solid var(--ac); padding-left: 20px; }
-.ngl-why h2 { font-weight: 700; font-size: 18px; margin: 0 0 8px; }
-.ngl-why p { color: var(--mu); font-size: 15.5px; margin: 0; }
-.ngl-why a { text-decoration: underline; }
 
 .ngl-bottom-h { margin: 0; }
 .ngl-apps { padding-top: 34px; padding-bottom: 40px; }

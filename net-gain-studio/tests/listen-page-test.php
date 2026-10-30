@@ -29,8 +29,8 @@ check( 'an emptied required box falls back to the standard wording', $copy['head
 $copy = Net_Gain_Listen_Page::resolve( array( 'eyebrow' => '' ), $fields );
 check( 'an emptied optional box stays empty (the element is hidden)', '' === $copy['eyebrow'] );
 
-$copy = Net_Gain_Listen_Page::resolve( array( 'why_text' => '' ), $fields );
-check( 'the why section can be removed by emptying its text', '' === $copy['why_text'] && $copy['why_heading'] === $fields['why_heading']['default'] );
+$copy = Net_Gain_Listen_Page::resolve( array( 'sponsor' => '' ), $fields );
+check( 'the sponsor line can be removed by emptying its text', '' === $copy['sponsor'] && $copy['listen_heading'] === $fields['listen_heading']['default'] );
 
 $copy = Net_Gain_Listen_Page::resolve( array( 'headline' => array( 'x' ), 'bogus' => 'x' ), $fields );
 check( 'junk values and unknown keys are ignored', $copy['headline'] === $fields['headline']['default'] && ! isset( $copy['bogus'] ) );

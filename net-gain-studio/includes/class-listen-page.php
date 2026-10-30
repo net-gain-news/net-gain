@@ -74,14 +74,6 @@ class Net_Gain_Listen_Page {
 					'who_text'    => array( 'Paragraph about the anchor', 'rich', 'default', 'Net Gain Edtech is written and anchored by Dallas Kachan. Early in his career he wrote and anchored hourly national newscasts for the Canadian Press news service. He is also Edsby’s vice president of marketing.', 'Two or three sentences. The last sentence discloses the Edsby connection; keep some form of that, because the page exists because of an Edsby invitation. Links are allowed. Empty restores the standard wording.' ),
 				),
 			),
-			'why'      => array(
-				'title'  => 'Why you are seeing this',
-				'intro'  => 'The transparency note for visitors who arrive from an Edsby email. Someone at Edsby who owns privacy should approve this wording before the first email goes out.',
-				'fields' => array(
-					'why_heading' => array( 'Heading', 'text', 'default', 'Why you’re seeing this', 'Empty restores the standard wording.' ),
-					'why_text'    => array( 'Text', 'rich', 'hide', 'You’re here because you’re connected with Edsby, which sponsors Net Gain Edtech. Signing up is optional and separate from anything you receive from Edsby.', 'Empty removes the whole section, heading included. Links are allowed.' ),
-				),
-			),
 			'bottom'   => array(
 				'title'  => 'Bottom of the page',
 				'intro'  => 'A second signup box at the end of the page for visitors who read all the way down. It uses the same email box, button wording and small print as the top.',
