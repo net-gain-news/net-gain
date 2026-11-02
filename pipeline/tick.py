@@ -142,6 +142,15 @@ def _gmt_mysql(dt):
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
+def show_zone(show, key):
+    """
+    The ZoneInfo for one of a show's zone settings ('script_timezone', 'publish_timezone', 'site_timezone'), all sent by
+    the plugin as named zones (never fixed UTC offsets, so daylight/standard shifts follow automatically). An unknown
+    name raises rather than quietly falling back, so a bad setting fails loudly instead of firing at the wrong hour.
+    """
+    return ZoneInfo(show.get(key) or "UTC")
+
+
 def script_generation_due(show, today_str, now_local):
     pending = [
         action
@@ -221,7 +230,7 @@ def compute_target_publish_moment(show, finalization):
     if (show.get("publish_mode") or "immediate") != "scheduled":
         return finalized_at
 
-    publish_tz = ZoneInfo(show.get("publish_timezone") or "UTC")
+    publish_tz = show_zone(show, "publish_timezone")
     hour, minute = (int(part) for part in (show.get("publish_time") or "00:00").split(":"))
 
     finalized_local = finalized_at.astimezone(publish_tz)
@@ -1175,9 +1184,8 @@ def process_photo_tagging(wp, client, config, show, limit=4):
 
 
 def process_photo_digest(wp, config, show):
-    """The weekly photo-library note: Monday from 08:00 show time, once per day, for shows in photo mode."""
-    tz = ZoneInfo(show.get("recording_timezone") or "UTC")
-    now = datetime.now(tz)
+    """The weekly photo-library note: Monday from 08:00 in the WordPress site timezone, once per day, for shows in photo mode."""
+    now = datetime.now(show_zone(show, "site_timezone"))
     if now.weekday() != 0 or now.hour < 8:
         return
     meta = wp.get_show(show["id"]).get("meta", {})
@@ -1239,8 +1247,9 @@ def process_show(wp, client, captivate, vertex_client, config, show):
     except Exception:
         logger.exception("Error processing index refresh for %s", show["name"])
 
-    tz_name = show.get("recording_timezone") or "UTC"
-    now_local = datetime.now(ZoneInfo(tz_name))
+    # Read in the show's script-generation zone: the zone the target time, the recording days and the episode date are all
+    # anchored to (the plugin's "Script generation time" setting).
+    now_local = datetime.now(show_zone(show, "script_timezone"))
     today_str = now_local.date().isoformat()
 
     episode_date, pending_actions = script_generation_due(show, today_str, now_local)

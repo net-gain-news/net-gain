@@ -112,20 +112,16 @@ class Net_Gain_Edit_Show_Page {
 					</tr>
 
 					<tr>
-						<th><label for="ng_target_time">Target time</label></th>
+						<th><label for="ng_target_time">Script generation time</label></th>
 						<td>
+							<?php $script_zone = $is_new ? '' : Net_Gain_Timezones::stored_script_zone( $show_id ); ?>
 							<input type="time" id="ng_target_time" name="ng_target_time" value="<?php echo esc_attr( $get( 'ng_target_time' ) ); ?>">
-							<p class="description">The earliest time the tick loop will request today's script — not a deadline it must be ready by. Actual script availability could be as much as 10 minutes after this time, once the next tick loop pass picks it up.</p>
-						</td>
-					</tr>
-
-					<tr>
-						<th><label for="ng_recording_timezone">Timezone</label></th>
-						<td>
-							<select id="ng_recording_timezone" name="ng_recording_timezone">
-								<?php echo wp_timezone_choice( $get( 'ng_recording_timezone' ) ); ?>
+							<select id="ng_script_timezone" name="ng_script_timezone" data-site-zone="<?php echo esc_attr( Net_Gain_Timezones::site() ); ?>">
+								<?php echo Net_Gain_Timezones::select_options( $script_zone ); ?>
 							</select>
-							<p class="description">The show's own audience/schedule timezone — deliberately independent of wherever the talent physically lives.</p>
+							<span id="ng_script_tz_now" class="description">Now <?php echo esc_html( Net_Gain_Timezones::now_label( '' !== $script_zone ? $script_zone : Net_Gain_Timezones::site() ) ); ?>.</span>
+							<p class="description">The earliest time the tick loop will request today's script, read in the time zone chosen here — not a deadline it must be ready by. Actual script availability could be as much as 10 minutes after this time, once the next tick loop pass picks it up.</p>
+							<p class="description">Choose the zone the time is anchored to, not where the talent is: a US-markets show generates after the Eastern close, so pick America/New_York and enter the Eastern time. The zone itself is stored, so the shift between daylight and standard time is followed automatically and the time stays fixed in that zone (its equivalent elsewhere moves by an hour twice a year). Recording days and each episode's date are read in this zone too.</p>
 						</td>
 					</tr>
 
@@ -141,7 +137,7 @@ class Net_Gain_Edit_Show_Page {
 								<input type="radio" name="ng_publish_mode" value="scheduled" class="ng-publish-mode" <?php checked( 'scheduled', $publish_mode ); ?>>
 								At a scheduled time
 							</label>
-							<p class="description">Independent of recording time/timezone above — a show can record in one timezone and publish in another.</p>
+							<p class="description">Independent of the script generation time zone above — a show can generate its script in one timezone and publish in another.</p>
 						</td>
 					</tr>
 
@@ -150,9 +146,9 @@ class Net_Gain_Edit_Show_Page {
 						<td>
 							<input type="time" id="ng_publish_time" name="ng_publish_time" value="<?php echo esc_attr( $get( 'ng_publish_time' ) ); ?>">
 							<select id="ng_publish_timezone" name="ng_publish_timezone">
-								<?php echo wp_timezone_choice( $get( 'ng_publish_timezone' ) ); ?>
+								<?php echo Net_Gain_Timezones::select_options( Net_Gain_Timezones::sanitize( $get( 'ng_publish_timezone' ) ) ); ?>
 							</select>
-							<p class="description">Used only when publish mode is "At a scheduled time".</p>
+							<p class="description">Used only when publish mode is "At a scheduled time". Leave the zone on the WordPress site timezone to follow Settings &rsaquo; General.</p>
 						</td>
 					</tr>
 

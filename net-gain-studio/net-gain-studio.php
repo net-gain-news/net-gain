@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.9.34
+ * Version:           0.9.35
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -27,12 +27,13 @@ if ( ! isset( $_SERVER['HTTP_AUTHORIZATION'] ) && isset( $_SERVER['REDIRECT_HTTP
 	$_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
 }
 
-define( 'NET_GAIN_VERSION', '0.9.34' );
+define( 'NET_GAIN_VERSION', '0.9.35' );
 define( 'NET_GAIN_PLUGIN_FILE', __FILE__ );
 define( 'NET_GAIN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once NET_GAIN_PLUGIN_DIR . 'includes/helpers/class-step-status.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/helpers/class-dashboard-status.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/class-timezones.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-roles.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-talent-assignments.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-secrets.php';

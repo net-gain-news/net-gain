@@ -29,8 +29,6 @@ class Net_Gain_REST_Tick_Context {
 	}
 
 	public function get_context( WP_REST_Request $request ) {
-		$today = current_time( 'Y-m-d' );
-
 		$shows = get_posts(
 			array(
 				'post_type'      => Net_Gain_CPT_Show::POST_TYPE,
@@ -50,20 +48,24 @@ class Net_Gain_REST_Tick_Context {
 				'vertical_id'         => (int) get_post_meta( $show->ID, 'ng_vertical_id', true ),
 				'recording_days'      => get_post_meta( $show->ID, 'ng_recording_days', true ),
 				'target_time'         => get_post_meta( $show->ID, 'ng_target_time', true ),
-				'recording_timezone'  => get_post_meta( $show->ID, 'ng_recording_timezone', true ),
+				'script_timezone'     => Net_Gain_Timezones::script_zone( $show->ID ),
+				// Kept only so a pipeline checkout older than 0.9.35 keeps firing at the right hour between the plugin and
+				// pipeline deploys; the current pipeline ignores it. Remove once every checkout has been pulled.
+				'recording_timezone'  => Net_Gain_Timezones::script_zone( $show->ID ),
+				'site_timezone'       => Net_Gain_Timezones::site(),
 				'lookback_days'       => (int) get_post_meta( $show->ID, 'ng_lookback_days', true ),
 				'captivate_show_id'   => get_post_meta( $show->ID, 'ng_captivate_show_id', true ),
 				'youtube_channel_id'  => get_post_meta( $show->ID, 'ng_youtube_channel_id', true ),
 				'is_test'             => (bool) get_post_meta( $show->ID, 'ng_is_test', true ),
 				'publish_mode'        => get_post_meta( $show->ID, 'ng_publish_mode', true ),
 				'publish_time'        => get_post_meta( $show->ID, 'ng_publish_time', true ),
-				'publish_timezone'    => get_post_meta( $show->ID, 'ng_publish_timezone', true ),
+				'publish_timezone'    => Net_Gain_Timezones::publish_zone( $show->ID ),
 				'pending_actions'     => get_post_meta( $show->ID, 'ng_pending_actions', true ),
 				'index_sheet_url'     => get_post_meta( $show->ID, 'ng_index_sheet_url', true ),
 				'index_last_refresh_date' => get_post_meta( $show->ID, 'ng_index_last_refresh_date', true ),
 				'youtube_description_boilerplate' => get_post_meta( $show->ID, 'ng_youtube_description_boilerplate', true ),
 				'captivate_notes_footer' => get_post_meta( $show->ID, 'ng_captivate_notes_footer', true ),
-				'effective_talent_today' => Net_Gain_Talent_Assignments::get_effective_talent( $show->ID, $today ),
+				'effective_talent_today' => Net_Gain_Talent_Assignments::get_effective_talent( $show->ID, wp_date( 'Y-m-d', null, new DateTimeZone( Net_Gain_Timezones::script_zone( $show->ID ) ) ) ),
 				'in_flight_episodes'  => $this->in_flight_episodes( $show->ID ),
 				// Separate from in_flight_episodes: a replaced episode is usually fully
 				// published (settled), so it would never appear in that list.

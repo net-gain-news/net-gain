@@ -12,7 +12,7 @@ Phases 1–7 of the Net Gain multi-tenant newscast studio build — see `../SPEC
 
 **Phase 2 — Show setup admin screen:**
 - A "Net Gain Studio" top-level admin menu (Shows list) plus a hidden Add/Edit Show page reached via links, not its own nav item.
-- Implements every field in Spec Section 11: recording/publish schedule, timezones (via core's `wp_timezone_choice()`), lookback window, primary talent (writes to `wp_ng_talent_assignments`, not postmeta), branding-frame uploads (via core's `wp.media` picker — no build step), a guidelines page auto-seeded once from the chosen Vertical's content, and Show status.
+- Implements every field in Spec Section 11: recording/publish schedule, the script-generation time with its own named time zone, and the publish time zone (both picked from named zones by `Net_Gain_Timezones`, blank = the WordPress site timezone; no fixed UTC offsets, so daylight/standard shifts are followed), lookback window, primary talent (writes to `wp_ng_talent_assignments`, not postmeta), branding-frame uploads (via core's `wp.media` picker — no build step), a guidelines page auto-seeded once from the chosen Vertical's content, and Show status.
 - "Connect Captivate show" saves an ID via its own form/action. "Connect YouTube channel" is a **visibly disabled** control with a status readout — real OAuth is Phase 9, not faked here.
 - Plain PHP-rendered pages + one vanilla-JS file (`assets/admin.js`) — no JS build tooling anywhere in this plugin.
 

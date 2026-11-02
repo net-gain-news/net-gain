@@ -304,7 +304,7 @@ class FallbackAlertTests(unittest.TestCase):
 
 class DigestTests(unittest.TestCase):
     STATS = {"level": "low", "eligible_now": 14, "cooling_down": 3, "cooldown_days": 90, "never_used": 2, "eligible_no_faces": 4, "retired": 0, "messages": []}
-    SHOW = {"id": 16, "name": "Net Gain Edtech", "recording_timezone": "America/New_York"}
+    SHOW = {"id": 16, "name": "Net Gain Edtech", "site_timezone": "America/New_York"}
 
     def wp(self, meta):
         wp = Mock()

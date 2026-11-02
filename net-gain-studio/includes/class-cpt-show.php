@@ -115,7 +115,9 @@ class Net_Gain_CPT_Show {
 				),
 			),
 			'ng_target_time'         => array( 'type' => 'string', 'default' => '' ),
-			'ng_recording_timezone'  => array( 'type' => 'string', 'default' => '' ),
+			// The zone ng_target_time is read in (the script-generation time zone); '' = the WordPress site timezone. Replaces the
+			// retired ng_recording_timezone, which Net_Gain_Timezones::stored_script_zone() still honours until a zone is picked.
+			'ng_script_timezone'     => array( 'type' => 'string', 'default' => '', 'sanitize_callback' => array( 'Net_Gain_Timezones', 'sanitize' ) ),
 			'ng_lookback_days'       => array( 'type' => 'integer', 'default' => 30 ),
 			'ng_guidelines_page_id'  => array( 'type' => 'integer', 'default' => 0 ),
 			'ng_frame_square_id'     => array( 'type' => 'integer', 'default' => 0 ),
@@ -161,7 +163,7 @@ class Net_Gain_CPT_Show {
 			'ng_youtube_phone_verified'  => array( 'type' => 'string', 'default' => '' ),
 			'ng_publish_mode'        => array( 'type' => 'string', 'default' => 'immediate' ), // immediate|scheduled
 			'ng_publish_time'        => array( 'type' => 'string', 'default' => '' ),
-			'ng_publish_timezone'    => array( 'type' => 'string', 'default' => '' ),
+			'ng_publish_timezone'    => array( 'type' => 'string', 'default' => '', 'sanitize_callback' => array( 'Net_Gain_Timezones', 'sanitize' ) ), // '' = the WordPress site timezone
 			// Edtech Index (Google Sheet sync, 2026-09-21) - empty string means
 			// this show has no index page. Accepts the sheet's full editor URL
 			// (…/edit?gid=0#gid=0, whatever a human copies from the address bar)

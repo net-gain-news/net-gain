@@ -33,6 +33,16 @@
 			$( '.ng-publish-schedule-row' ).toggle( scheduled );
 		} );
 
+		// Script generation zone: show that zone's clock beside the picker, so a shift between daylight and standard time is visible.
+		$( '#ng_script_timezone' ).on( 'change', function () {
+			var zone = $( this ).val() || $( this ).data( 'site-zone' );
+			var label = '';
+			try {
+				label = 'Now ' + new Intl.DateTimeFormat( 'en-US', { timeZone: zone, hour: 'numeric', minute: '2-digit', timeZoneName: 'short' } ).format( new Date() ) + '.';
+			} catch ( err ) {}
+			$( '#ng_script_tz_now' ).text( label );
+		} );
+
 		// Duotone colour fields: the native <input type="color"> swatch is a visual
 		// helper only (not submitted - no name attribute) since not every browser's
 		// built-in picker surfaces a hex field (Safari/macOS notably doesn't). The

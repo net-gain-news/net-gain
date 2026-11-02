@@ -26,6 +26,7 @@ from tick import (
     resolve_youtube_processing,
     retry_youtube_thumbnail,
     script_generation_due,
+    show_zone,
     verify_website_publish,
     website_publish_due,
     youtube_publish_due,
@@ -83,6 +84,51 @@ class ScriptGenerationDueTests(unittest.TestCase):
         now_local = datetime(2026, 9, 8, 9, 0, tzinfo=ZoneInfo("UTC"))
         episode_date, _ = script_generation_due(show, "2026-09-08", now_local)
         self.assertIsNone(episode_date)
+
+
+class ScriptTimezoneShiftTests(unittest.TestCase):
+    """A script target such as 16:12 America/New_York keeps that wall-clock time through the November shift to standard time."""
+
+    SHOW = {
+        "recording_days": ["mon", "tue", "wed", "thu", "fri"],
+        "target_time": "16:12",
+        "script_timezone": "America/New_York",
+        "pending_actions": [],
+    }
+
+    def due_at(self, utc_moment):
+        now_local = utc_moment.astimezone(show_zone(self.SHOW, "script_timezone"))
+        episode_date, _ = script_generation_due(self.SHOW, now_local.date().isoformat(), now_local)
+        return episode_date
+
+    def test_due_at_4_12_pm_eastern_before_the_shift(self):
+        # Fri 2026-10-30, EDT (UTC-4): 16:12 is 20:12 UTC.
+        self.assertIsNone(self.due_at(datetime(2026, 10, 30, 20, 11, tzinfo=timezone.utc)))
+        self.assertEqual(self.due_at(datetime(2026, 10, 30, 20, 12, tzinfo=timezone.utc)), "2026-10-30")
+
+    def test_due_at_4_12_pm_eastern_after_the_shift(self):
+        # Mon 2026-11-02, EST (UTC-5): 16:12 is 21:12 UTC, an hour later in UTC than the Friday before.
+        self.assertIsNone(self.due_at(datetime(2026, 11, 2, 20, 30, tzinfo=timezone.utc)))
+        self.assertEqual(self.due_at(datetime(2026, 11, 2, 21, 12, tzinfo=timezone.utc)), "2026-11-02")
+
+    def test_a_different_zone_reads_the_same_clock_time_differently(self):
+        show = dict(self.SHOW, script_timezone="America/Vancouver", target_time="13:12")
+        moment = datetime(2026, 11, 2, 21, 12, tzinfo=timezone.utc)  # 13:12 PST
+        now_local = moment.astimezone(show_zone(show, "script_timezone"))
+        self.assertEqual(script_generation_due(show, now_local.date().isoformat(), now_local)[0], "2026-11-02")
+
+    def test_scheduled_publish_keeps_its_local_hour_across_the_shift(self):
+        # Finalized Sat 2026-10-31 18:00 UTC; 07:00 Eastern next occurrence is Sun 2026-11-01 07:00 EST = 12:00 UTC.
+        show = {"publish_mode": "scheduled", "publish_time": "07:00", "publish_timezone": "America/New_York"}
+        finalization = {"finalized_at": "2026-10-31 18:00:00"}
+        self.assertEqual(
+            compute_target_publish_moment(show, finalization),
+            datetime(2026, 11, 1, 12, 0, tzinfo=timezone.utc),
+        )
+
+    def test_an_unknown_zone_name_fails_loudly(self):
+        with self.assertRaises(Exception):
+            show_zone({"script_timezone": "UTC-5"}, "script_timezone")
 
 
 def _gmt_mysql(dt):

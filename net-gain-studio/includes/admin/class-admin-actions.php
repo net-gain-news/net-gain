@@ -111,13 +111,13 @@ class Net_Gain_Admin_Actions {
 		update_post_meta( $show_id, 'ng_recording_days', $recording_days );
 
 		update_post_meta( $show_id, 'ng_target_time', sanitize_text_field( wp_unslash( $_POST['ng_target_time'] ?? '' ) ) );
-		update_post_meta( $show_id, 'ng_recording_timezone', sanitize_text_field( wp_unslash( $_POST['ng_recording_timezone'] ?? '' ) ) );
+		update_post_meta( $show_id, 'ng_script_timezone', Net_Gain_Timezones::sanitize( wp_unslash( $_POST['ng_script_timezone'] ?? '' ) ) );
 		update_post_meta( $show_id, 'ng_lookback_days', max( 1, (int) ( $_POST['ng_lookback_days'] ?? 30 ) ) );
 
 		$publish_mode = ( 'scheduled' === ( $_POST['ng_publish_mode'] ?? '' ) ) ? 'scheduled' : 'immediate';
 		update_post_meta( $show_id, 'ng_publish_mode', $publish_mode );
 		update_post_meta( $show_id, 'ng_publish_time', sanitize_text_field( wp_unslash( $_POST['ng_publish_time'] ?? '' ) ) );
-		update_post_meta( $show_id, 'ng_publish_timezone', sanitize_text_field( wp_unslash( $_POST['ng_publish_timezone'] ?? '' ) ) );
+		update_post_meta( $show_id, 'ng_publish_timezone', Net_Gain_Timezones::sanitize( wp_unslash( $_POST['ng_publish_timezone'] ?? '' ) ) );
 
 		foreach ( array( 'ng_frame_square_id', 'ng_frame_16x9_id', 'ng_frame_1200x630_id' ) as $frame_key ) {
 			update_post_meta( $show_id, $frame_key, (int) ( $_POST[ $frame_key ] ?? 0 ) );

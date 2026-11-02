@@ -238,15 +238,15 @@ class Net_Gain_Dashboard_Page {
 
 	/**
 	 * "Today" has no single correct answer once shows can have different
-	 * ng_recording_timezone values (Section 4) - the site's own configured
+	 * script time zones (ng_script_timezone, Section 4) - the site's own configured
 	 * timezone (what current_time() would use) has no necessary relationship
 	 * to any show's. Confirmed live (2026-09-10): the site's timezone was UTC
-	 * while a show's recording_timezone was America/Vancouver, and defaulting
+	 * while a show's script time zone was America/Vancouver, and defaulting
 	 * to the site's "today" landed a day ahead of the show's actual recording
 	 * day, so a freshly generated episode's row appeared to not exist at all.
 	 *
-	 * Defaults to the EARLIEST local date across all active shows' recording
-	 * timezones - the show that has least recently rolled over to a new day -
+	 * Defaults to the EARLIEST local date across all active shows' script
+	 * time zones - the show that has least recently rolled over to a new day -
 	 * so a freshly generated episode is never skipped past by a more easterly
 	 * show having already turned its calendar page. The tradeoff: a more
 	 * easterly show's row may show one day "ahead" of its own local date
@@ -284,12 +284,7 @@ class Net_Gain_Dashboard_Page {
 			)
 		);
 
-		return array_map(
-			function ( $show_id ) {
-				return get_post_meta( $show_id, 'ng_recording_timezone', true );
-			},
-			$show_ids
-		);
+		return array_map( array( 'Net_Gain_Timezones', 'script_zone' ), $show_ids );
 	}
 
 	private static function shift_date( $date, $days ) {
