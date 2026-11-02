@@ -111,15 +111,13 @@ YOUTUBE_PROCESSING_TIMEOUT_MINUTES = 120
 # using a URL this gate guarantees already exists by then.
 YOUTUBE_PUBLISH_DELAY_MINUTES = 5
 
-# Confirmed live (2026-09-30): the WP site's own configured timezone
-# (Settings > General > Timezone). Needed specifically because
 # Net_Gain_Step_Status::apply_update() stores each step's 'at' timestamp via
-# current_time('mysql') - site-local, NOT GMT, unlike ng_finalization's own
-# timestamps (which deliberately use current_time('mysql', true) to avoid
-# exactly this ambiguity - see finalization_elapsed() below). Only used for
-# the youtube_publish_due() delay comparison; if the WP site's timezone
-# setting ever changes, this needs updating too.
-WP_SITE_TIMEZONE = ZoneInfo("America/Vancouver")
+# current_time('mysql') - in the WP site's own timezone (Settings > General),
+# NOT GMT, unlike ng_finalization's own timestamps (which deliberately use
+# current_time('mysql', true) to avoid exactly this ambiguity - see
+# finalization_elapsed() below). The zone's name comes from the plugin with
+# every show ('site_timezone'), so it follows that setting rather than a
+# copy of it kept here; only the youtube_publish_due() delay comparison needs it.
 
 # Edtech Index (Google Sheet sync, 2026-09-21): "at least once a business
 # day... as of North American market close" is the user's own framing, so
@@ -169,17 +167,17 @@ def script_generation_due(show, today_str, now_local):
     return None, []
 
 
-def _parse_site_local_at(at_string):
+def _parse_site_local_at(at_string, site_zone):
     """
-    Parses a Net_Gain_Step_Status 'at' value - site-local (WP_SITE_TIMEZONE
-    above), unlike ng_finalization's GMT timestamps - into a UTC-aware
+    Parses a Net_Gain_Step_Status 'at' value - site-local (the show's
+    'site_timezone', sent by the plugin), unlike ng_finalization's GMT timestamps - into a UTC-aware
     datetime. Returns None if absent, rather than raising, since a step
     that's genuinely still pending has no 'at' yet.
     """
     if not at_string:
         return None
     naive = datetime.fromisoformat(at_string)
-    return naive.replace(tzinfo=WP_SITE_TIMEZONE).astimezone(timezone.utc)
+    return naive.replace(tzinfo=site_zone).astimezone(timezone.utc)
 
 
 def finalization_elapsed(finalization):
@@ -824,8 +822,9 @@ def youtube_publish_due(show, episode):
     if website_step.get("status") not in ("done", "degraded"):
         return None
 
-    captivate_at = _parse_site_local_at(captivate_step.get("at"))
-    website_at = _parse_site_local_at(website_step.get("at"))
+    site_zone = show_zone(show, "site_timezone")
+    captivate_at = _parse_site_local_at(captivate_step.get("at"), site_zone)
+    website_at = _parse_site_local_at(website_step.get("at"), site_zone)
     if captivate_at is None or website_at is None:
         return None  # done/degraded should always carry an 'at' - don't crash if it somehow doesn't.
 

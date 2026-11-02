@@ -12,7 +12,6 @@ from tick import (
     append_notes_footer,
     record_audio_seconds,
     CAPTIVATE_ACCOUNT_TIMEZONE,
-    WP_SITE_TIMEZONE,
     YOUTUBE_PUBLISH_DELAY_MINUTES,
     _normalize_wp_text,
     build_final_youtube_description,
@@ -33,10 +32,13 @@ from tick import (
 )
 
 
+SITE_ZONE = "America/Vancouver"
+
+
 def _site_local_at(seconds_ago):
-    """A Net_Gain_Step_Status-style 'at' string (site-local, see
-    WP_SITE_TIMEZONE), seconds_ago in the past."""
-    moment = datetime.now(WP_SITE_TIMEZONE) - timedelta(seconds=seconds_ago)
+    """A Net_Gain_Step_Status-style 'at' string (site-local, in the show's
+    'site_timezone'), seconds_ago in the past."""
+    moment = datetime.now(ZoneInfo(SITE_ZONE)) - timedelta(seconds=seconds_ago)
     return moment.strftime("%Y-%m-%d %H:%M:%S")
 
 
@@ -466,6 +468,7 @@ class YouTubePublishDueTests(unittest.TestCase):
             "publish_mode": publish_mode,
             "pending_actions": pending_actions or [],
             "youtube_channel_id": youtube_channel_id,
+            "site_timezone": SITE_ZONE,
         }
 
     def test_none_when_show_has_no_youtube_channel_connected(self):
