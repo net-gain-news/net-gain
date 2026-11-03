@@ -33,7 +33,7 @@ class Net_Gain_Step_Status {
 	 * SIBLINGS - both depend only on audio_received, neither on the other -
 	 * per an explicit build-time decision (Phase 4): metadata generation is
 	 * deliberately deferred close to publish time to avoid wasted work on
-	 * episodes later aborted, but image generation must remain independently
+	 * episodes later replaced, but image generation must remain independently
 	 * triggerable at any time (Section 8.3), so it cannot be gated behind
 	 * metadata. This supersedes Section 8.3's original illustrative example
 	 * ("image generation before that day's metadata exists" should be

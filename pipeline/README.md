@@ -22,6 +22,16 @@ python tick.py
 
 Checks every Active show for a due or manually-triggered script generation, processes each independently (one show's failure never stops the others), and exits. Intended to run frequently from a single cron entry — this is the "tick loop" CLAUDE.md's architecture note describes.
 
+### One pass, in the order a recording travels
+
+Cron starts a pass every minute. Under the show's lock (`run_lock.py`; a pass that finds the show already being worked on exits at once, and a pass held over 45 minutes raises one alert), `process_show()` runs the stages in order: audio replacements, images, Captivate (metadata first), the website and then the signature strip, YouTube, the index refresh, script generation, and finally photo tagging (every fifth minute only). A stage that did something re-reads the in-flight episodes' state before the next one starts, so an uploaded recording reaches a live website in one pass instead of one step per five-minute tick. YouTube still waits its five-minute buffer after Captivate and the website, and is picked up by the pass that follows it. The signature strip is refreshed only once Captivate and the website are both live, by whichever of the two finishes second.
+
+An upload finalizes the episode itself (there is no waiting period); a scheduled show's episode is held until its publish time by `compute_target_publish_moment()`, and everything else runs the same way.
+
+### Running one step on request
+
+`python run_step.py <show_id> <episode_id> <images|metadata|captivate|website|strip|youtube>` runs a single step through the same functions, under the same lock. See the module docstring for what each does when the episode is already published (Captivate is updated in place, never duplicated; YouTube never uploads a second video).
+
 ## Phase 9 — YouTube
 
 Structurally different from Captivate/website publishing in ways worth calling out explicitly:

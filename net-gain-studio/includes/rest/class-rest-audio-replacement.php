@@ -2,7 +2,7 @@
 /**
  * Audio replacement routes (Spec Section 8.4). The first two are for people:
  * an administrator, or the show's designated host (the same relationship check
- * audio upload and abort/publish-now already use). The PATCH is for the Python
+ * audio upload already uses). The PATCH is for the Python
  * tick loop reporting each destination's progress.
  */
 

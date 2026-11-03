@@ -32,8 +32,7 @@ class Net_Gain_REST_Show_Actions {
 					'callback'            => array( $this, 'enqueue_action' ),
 					// Branched per action, not a single blanket check: generate_images
 					// is safe to let the assigned talent self-trigger (can_act_for_show,
-					// the same relationship-based check already used for audio upload/
-					// abort/publish-now) since they're the one reviewing the result on
+					// the same relationship-based check already used for audio upload) since they're the one reviewing the result on
 					// the My Show screen - generate_script and publish_captivate stay
 					// admin/service-only.
 					'permission_callback' => function ( WP_REST_Request $request ) {

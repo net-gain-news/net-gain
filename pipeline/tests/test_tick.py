@@ -18,9 +18,13 @@ from tick import (
     build_youtube_upload_status,
     captivate_publish_due,
     check_finalizations,
+    note_busy_show,
+    process_show,
+    refresh_in_flight,
+    refresh_strip_when_live,
+    run_phase,
     compute_captivate_date_field,
     compute_target_publish_moment,
-    finalization_elapsed,
     generate_metadata,
     resolve_youtube_processing,
     retry_youtube_thumbnail,
@@ -137,26 +141,6 @@ def _gmt_mysql(dt):
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
-class FinalizationElapsedTests(unittest.TestCase):
-    def test_not_elapsed_when_not_counting_down(self):
-        self.assertFalse(finalization_elapsed({"state": "finalized"}))
-        self.assertFalse(finalization_elapsed({"state": "pending"}))
-        self.assertFalse(finalization_elapsed({}))
-
-    def test_not_elapsed_within_window(self):
-        started = _gmt_mysql(datetime.now(timezone.utc) - timedelta(seconds=30))
-        finalization = {"state": "counting_down", "countdown_started_at": started, "countdown_seconds": 90}
-        self.assertFalse(finalization_elapsed(finalization))
-
-    def test_elapsed_after_window(self):
-        started = _gmt_mysql(datetime.now(timezone.utc) - timedelta(seconds=120))
-        finalization = {"state": "counting_down", "countdown_started_at": started, "countdown_seconds": 90}
-        self.assertTrue(finalization_elapsed(finalization))
-
-    def test_missing_started_at_is_not_elapsed(self):
-        self.assertFalse(finalization_elapsed({"state": "counting_down"}))
-
-
 class GenerateMetadataTests(unittest.TestCase):
     def _fake_metadata(self):
         return {
@@ -201,53 +185,44 @@ class GenerateMetadataTests(unittest.TestCase):
 
 
 class CheckFinalizationsTests(unittest.TestCase):
-    def test_transitions_elapsed_episode_to_finalized(self):
-        started = _gmt_mysql(datetime.now(timezone.utc) - timedelta(seconds=200))
+    """Only episodes recorded under the retired 90-second upload countdown can still be 'counting_down'."""
 
-        class FakeWP:
-            def __init__(self):
-                self.updates = []
+    class FakeWP:
+        def __init__(self):
+            self.updates = []
 
-            def update_episode_meta(self, episode_id, meta):
-                self.updates.append((episode_id, meta))
+        def update_episode_meta(self, episode_id, meta):
+            self.updates.append((episode_id, meta))
 
-        wp = FakeWP()
+    def test_settles_an_episode_left_in_the_retired_countdown(self):
+        wp = self.FakeWP()
         show = {
             "name": "Net Gain Edtech",
             "in_flight_episodes": [
-                {
-                    "id": 42,
-                    "finalization": {
-                        "state": "counting_down",
-                        "countdown_started_at": started,
-                        "countdown_seconds": 90,
-                    },
-                }
+                {"id": 42, "finalization": {"state": "counting_down", "countdown_started_at": "2026-10-20 20:00:00", "countdown_seconds": 90}}
             ],
         }
 
-        check_finalizations(wp, show)
+        self.assertTrue(check_finalizations(wp, show))
 
-        self.assertEqual(len(wp.updates), 1)
         episode_id, meta = wp.updates[0]
         self.assertEqual(episode_id, 42)
         self.assertEqual(meta["ng_finalization"]["state"], "finalized")
+        self.assertTrue(meta["ng_finalization"]["finalized_at"])
 
-    def test_leaves_non_elapsed_episode_alone(self):
-        started = _gmt_mysql(datetime.now(timezone.utc) - timedelta(seconds=10))
-
-        class FakeWP:
-            def update_episode_meta(self, episode_id, meta):
-                raise AssertionError("should not be called")
-
+    def test_leaves_every_other_state_alone(self):
+        wp = self.FakeWP()
         show = {
             "name": "Net Gain Edtech",
             "in_flight_episodes": [
-                {"id": 42, "finalization": {"state": "counting_down", "countdown_started_at": started, "countdown_seconds": 90}}
+                {"id": 1, "finalization": {"state": "finalized", "finalized_at": "2026-11-02 21:40:00"}},
+                {"id": 2, "finalization": {"state": "pending"}},
+                {"id": 3, "finalization": None},
             ],
         }
 
-        check_finalizations(FakeWP(), show)  # must not raise
+        self.assertFalse(check_finalizations(wp, show))
+        self.assertEqual(wp.updates, [])
 
 
 class ComputeTargetPublishMomentTests(unittest.TestCase):
@@ -356,7 +331,7 @@ class CaptivatePublishDueTests(unittest.TestCase):
 
     def test_not_due_when_not_finalized(self):
         show = {"publish_mode": "immediate", "pending_actions": []}
-        episode = self._episode(state="counting_down")
+        episode = self._episode(state="pending")
         self.assertFalse(captivate_publish_due(show, episode))
 
     def test_due_when_finalized_and_immediate_mode(self):
@@ -407,7 +382,7 @@ class WebsitePublishDueTests(unittest.TestCase):
 
     def test_not_due_when_not_finalized(self):
         show = {"publish_mode": "immediate"}
-        episode = self._episode(state="counting_down")
+        episode = self._episode(state="pending")
         self.assertFalse(website_publish_due(show, episode))
 
     def test_not_due_when_images_not_yet_rendered(self):
@@ -481,7 +456,7 @@ class YouTubePublishDueTests(unittest.TestCase):
 
     def test_none_when_not_finalized(self):
         show = self._show()
-        episode = self._episode(state="counting_down")
+        episode = self._episode(state="pending")
         self.assertIsNone(youtube_publish_due(show, episode))
 
     def test_none_when_images_not_yet_rendered(self):

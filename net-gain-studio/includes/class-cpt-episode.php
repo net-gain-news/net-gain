@@ -142,15 +142,14 @@ class Net_Gain_CPT_Episode {
 			'ng_finalization' => array(
 				'type'    => 'object',
 				'default' => array(
-					'state'               => 'pending', // pending|counting_down|awaiting_replacement|finalized|aborted
-					'countdown_started_at' => null,
-					'countdown_seconds'    => 90,
+					'state' => 'pending', // pending|finalized (counting_down, awaiting_replacement and aborted remain only on episodes recorded before 2026-11)
 				),
 				'show_in_rest' => array(
 					'schema' => array(
 						'type'       => 'object',
 						'properties' => array(
 							'state'                => array( 'type' => 'string' ),
+							// Only on episodes recorded while the upload countdown existed.
 							'countdown_started_at' => array( 'type' => array( 'string', 'null' ) ),
 							'countdown_seconds'    => array( 'type' => 'integer' ),
 							'finalized_at'         => array( 'type' => array( 'string', 'null' ) ),

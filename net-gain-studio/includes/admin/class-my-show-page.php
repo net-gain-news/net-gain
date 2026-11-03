@@ -65,24 +65,13 @@ class Net_Gain_My_Show_Page {
 				<p>Today's script (<?php echo esc_html( get_post_meta( $episode->ID, 'ng_episode_date', true ) ); ?>) is ready for review.</p>
 				<a class="button button-primary" href="<?php echo esc_url( add_query_arg( array( 'page' => Net_Gain_Script_Review_Page::SLUG, 'episode_id' => $episode->ID ), admin_url( 'admin.php' ) ) ); ?>">Review Script</a>
 
-			<?php elseif ( 'counting_down' === $state ) : ?>
-				<?php /* Classes, not ids, throughout this branch and the upload branch below - a talent covering/hosting multiple shows can have more than one of these cards live on the page at once (Section 4's many-to-many talent-show model), so per-episode state must live in data attributes, not page-unique ids. */ ?>
-				<p>Audio received. Finalizing in <span class="ng-countdown" data-episode-id="<?php echo esc_attr( $episode->ID ); ?>" data-seconds="<?php echo esc_attr( self::seconds_remaining( $finalization ) ); ?>">--</span> seconds unless you act.</p>
-				<p>
-					<button type="button" class="button ng-abort" data-episode-id="<?php echo esc_attr( $episode->ID ); ?>">Abort (upload a different file)</button>
-					<button type="button" class="button ng-publish-now" data-episode-id="<?php echo esc_attr( $episode->ID ); ?>">Publish Now (skip the wait)</button>
-				</p>
-
 			<?php elseif ( 'finalized' === $state ) : ?>
 				<p><?php echo esc_html( self::finalized_message( $show_id, $episode->ID, $step_status ) ); ?></p>
 				<p><?php Net_Gain_Audio_Replacement::render_control( $episode->ID ); ?></p>
 
-			<?php else : /* pending or awaiting_replacement - script saved at least once, audio not yet received */ ?>
-				<?php if ( 'awaiting_replacement' === $state ) : ?>
-					<p>Aborted — upload a replacement file to restart finalization. Still need to fix the script first? Edit it below - it's not locked in until audio is uploaded.</p>
-				<?php else : ?>
-					<p>Script reviewed. Upload today's recording to finalize, or keep editing the script - it's not locked in until audio is uploaded.</p>
-				<?php endif; ?>
+			<?php else : /* script reviewed, audio not yet received */ ?>
+				<?php $scheduled = 'scheduled' === get_post_meta( $show_id, 'ng_publish_mode', true ); ?>
+				<p>Script reviewed. Uploading today's recording <?php echo $scheduled ? 'queues the episode for the show\'s scheduled publish time' : 'publishes the episode right away'; ?> - there is no waiting period, so check the file first. You can keep editing the script until you upload.</p>
 				<p>
 					<a class="button" href="<?php echo esc_url( add_query_arg( array( 'page' => Net_Gain_Script_Review_Page::SLUG, 'episode_id' => $episode->ID ), admin_url( 'admin.php' ) ) ); ?>">Edit Script</a>
 					<button type="button" class="button button-primary ng-upload-audio" data-episode-id="<?php echo esc_attr( $episode->ID ); ?>">Upload Audio</button>
@@ -200,7 +189,10 @@ class Net_Gain_My_Show_Page {
 		}
 
 		if ( ! $published && ! $failed ) {
-			return 'Finalized — queued, awaiting its scheduled publish time.';
+			if ( 'scheduled' === get_post_meta( $show_id, 'ng_publish_mode', true ) ) {
+				return 'Finalized — queued, awaiting its scheduled publish time.';
+			}
+			return 'Audio received — publishing now. Reload this page in a minute or two to see each destination as it finishes.';
 		}
 
 		$message = $published ? 'Published to ' . self::join_names( $published ) . '.' : 'Finalized.';
@@ -234,23 +226,10 @@ class Net_Gain_My_Show_Page {
 		return $episodes ? $episodes[0] : null;
 	}
 
-	private static function seconds_remaining( $finalization ) {
-		// countdown_started_at is stored in GMT (see class-rest-episode-steps.php)
-		// so this must parse it as UTC explicitly rather than relying on
-		// strtotime()'s ambiguous default-timezone behavior.
-		$raw     = $finalization['countdown_started_at'] ?? 'now';
-		$started = new DateTime( $raw, new DateTimeZone( 'UTC' ) );
-		$total   = (int) ( $finalization['countdown_seconds'] ?? 90 );
-		$elapsed = time() - $started->getTimestamp();
-		return max( 0, $total - $elapsed );
-	}
-
 	private static function render_notices() {
 		if ( isset( $_GET['ng_notice'] ) ) {
 			$messages = array(
-				'audio_uploaded'           => 'Audio received — finalization countdown started.',
-				'aborted'                  => 'Aborted. Upload a replacement whenever you\'re ready.',
-				'published_now'            => 'Finalized immediately.',
+				'audio_uploaded'           => 'Audio received — publishing has started.',
 				'images_regenerate_queued' => 'Regeneration queued — the tick loop will pick this up on its next pass.',
 				'audio_replacement_queued'  => 'Audio replaced. Where this episode is already published (Captivate, YouTube), the new file is being sent along in the background over the next few minutes.',
 				'audio_replacement_retried' => 'Retrying the audio replacement on the next pass of the background job.',

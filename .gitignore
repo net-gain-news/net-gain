@@ -6,3 +6,4 @@ pipeline/.env
 pipeline/venv/
 **/__pycache__/
 *.pyc
+pipeline/.locks/

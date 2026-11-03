@@ -5,8 +5,7 @@
  * Available to an administrator and to the show's designated host, at any
  * point after the first audio upload. This class owns the synchronous half:
  * swapping the master attachment, updating the page's structured-data audio
- * URL, restarting a running finalization countdown, and writing a replacement
- * record. (The website's player is Captivate's embed, so listeners on the
+ * URL and writing a replacement record. (The website's player is Captivate's embed, so listeners on the
  * site hear the new audio when Captivate's copy is swapped, not before.) The
  * asynchronous half (Captivate media swap; deleting and re-creating the
  * YouTube video) is carried out by the Python tick loop from that record -
@@ -89,14 +88,7 @@ class Net_Gain_Audio_Replacement {
 
 		update_post_meta( $episode_id, 'ng_audio_attachment_id', $attachment_id );
 
-		// A countdown still running gets a fresh window, exactly as a normal
-		// replacement upload does (class-rest-episode-steps.php). A finalized
-		// episode stays finalized: its queued publish simply uses the new file.
-		$finalization = get_post_meta( $episode_id, 'ng_finalization', true );
-		if ( is_array( $finalization ) && 'counting_down' === ( $finalization['state'] ?? '' ) ) {
-			$finalization['countdown_started_at'] = current_time( 'mysql', true );
-			update_post_meta( $episode_id, 'ng_finalization', $finalization );
-		}
+		// The episode stays finalized: a queued publish simply uses the new file.
 
 		// audio_file on the public post is a copy made at publish time that feeds
 		// only the page's schema.org contentUrl (the visible player is Captivate's
@@ -253,10 +245,6 @@ class Net_Gain_Audio_Replacement {
 		}
 		if ( get_post_meta( $episode_id, 'ng_youtube_video_id', true ) ) {
 			$effects[] = '• YouTube: the current video is DELETED and a new one is created from the new audio. It will be a different video at a different URL.';
-		}
-		$finalization = get_post_meta( $episode_id, 'ng_finalization', true );
-		if ( is_array( $finalization ) && 'counting_down' === ( $finalization['state'] ?? '' ) ) {
-			$effects[] = '• The finalization countdown restarts.';
 		}
 
 		if ( $effects ) {

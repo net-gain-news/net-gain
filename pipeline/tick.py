@@ -48,6 +48,7 @@ from config import ConfigError, load_config
 from image_generation import FALLBACK_META_KEYS, IMAGE_META_KEYS, build_vertex_client, render_images_for_episode
 from metadata_generation import generate_metadata_for_episode
 from notify import notify_failure, send_notice
+from run_lock import ShowBusy, show_lock
 from script_generation import generate_script_for_show
 from signature_strip import refresh_signature_strip
 from video_composition import render_still_video
@@ -114,8 +115,7 @@ YOUTUBE_PUBLISH_DELAY_MINUTES = 5
 # Net_Gain_Step_Status::apply_update() stores each step's 'at' timestamp via
 # current_time('mysql') - in the WP site's own timezone (Settings > General),
 # NOT GMT, unlike ng_finalization's own timestamps (which deliberately use
-# current_time('mysql', true) to avoid exactly this ambiguity - see
-# finalization_elapsed() below). The zone's name comes from the plugin with
+# current_time('mysql', true) to avoid exactly this ambiguity). The zone's name comes from the plugin with
 # every show ('site_timezone'), so it follows that setting rather than a
 # copy of it kept here; only the youtube_publish_due() delay comparison needs it.
 
@@ -180,33 +180,23 @@ def _parse_site_local_at(at_string, site_zone):
     return naive.replace(tzinfo=site_zone).astimezone(timezone.utc)
 
 
-def finalization_elapsed(finalization):
-    """
-    True if a counting_down finalization's countdown has run out.
-    countdown_started_at is stored in GMT (WordPress's current_time('mysql', true))
-    specifically so this comparison is unambiguous regardless of the WP site's
-    configured timezone (Section 1: "never assume a host's timezone").
-    """
-    if finalization.get("state") != "counting_down":
-        return False
-    started_raw = finalization.get("countdown_started_at")
-    if not started_raw:
-        return False
-    started = datetime.fromisoformat(started_raw).replace(tzinfo=timezone.utc)
-    total_seconds = int(finalization.get("countdown_seconds") or 90)
-    elapsed = (datetime.now(timezone.utc) - started).total_seconds()
-    return elapsed >= total_seconds
-
-
 def check_finalizations(wp, show):
+    """
+    An upload finalizes the episode itself (the plugin's audio route), so there is nothing to wait out. This only
+    settles an episode recorded while the 90-second upload countdown still existed and was uploaded just before that
+    was removed: it would otherwise sit in "counting_down" forever. Returns True if it settled any.
+    """
+    acted = False
     for episode in show.get("in_flight_episodes", []) or []:
         finalization = episode.get("finalization") or {}
-        if not finalization_elapsed(finalization):
+        if finalization.get("state") != "counting_down":
             continue
         finalization["state"] = "finalized"
         finalization["finalized_at"] = _gmt_mysql(datetime.now(timezone.utc))
         wp.update_episode_meta(episode["id"], {"ng_finalization": finalization})
-        logger.info("Finalization countdown elapsed for episode %s (%s) - marked finalized.", episode["id"], show["name"])
+        logger.info("Episode %s (%s) was still in the retired upload countdown - marked finalized.", episode["id"], show["name"])
+        acted = True
+    return acted
 
 
 def compute_target_publish_moment(show, finalization):
@@ -260,46 +250,54 @@ def images_due(show, episode):
     return True, pending
 
 
+def render_episode_images(wp, client, vertex_client, config, show, episode, pending):
+    """Renders one episode's images (or falls back to the show's static art); never raises."""
+    episode_id = episode["id"]
+    try:
+        wp.update_step(episode_id, "images_rendered", "in_progress")
+        result = render_images_for_episode(
+            wp, vertex_client, lambda **kwargs: anthropic_generate(client, **kwargs), show, episode_id
+        )
+        wp.update_step(episode_id, "images_rendered", "done")
+        if isinstance(result, dict) and result.get("relaxed"):
+            warn_photo_library_low(wp, config, show, episode.get("episode_date", ""))
+        for action in pending:
+            wp.update_action(show["id"], action["id"], "done")
+        logger.info("Rendered images for episode %s (%s).", episode_id, show["name"])
+    except Exception as exc:
+        logger.exception("Image rendering failed for episode %s (%s)", episode_id, show["name"])
+        show_details = wp.get_show(show["id"])
+        show_meta = show_details.get("meta", {})
+        fallback_ids = {spec: show_meta.get(key, 0) for spec, key in FALLBACK_META_KEYS.items()}
+        if all(fallback_ids.values()):
+            wp.update_episode_meta(
+                episode_id, {IMAGE_META_KEYS[spec]: fid for spec, fid in fallback_ids.items()}
+            )
+            wp.update_step(episode_id, "images_rendered", "degraded", note=str(exc)[:500])
+            for action in pending:
+                wp.update_action(show["id"], action["id"], "done")
+            if show_meta.get("ng_image_mode") == "photos":
+                # A generic fallback graphic went out instead of a photo. In photo mode that means the library
+                # needs attention (empty, or nothing suitable for a sensitive story), so say so rather than
+                # let it pass quietly as a "degraded" step nobody is watching.
+                notify_failure(config, show["name"], "images_rendered (used the fallback graphic)", str(exc))
+        else:
+            wp.update_step(episode_id, "images_rendered", "failed", note=str(exc)[:500])
+            for action in pending:
+                wp.update_action(show["id"], action["id"], "failed")
+            notify_failure(config, show["name"], "images_rendered", str(exc))
+
+
 def process_image_rendering(wp, client, vertex_client, config, show):
+    """Returns True if any episode was worked on."""
+    acted = False
     for episode in show.get("in_flight_episodes", []) or []:
         due, pending = images_due(show, episode)
         if not due:
             continue
-
-        episode_id = episode["id"]
-        try:
-            wp.update_step(episode_id, "images_rendered", "in_progress")
-            result = render_images_for_episode(
-                wp, vertex_client, lambda **kwargs: anthropic_generate(client, **kwargs), show, episode_id
-            )
-            wp.update_step(episode_id, "images_rendered", "done")
-            if isinstance(result, dict) and result.get("relaxed"):
-                warn_photo_library_low(wp, config, show, episode.get("episode_date", ""))
-            for action in pending:
-                wp.update_action(show["id"], action["id"], "done")
-            logger.info("Rendered images for episode %s (%s).", episode_id, show["name"])
-        except Exception as exc:
-            logger.exception("Image rendering failed for episode %s (%s)", episode_id, show["name"])
-            show_details = wp.get_show(show["id"])
-            show_meta = show_details.get("meta", {})
-            fallback_ids = {spec: show_meta.get(key, 0) for spec, key in FALLBACK_META_KEYS.items()}
-            if all(fallback_ids.values()):
-                wp.update_episode_meta(
-                    episode_id, {IMAGE_META_KEYS[spec]: fid for spec, fid in fallback_ids.items()}
-                )
-                wp.update_step(episode_id, "images_rendered", "degraded", note=str(exc)[:500])
-                for action in pending:
-                    wp.update_action(show["id"], action["id"], "done")
-                if show_meta.get("ng_image_mode") == "photos":
-                    # A generic fallback graphic went out instead of a photo. In photo mode that means the library
-                    # needs attention (empty, or nothing suitable for a sensitive story), so say so rather than
-                    # let it pass quietly as a "degraded" step nobody is watching.
-                    notify_failure(config, show["name"], "images_rendered (used the fallback graphic)", str(exc))
-            else:
-                wp.update_step(episode_id, "images_rendered", "failed", note=str(exc)[:500])
-                for action in pending:
-                    wp.update_action(show["id"], action["id"], "failed")
-                notify_failure(config, show["name"], "images_rendered", str(exc))
+        acted = True
+        render_episode_images(wp, client, vertex_client, config, show, episode, pending)
+    return acted
 
 
 def captivate_publish_due(show, episode):
@@ -562,37 +560,66 @@ def record_audio_seconds(wp, captivate, episode_id, captivate_episode_id, wait_s
     return seconds
 
 
+def refresh_strip_when_live(wp, show, episode_id):
+    """
+    Refreshes the founder's email-signature strip, but only once the episode is live on BOTH Captivate and the website:
+    the strip's link opens the latest website page, and a click from an email must never land on an episode that is not
+    yet playable. Called after either step succeeds, so whichever finishes second does the refresh (a Captivate retry
+    after a website success included). Never raises - the signature is a nicety.
+    """
+    try:
+        episode = wp.get_episode(episode_id)
+        steps = episode.get("meta", {}).get("ng_step_status") or {}
+        live = all(
+            (steps.get(key) or {}).get("status") in ("done", "degraded")
+            for key in ("captivate_published", "website_published")
+        )
+        if live:
+            refresh_signature_strip(wp, show, episode_id, episode)
+    except Exception:
+        logger.exception("Signature strip check failed for episode %s (ignored).", episode_id)
+
+
+def publish_episode_to_captivate(wp, client, captivate, config, show, episode):
+    """Generates the episode's metadata if needed and publishes it to Captivate; never raises."""
+    episode_id = episode["id"]
+    step_status = episode.get("step_status") or {}
+    metadata_status = step_status.get("metadata_generated", {}).get("status", "pending")
+
+    try:
+        if metadata_status not in ("done", "degraded"):
+            generate_metadata(wp, client, show, episode_id)
+
+        wp.update_step(episode_id, "captivate_published", "in_progress")
+        episode_number = publish_to_captivate(wp, captivate, show, episode_id, episode.get("finalization") or {})
+        wp.update_step(episode_id, "captivate_published", "done")
+
+        for action in show.get("pending_actions", []) or []:
+            if action.get("action") == "publish_captivate" and action.get("status") == "pending":
+                wp.update_action(show["id"], action["id"], "done")
+        logger.info(
+            "Published episode %s to Captivate as episode number %s for %s.",
+            episode_id, episode_number, show["name"],
+        )
+        refresh_strip_when_live(wp, show, episode_id)
+    except Exception as exc:
+        logger.exception("Captivate publish failed for episode %s (%s)", episode_id, show["name"])
+        wp.update_step(episode_id, "captivate_published", "failed", note=str(exc)[:500])
+        for action in show.get("pending_actions", []) or []:
+            if action.get("action") == "publish_captivate" and action.get("status") == "pending":
+                wp.update_action(show["id"], action["id"], "failed")
+        notify_failure(config, show["name"], "captivate_published", str(exc))
+
+
 def process_captivate_publishes(wp, client, captivate, config, show):
+    """Returns True if any episode was worked on."""
+    acted = False
     for episode in show.get("in_flight_episodes", []) or []:
         if not captivate_publish_due(show, episode):
             continue
-
-        episode_id = episode["id"]
-        step_status = episode.get("step_status") or {}
-        metadata_status = step_status.get("metadata_generated", {}).get("status", "pending")
-
-        try:
-            if metadata_status not in ("done", "degraded"):
-                generate_metadata(wp, client, show, episode_id)
-
-            wp.update_step(episode_id, "captivate_published", "in_progress")
-            episode_number = publish_to_captivate(wp, captivate, show, episode_id, episode.get("finalization") or {})
-            wp.update_step(episode_id, "captivate_published", "done")
-
-            for action in show.get("pending_actions", []) or []:
-                if action.get("action") == "publish_captivate" and action.get("status") == "pending":
-                    wp.update_action(show["id"], action["id"], "done")
-            logger.info(
-                "Published episode %s to Captivate as episode number %s for %s.",
-                episode_id, episode_number, show["name"],
-            )
-        except Exception as exc:
-            logger.exception("Captivate publish failed for episode %s (%s)", episode_id, show["name"])
-            wp.update_step(episode_id, "captivate_published", "failed", note=str(exc)[:500])
-            for action in show.get("pending_actions", []) or []:
-                if action.get("action") == "publish_captivate" and action.get("status") == "pending":
-                    wp.update_action(show["id"], action["id"], "failed")
-            notify_failure(config, show["name"], "captivate_published", str(exc))
+        acted = True
+        publish_episode_to_captivate(wp, client, captivate, config, show, episode)
+    return acted
 
 
 def index_refresh_due(show):
@@ -738,33 +765,41 @@ def _normalize_wp_text(text):
     return text
 
 
+def publish_episode_to_website(wp, client, config, show, episode, captivate=None):
+    """Publishes (or refreshes) the episode's website page and, once Captivate is live too, the signature strip; never raises."""
+    episode_id = episode["id"]
+    step_status = episode.get("step_status") or {}
+    metadata_status = step_status.get("metadata_generated", {}).get("status", "pending")
+
+    try:
+        if metadata_status not in ("done", "degraded"):
+            generate_metadata(wp, client, show, episode_id)
+
+        wp.update_step(episode_id, "website_published", "in_progress")
+        if captivate is not None:    # Captivate swaps in its processed copy (post-roll added) shortly after creating the episode; the email must show that length
+            meta_now = wp.get_episode(episode_id).get("meta", {})
+            if meta_now.get("ng_url_captivate"):
+                record_audio_seconds(wp, captivate, episode_id, meta_now["ng_url_captivate"].rsplit("/", 1)[-1], wait_seconds=120)
+        result = wp.publish_website(episode_id)
+        verify_website_publish(result.get("permalink"), wp.get_episode(episode_id).get("meta", {}))
+        wp.update_step(episode_id, "website_published", "done")
+        logger.info("Published episode %s to the website for %s.", episode_id, show["name"])
+        refresh_strip_when_live(wp, show, episode_id)    # the founder's email signature shows the latest newscast, once it is live everywhere it links
+    except Exception as exc:
+        logger.exception("Website publish failed for episode %s (%s)", episode_id, show["name"])
+        wp.update_step(episode_id, "website_published", "failed", note=str(exc)[:500])
+        notify_failure(config, show["name"], "website_published", str(exc))
+
+
 def process_website_publishes(wp, client, config, show, captivate=None):
+    """Returns True if any episode was worked on."""
+    acted = False
     for episode in show.get("in_flight_episodes", []) or []:
         if not website_publish_due(show, episode):
             continue
-
-        episode_id = episode["id"]
-        step_status = episode.get("step_status") or {}
-        metadata_status = step_status.get("metadata_generated", {}).get("status", "pending")
-
-        try:
-            if metadata_status not in ("done", "degraded"):
-                generate_metadata(wp, client, show, episode_id)
-
-            wp.update_step(episode_id, "website_published", "in_progress")
-            if captivate is not None:    # Captivate swaps in its processed copy (post-roll added) shortly after creating the episode; the email must show that length
-                meta_now = wp.get_episode(episode_id).get("meta", {})
-                if meta_now.get("ng_url_captivate"):
-                    record_audio_seconds(wp, captivate, episode_id, meta_now["ng_url_captivate"].rsplit("/", 1)[-1], wait_seconds=120)
-            result = wp.publish_website(episode_id)
-            verify_website_publish(result.get("permalink"), wp.get_episode(episode_id).get("meta", {}))
-            wp.update_step(episode_id, "website_published", "done")
-            logger.info("Published episode %s to the website for %s.", episode_id, show["name"])
-            refresh_signature_strip(wp, show, episode_id)    # never raises; the founder's email signature shows the latest newscast
-        except Exception as exc:
-            logger.exception("Website publish failed for episode %s (%s)", episode_id, show["name"])
-            wp.update_step(episode_id, "website_published", "failed", note=str(exc)[:500])
-            notify_failure(config, show["name"], "website_published", str(exc))
+        acted = True
+        publish_episode_to_website(wp, client, config, show, episode, captivate)
+    return acted
 
 
 def youtube_publish_due(show, episode):
@@ -1097,43 +1132,51 @@ def resolve_youtube_processing(wp, config, show, episode_id, meta):
     logger.info("YouTube video %s for episode %s (%s) confirmed live.", video_id, episode_id, show["name"])
 
 
+def publish_episode_to_youtube(wp, client, config, show, episode, mode, pending):
+    """Uploads the episode to YouTube (mode 'upload') or checks on a video already in flight (mode 'verify'); never raises."""
+    episode_id = episode["id"]
+
+    try:
+        full_episode = wp.get_episode(episode_id)
+        meta = full_episode.get("meta", {})
+
+        # Safety rule: a force-triggered re-publish must never re-upload
+        # once a video id already exists, regardless of how "upload" was
+        # reached - that is exactly how a duplicate public video gets
+        # published. Re-check instead.
+        if mode == "upload" and meta.get("ng_youtube_video_id"):
+            mode = "verify"
+
+        if mode == "upload":
+            upload_episode_to_youtube(wp, client, config, show, episode_id, meta)
+        else:
+            resolve_youtube_processing(wp, config, show, episode_id, meta)
+
+        for action in pending:
+            wp.update_action(show["id"], action["id"], "done")
+    except Exception as exc:
+        logger.exception("YouTube publish failed for episode %s (%s)", episode_id, show["name"])
+        wp.update_step(episode_id, "youtube_published", "failed", note=str(exc)[:500])
+        for action in pending:
+            wp.update_action(show["id"], action["id"], "failed")
+        notify_failure(config, show["name"], "youtube_published", str(exc))
+
+
 def process_youtube_publishes(wp, client, config, show):
+    """Returns True if any episode was worked on."""
+    acted = False
     for episode in show.get("in_flight_episodes", []) or []:
         mode = youtube_publish_due(show, episode)
         if mode is None:
             continue
-
-        episode_id = episode["id"]
+        acted = True
         pending = [
             a
             for a in show.get("pending_actions", []) or []
             if a.get("action") == "publish_youtube" and a.get("status") == "pending"
         ]
-
-        try:
-            full_episode = wp.get_episode(episode_id)
-            meta = full_episode.get("meta", {})
-
-            # Safety rule: a force-triggered re-publish must never re-upload
-            # once a video id already exists, regardless of how "upload" was
-            # reached - that is exactly how a duplicate public video gets
-            # published. Re-check instead.
-            if mode == "upload" and meta.get("ng_youtube_video_id"):
-                mode = "verify"
-
-            if mode == "upload":
-                upload_episode_to_youtube(wp, client, config, show, episode_id, meta)
-            else:
-                resolve_youtube_processing(wp, config, show, episode_id, meta)
-
-            for action in pending:
-                wp.update_action(show["id"], action["id"], "done")
-        except Exception as exc:
-            logger.exception("YouTube publish failed for episode %s (%s)", episode_id, show["name"])
-            wp.update_step(episode_id, "youtube_published", "failed", note=str(exc)[:500])
-            for action in pending:
-                wp.update_action(show["id"], action["id"], "failed")
-            notify_failure(config, show["name"], "youtube_published", str(exc))
+        publish_episode_to_youtube(wp, client, config, show, episode, mode, pending)
+    return acted
 
 
 def warn_photo_library_low(wp, config, show, episode_date):
@@ -1197,55 +1240,66 @@ def process_photo_digest(wp, config, show):
         wp.update_show_meta(show["id"], {"ng_photo_digest_last_sent": today})
 
 
+def run_phase(wp, show, label, phase, *args, refresh=False):
+    """
+    Runs one stage of a show's pass. A stage that did something re-reads the in-flight episodes' state first, so the
+    next stage in this same pass sees what it just did (images done -> Captivate, Captivate done -> website) instead of
+    waiting for the next pass (`refresh` forces that re-read for a stage that changes episodes without reporting it).
+    One stage failing never stops the others.
+    """
+    try:
+        acted = phase(*args)
+    except Exception:
+        logger.exception("Error in %s for %s", label, show["name"])
+        return
+    if acted or refresh:
+        refresh_in_flight(wp, show)
+
+
+def refresh_in_flight(wp, show):
+    """Re-reads each in-flight episode's step status and finalization from WordPress, in place."""
+    for episode in show.get("in_flight_episodes", []) or []:
+        try:
+            meta = wp.get_episode(episode["id"]).get("meta", {})
+        except Exception:
+            logger.warning("Could not re-read episode %s; its next stage waits for the next pass.", episode["id"], exc_info=True)
+            continue
+        episode["step_status"] = meta.get("ng_step_status") or episode.get("step_status")
+        episode["finalization"] = meta.get("ng_finalization") or episode.get("finalization")
+
+
 def process_show(wp, client, captivate, vertex_client, config, show):
-    # First, so a replaced episode's destinations are settled (Captivate
-    # re-pointed, old YouTube video deleted and its step reset) before this
-    # same pass's publish steps look at them. SPEC.md Section 8.4.
-    try:
-        process_audio_replacements(wp, captivate, config, show, notify_failure)
-    except Exception:
-        logger.exception("Error processing audio replacements for %s", show["name"])
+    """
+    One pass over one show, in the order a finished recording travels: a replaced file settles first, then images,
+    Captivate, the website (and the signature strip), YouTube; the housekeeping that can take minutes (tagging photos)
+    and script generation come last so they never hold up a release. Called every minute by cron under the show's lock.
+    """
+    run_phase(
+        wp, show, "audio replacements", process_audio_replacements, wp, captivate, config, show, notify_failure,
+        refresh=bool(show.get("audio_replacements")),
+    )
+    run_phase(wp, show, "finalizations", check_finalizations, wp, show)
+    run_phase(wp, show, "image rendering", process_image_rendering, wp, client, vertex_client, config, show)
+    run_phase(wp, show, "Captivate publishes", process_captivate_publishes, wp, client, captivate, config, show)
+    run_phase(wp, show, "website publishes", process_website_publishes, wp, client, config, show, captivate)
+    run_phase(wp, show, "YouTube publishes", process_youtube_publishes, wp, client, config, show)
+    run_phase(wp, show, "index refresh", process_index_refresh, wp, config, show)
+    run_phase(wp, show, "script generation", process_script_generation, wp, client, config, show)
+    if housekeeping_due():
+        run_phase(wp, show, "photo tagging", process_photo_tagging, wp, client, config, show)
+        run_phase(wp, show, "photo digest", process_photo_digest, wp, config, show)
 
-    try:
-        check_finalizations(wp, show)
-    except Exception:
-        logger.exception("Error checking finalizations for %s", show["name"])
 
-    try:
-        process_image_rendering(wp, client, vertex_client, config, show)
-    except Exception:
-        logger.exception("Error processing image rendering for %s", show["name"])
+# Cron starts a pass every minute so a finished recording is picked up quickly, but nothing about tagging uploaded photos
+# needs that: it keeps the old five-minute rhythm, so an idle minute costs the site one request, not a photo-library read.
+HOUSEKEEPING_EVERY_MINUTES = 5
 
-    try:
-        process_photo_tagging(wp, client, config, show)
-    except Exception:
-        logger.exception("Error tagging photos for %s", show["name"])
 
-    try:
-        process_photo_digest(wp, config, show)
-    except Exception:
-        logger.exception("Error sending the photo library note for %s", show["name"])
+def housekeeping_due(now=None):
+    return (now or datetime.now()).minute % HOUSEKEEPING_EVERY_MINUTES == 0
 
-    try:
-        process_captivate_publishes(wp, client, captivate, config, show)
-    except Exception:
-        logger.exception("Error processing Captivate publishes for %s", show["name"])
 
-    try:
-        process_website_publishes(wp, client, config, show, captivate)
-    except Exception:
-        logger.exception("Error processing website publishes for %s", show["name"])
-
-    try:
-        process_youtube_publishes(wp, client, config, show)
-    except Exception:
-        logger.exception("Error processing YouTube publishes for %s", show["name"])
-
-    try:
-        process_index_refresh(wp, config, show)
-    except Exception:
-        logger.exception("Error processing index refresh for %s", show["name"])
-
+def process_script_generation(wp, client, config, show):
     # Read in the show's script-generation zone: the zone the target time, the recording days and the episode date are all
     # anchored to (the plugin's "Script generation time" setting).
     now_local = datetime.now(show_zone(show, "script_timezone"))
@@ -1349,11 +1403,32 @@ def main():
 
     for show in shows:
         try:
-            process_show(wp, client, captivate, vertex_client, config, show)
+            # Cron starts a pass every minute; a pass still working on this show (a long script, a slow publish) makes
+            # this one step aside rather than race it. Shows lock separately, so one show's slow work never holds up
+            # another's.
+            with show_lock(show["id"]):
+                process_show(wp, client, captivate, vertex_client, config, show)
+        except ShowBusy as busy:
+            note_busy_show(config, show, busy)
         except Exception:
             # A failure in due-checking/episode lookup itself (before we even reach
             # process_show's own try/except) must still not stop the other shows.
             logger.exception("Unhandled error processing show %s", show.get("name", show.get("id")))
+
+
+# A pass that has held a show's lock this long is stuck, not working: nothing in a normal pass runs anywhere near it
+# (the longest, script generation, is bounded by the 10-minute request timeout).
+STUCK_PASS_MINUTES = 45
+
+
+def note_busy_show(config, show, busy):
+    """Logs a skipped pass, and tells the operator once if the pass holding the lock has clearly hung."""
+    held = busy.held_seconds
+    logger.info("Show %s is still being processed by an earlier pass (%s); skipping this one.", show.get("name", show["id"]),
+                f"{held / 60:.0f} min" if held is not None else "age unknown")
+    if held is not None and STUCK_PASS_MINUTES * 60 <= held < (STUCK_PASS_MINUTES + 1) * 60:
+        notify_failure(config, show.get("name", str(show["id"])), "background job",
+                       f"A pass has been running for over {STUCK_PASS_MINUTES} minutes and is blocking every later pass for this show.")
 
 
 if __name__ == "__main__":

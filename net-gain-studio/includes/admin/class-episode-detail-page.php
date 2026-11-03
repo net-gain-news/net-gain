@@ -2,7 +2,7 @@
 /**
  * Queued-episode detail view (Spec Section 8.2): every deliverable surfaced
  * with a direct, visible action to replace or regenerate it in place,
- * without needing to abort and restart the whole episode. Admin-only -
+ * without needing to restart the whole episode. Admin-only -
  * talent's own interaction is scoped to the My Show / Script Review screens.
  */
 

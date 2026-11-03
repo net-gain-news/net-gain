@@ -8,7 +8,7 @@ Phases 1–7 of the Net Gain multi-tenant newscast studio build — see `../SPEC
 - **Custom post types**: `ng_vertical`, `ng_show`, `ng_episode` — all `public => false`, all `show_in_rest => true`, each with its own `capability_type` so they're isolated from ordinary WordPress Posts. `ng_vertical` has `show_ui => true` (as of Phase 2) so it gets WordPress's native title+editor screen with no nav menu entry — no custom Vertical admin code exists or is needed.
 - **Custom tables**: `wp_ng_talent_assignments` (talent↔show many-to-many + substitute date ranges) and `wp_ng_secrets` (encrypted per-show/global secrets, e.g. YouTube OAuth tokens).
 - **Custom roles**: `ng_service` (the account Python authenticates as via a WordPress Application Password) and `ng_talent`.
-- **REST routes**: default CPT REST for `ng_vertical`/`ng_show`/`ng_episode`, plus a custom `net-gain/v1` namespace for cross-entity operations (tick-loop context, manual-trigger actions, talent assignment, per-step status updates, finalization abort/publish-now, secrets).
+- **REST routes**: default CPT REST for `ng_vertical`/`ng_show`/`ng_episode`, plus a custom `net-gain/v1` namespace for cross-entity operations (tick-loop context, manual-trigger actions, talent assignment, per-step status updates, audio upload, secrets).
 
 **Phase 2 — Show setup admin screen:**
 - A "Net Gain Studio" top-level admin menu (Shows list) plus a hidden Add/Edit Show page reached via links, not its own nav item.
@@ -18,7 +18,7 @@ Phases 1–7 of the Net Gain multi-tenant newscast studio build — see `../SPEC
 
 **Phase 4 — Review, finalization & queue:**
 - **Script review** (`class-script-review-page.php`): full-width final-script editor, AI draft behind a collapsed toggle, PHP `similar_text()` similarity check that marks a suspiciously-close save `degraded` rather than `done`.
-- **"My Show"** (`class-my-show-page.php`) — the first talent-facing screen, gated by the talent-assignment relationship rather than a WordPress role. Audio upload via `wp.media` (filtered to audio) immediately starts a server-truth finalization countdown; the visible timer is a reflection of that state, not its source — `pipeline/tick.py` independently detects an elapsed countdown even if no browser is watching.
+- **"My Show"** (`class-my-show-page.php`) — the first talent-facing screen, gated by the talent-assignment relationship rather than a WordPress role. Audio upload via `wp.media` (filtered to audio) finalizes the episode on the spot (the upload is the publish decision; there is no countdown), and the background job in `pipeline/tick.py` publishes it on its next pass.
 - **Episode detail/queue view** (`class-episode-detail-page.php`, reached via a new Episodes list per show): every deliverable with a direct action, plus the Section 8.3 manual triggers (Generate/Regenerate Script, Generate Images, Publish Captivate), prerequisite-aware disabling.
 - **Two build-time corrections to the original spec text**, now reflected in `SPEC.md` itself: metadata generation is deferred until close to publish time rather than triggered at finalization (avoids wasted work on later-aborted episodes), and image generation no longer depends on metadata generation, so it stays manually triggerable at any time.
 
@@ -32,9 +32,8 @@ Phases 1–7 of the Net Gain multi-tenant newscast studio build — see `../SPEC
 
 **Phase 7 — Operations dashboard:**
 - `class-dashboard-page.php` is now the default "Net Gain Studio" landing page — Shows management moved to its own visible "Shows" submenu instead of being the default. One day at a time, with prev/next navigation; every Active show gets a row even with no episode yet that day.
-- `class-dashboard-status.php`: "queued" and the audio-countdown's blue "in progress" state are computed at display time from data that already exists (`ng_step_status` + `ng_finalization` + the show's `publish_mode`) — nothing new is persisted for this. Tooltips are seeded from this project's own real incidents (e.g. the Captivate-failure tooltip literally says to check the raw response body first, per Section 1's actual lesson).
+- `class-dashboard-status.php`: "queued" is computed at display time from data that already exists (`ng_step_status` + `ng_finalization` + the show's `publish_mode`) — nothing new is persisted for this. Tooltips are seeded from this project's own real incidents (e.g. the Captivate-failure tooltip literally says to check the raw response body first, per Section 1's actual lesson).
 - Test shows (a new `ng_is_test` checkbox on the setup screen) render in a native `<details>`/`<summary>` disclosure, collapsed by default — Section 13's "turning triangle," with zero JS.
-- Bundled fix: aborting the finalization countdown (Phase 4) never reset the audio-received step back to pending, so a dashboard built on that data would have shown "done" for audio that was just discarded.
 
 **Phase 8 — Image pipeline:**
 - One AI-generated base image per episode (Gemini 2.5 Flash Image via Vertex AI), cropped to each of three output ratios rather than three independently generated images, so an episode looks like one consistent piece of art across Captivate/YouTube/website.

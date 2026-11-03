@@ -1,8 +1,7 @@
 <?php
 /**
  * Derives a dashboard cell's displayed status and tooltip text (Spec
- * Section 10). "Queued" and the audio-countdown's Blue state are computed
- * here from data that already exists (ng_step_status + ng_finalization +
+ * Section 10). "Queued" is computed here from data that already exists (ng_step_status + ng_finalization +
  * the show's publish_mode) rather than stored anywhere - nothing about
  * Phase 7 needed a new piece of persisted state.
  */
@@ -20,12 +19,6 @@ class Net_Gain_Dashboard_Status {
 	 */
 	public static function compute_cell_status( $step_key, array $step_status, array $finalization, array $show ) {
 		$stored = $step_status[ $step_key ]['status'] ?? 'pending';
-
-		// The audio step reads "done" the instant it's uploaded, but isn't truly
-		// settled until the countdown resolves (Section 10's own example of Blue).
-		if ( 'audio_received' === $step_key && 'counting_down' === ( $finalization['state'] ?? '' ) ) {
-			return 'in_progress';
-		}
 
 		if (
 			in_array( $step_key, self::PUBLISH_STEPS, true )
@@ -53,10 +46,6 @@ class Net_Gain_Dashboard_Status {
 
 		if ( 'queued' === $cell_status ) {
 			return 'Finalized and ready - waiting for this show\'s configured scheduled publish time.';
-		}
-
-		if ( 'in_progress' === $cell_status && 'audio_received' === $step_key ) {
-			return 'Audio received; finalizing automatically unless the talent aborts or publishes now from the My Show screen.';
 		}
 
 		if ( 'failed' === $cell_status ) {

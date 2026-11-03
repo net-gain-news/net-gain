@@ -58,7 +58,7 @@
 			}
 		} );
 
-		// --- My Show page: audio upload, finalization countdown, abort/publish-now ---
+		// --- My Show page: audio upload and replacement ---
 
 		function ngRestPost( path, data ) {
 			return $.ajax( {
@@ -140,15 +140,6 @@
 				.fail( ngShowError );
 		} );
 
-		$( document ).on( 'click', '.ng-abort, .ng-publish-now', function () {
-			var episodeId = $( this ).data( 'episode-id' );
-			var isAbort = $( this ).hasClass( 'ng-abort' );
-
-			ngRestPost( '/episodes/' + episodeId + '/finalize-action', { action: isAbort ? 'abort' : 'publish_now' } )
-				.done( function () { ngReloadWithNotice( isAbort ? 'aborted' : 'published_now' ); } )
-				.fail( ngShowError );
-		} );
-
 		// Talent can regenerate their own episode's images (can_act_for_show,
 		// per an explicit permission carve-out - see class-rest-show-actions.php)
 		// unlike generate_script/publish_captivate, which stay admin-only.
@@ -160,41 +151,6 @@
 			ngRestPost( '/shows/' + showId + '/actions', { action: 'generate_images', force: true } )
 				.done( function () { ngReloadWithNotice( 'images_regenerate_queued' ); } )
 				.fail( ngShowError );
-		} );
-
-		// The countdown reflects server state, it isn't the source of truth for it -
-		// once one reaches zero, poll that episode until the tick loop has actually
-		// finalized it (the visible timer can hit zero before the next tick pass
-		// runs). Each .ng-countdown element on the page runs its own independent
-		// timer/poll loop.
-		$( '.ng-countdown' ).each( function () {
-			var $countdown = $( this );
-			var episodeId  = $countdown.data( 'episode-id' );
-			var remaining  = parseInt( $countdown.data( 'seconds' ), 10 ) || 0;
-
-			var pollUntilFinalized = function () {
-				$.get( ngAdmin.apiRoot + 'wp/v2/ng_episode/' + episodeId ).done( function ( episode ) {
-					var state = episode.meta && episode.meta.ng_finalization ? episode.meta.ng_finalization.state : null;
-					if ( 'counting_down' !== state ) {
-						window.location.reload();
-					} else {
-						setTimeout( pollUntilFinalized, 5000 );
-					}
-				} );
-			};
-
-			var tick = function () {
-				if ( remaining > 0 ) {
-					$countdown.text( remaining );
-					remaining -= 1;
-					setTimeout( tick, 1000 );
-					return;
-				}
-				$countdown.text( 'finalizing…' );
-				pollUntilFinalized();
-			};
-
-			tick();
 		} );
 	} );
 } )( jQuery );
