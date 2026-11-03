@@ -64,6 +64,18 @@ class CaptivateClient:
     def get_show(self, captivate_show_id):
         return self._request("GET", f"/shows/{captivate_show_id}")
 
+    def verify_account_timezone(self, captivate_show_id):
+        """Raises unless Captivate reports the zone this code formats dates in (CAPTIVATE_ACCOUNT_TIMEZONE)."""
+        show = self.get_show(captivate_show_id)
+        if isinstance(show, dict):
+            show = show.get("show", show)
+        reported = show.get("time_zone") if isinstance(show, dict) else None
+        if reported != CAPTIVATE_ACCOUNT_TIMEZONE.key:
+            raise CaptivateError(
+                f"Captivate reports the show's time zone as {reported!r}, but episode dates are formatted for "
+                f"{CAPTIVATE_ACCOUNT_TIMEZONE.key!r}. Nothing was published; the zone in captivate_client.py needs checking."
+            )
+
     def upload_media(self, captivate_show_id, file_bytes, filename, content_type="audio/mpeg"):
         response = self._request(
             "POST",
@@ -182,7 +194,14 @@ class CaptivateClient:
 # (fix_captivate_bitrate.py, a one-off from before this existed, carries its
 # own older copies of the first two - left alone deliberately.)
 
-CAPTIVATE_ACCOUNT_TIMEZONE = ZoneInfo("America/Los_Angeles")
+# Captivate reads the `date` field of a create/update as wall-clock time in the show's own time zone, which the account
+# reports as America/Vancouver (confirmed against a live GET /shows/{id} on 2026-11-03). That is NOT America/Los_Angeles:
+# British Columbia stays on permanent daylight time (UTC-7) while Los Angeles went back to UTC-8 on 2026-11-01, and
+# formatting dates in Los Angeles time then stamped every new episode an hour early. verify_account_timezone() checks the
+# live value before an episode is created so a future change at Captivate stops the publish instead of mis-dating it.
+# (History: a 2026-09-12 version read the zone from the API without ever checking the response and silently fell back to
+# UTC, which scheduled an episode for the next day. Hence the explicit comparison, and no fallback.)
+CAPTIVATE_ACCOUNT_TIMEZONE = ZoneInfo("America/Vancouver")
 
 
 def parse_captivate_timestamp(value):

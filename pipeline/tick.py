@@ -43,7 +43,7 @@ import youtube_client as yt
 from anthropic_client import generate as anthropic_generate
 from audio_conversion import convert_to_captivate_bitrate
 from audio_replacement import process_audio_replacements
-from captivate_client import CaptivateClient
+from captivate_client import CAPTIVATE_ACCOUNT_TIMEZONE, CaptivateClient
 from config import ConfigError, load_config
 from image_generation import FALLBACK_META_KEYS, IMAGE_META_KEYS, build_vertex_client, render_images_for_episode
 from metadata_generation import generate_metadata_for_episode
@@ -72,22 +72,6 @@ WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 # a floor against non-scripts, not a proxy for real editorial quality.
 MIN_SCRIPT_WORDS = 250
 
-# Captivate's "date" field is interpreted in this account's own confirmed
-# timezone (Pacific), not a per-show value fetched from the API - ported
-# directly from the prior single-show prototype's publish_episode.py, which
-# empirically confirmed this against Captivate's real behavior. Live incident
-# (2026-09-12): this build previously fetched captivate.get_show()'s
-# "time_zone" field dynamically instead, a field this codebase never verified
-# against a live response (unlike the auth token/media-id extraction in the
-# same file, which explicitly checks multiple plausible shapes) - it silently
-# fell back to UTC, and formatting a UTC moment "as UTC" is a no-op, so a
-# genuinely-past UTC moment got sent as UTC clock digits into a field
-# Captivate reads as Pacific - shifting the effective time forward by the
-# UTC-Pacific offset (~7 hours in September) and scheduling instead of
-# publishing immediately. Since this is the same shared Captivate account as
-# the prototype (CLAUDE.md), Pacific is the proven, correct value here too,
-# not a per-show guess.
-CAPTIVATE_ACCOUNT_TIMEZONE = ZoneInfo("America/Los_Angeles")
 
 # YouTube's own processing delay (SPEC Section 6.3: "sometimes several
 # minutes") means youtube_published needs two genuinely different timeouts,
@@ -449,6 +433,7 @@ def publish_to_captivate(wp, captivate, show, episode_id, finalization):
         raise RuntimeError(f"Show '{show['name']}' has no Captivate show connected yet.")
 
     captivate.ensure_authenticated()
+    captivate.verify_account_timezone(captivate_show_id)    # before anything is created; see captivate_client.CAPTIVATE_ACCOUNT_TIMEZONE
 
     episode = wp.get_episode(episode_id)
     meta = episode.get("meta", {})
@@ -498,6 +483,13 @@ def publish_to_captivate(wp, captivate, show, episode_id, finalization):
     # Full end-to-end verification (Section 6.1 & 9): re-fetch and confirm, rather
     # than trusting the create call's own success response alone.
     verification = captivate.get_episode(new_episode_id)
+    record = verification.get("episode", verification) if isinstance(verification, dict) else {}
+    if isinstance(record, list):
+        record = record[0] if record else {}
+    logger.info(
+        "Captivate episode %s created: status=%s, published_date=%s (sent date=%s as %s).",
+        new_episode_id, record.get("status"), record.get("published_date"), date_field, CAPTIVATE_ACCOUNT_TIMEZONE.key,
+    )
     verified_title = verification.get("title") or (verification.get("episode") or {}).get("title")
     if verified_title != title:
         raise RuntimeError(
