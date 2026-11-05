@@ -43,7 +43,7 @@ CAPTIVATE_BITRATE_KBPS = 192
 # Same account timezone tick.py's compute_captivate_date_field() uses for new
 # publishes - Captivate's `date` field is interpreted in this account's
 # confirmed timezone, not UTC (Section 1's own carried-forward lesson).
-CAPTIVATE_ACCOUNT_TIMEZONE = ZoneInfo("America/Vancouver")    # see captivate_client.CAPTIVATE_ACCOUNT_TIMEZONE
+CAPTIVATE_ACCOUNT_TIMEZONE = ZoneInfo("America/Los_Angeles")    # see captivate_client.CAPTIVATE_ACCOUNT_TIMEZONE for why
 
 USER_AGENT = "NetGainStudio-Pipeline/1.0 (+https://netgain.news)"
 

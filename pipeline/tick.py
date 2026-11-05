@@ -42,7 +42,8 @@ import photo_library
 import youtube_client as yt
 from anthropic_client import generate as anthropic_generate
 from audio_conversion import convert_to_captivate_bitrate
-from audio_replacement import process_audio_replacements
+import alert_memory
+from audio_replacement import captivate_episode_id, process_audio_replacements
 from captivate_client import CAPTIVATE_ACCOUNT_TIMEZONE, CaptivateClient
 from config import ConfigError, load_config
 from image_generation import FALLBACK_META_KEYS, IMAGE_META_KEYS, build_vertex_client, render_images_for_episode
@@ -601,6 +602,75 @@ def publish_episode_to_captivate(wp, client, captivate, config, show, episode):
             if action.get("action") == "publish_captivate" and action.get("status") == "pending":
                 wp.update_action(show["id"], action["id"], "failed")
         notify_failure(config, show["name"], "captivate_published", str(exc))
+
+
+# How long after an episode was handed to Captivate (or was meant to go live, for a scheduled show) it may still read anything but
+# Published before the operator is told. Captivate normally flips a new episode within about a minute.
+LIVE_CHECK_GRACE_MINUTES = 3
+
+
+def process_captivate_live_check(wp, captivate, config, show, now=None, memory=alert_memory):
+    """
+    Tells the operator, once per episode, when Captivate still does not show an episode as Published a few minutes after it was
+    meant to be: it is then not in the podcast feed, so Apple and the other directories cannot see it. (2026-11-03 .. 2026-11-05:
+    episodes were written with a date Captivate read an hour late and sat as "Scheduled" for 59 minutes with every one of our
+    steps green.) Cheap when nothing is overdue: it reads Captivate only for an episode past the grace period. Never raises and
+    never changes anything on Captivate. Returns False (it never does work that needs a re-read).
+    """
+    now = now or datetime.now(timezone.utc)
+    site_zone = show_zone(show, "site_timezone")
+    overdue = []
+    for episode in show.get("in_flight_episodes", []) or []:
+        try:
+            step = (episode.get("step_status") or {}).get("captivate_published", {})
+            finalization = episode.get("finalization") or {}
+            if step.get("status") not in ("done", "degraded") or finalization.get("state") != "finalized":
+                continue
+            due = compute_target_publish_moment(show, finalization)
+            handed_over = _parse_site_local_at(step.get("at"), site_zone)
+            started = max(due, handed_over) if handed_over else due
+            if now >= started + timedelta(minutes=LIVE_CHECK_GRACE_MINUTES):
+                overdue.append((episode, started))
+        except Exception:
+            logger.exception("Captivate live check could not read episode %s (ignored).", episode.get("id"))
+    if not overdue:
+        return False
+
+    try:
+        captivate.ensure_authenticated()
+    except Exception:
+        logger.exception("Captivate live check: could not sign in (ignored).")
+        return False
+    for episode, started in overdue:
+        try:
+            cap_id = captivate_episode_id(wp.get_episode(episode["id"]).get("meta", {}))
+            key = f"captivate-not-live:{cap_id}"
+            live_key = f"captivate-live:{cap_id}"
+            if not cap_id or memory.already_sent(key) or memory.already_sent(live_key):
+                continue
+            record = captivate.get_episode(cap_id)
+            record = record.get("episode", record) if isinstance(record, dict) else {}
+            status = record.get("status")
+            if status == "Published":
+                try:
+                    memory.mark_sent(live_key)         # confirmed; not read from Captivate again on later passes
+                except OSError:
+                    logger.exception("Could not remember that Captivate episode %s is live.", cap_id)
+                continue
+            minutes = int((now - started).total_seconds() // 60) + LIVE_CHECK_GRACE_MINUTES
+            notify_failure(
+                config, show["name"], "captivate_live",
+                f"Captivate still shows this episode as {status or 'unknown'}, {minutes} minutes after it was handed over "
+                f"(Captivate episode {cap_id}, its date reads {record.get('published_date')!r}). It is not in the podcast feed "
+                "yet. Open the episode in Captivate and check its publish date.",
+            )
+            try:
+                memory.mark_sent(key)
+            except OSError:
+                logger.exception("Could not remember that the live-check alert for %s was sent.", cap_id)
+        except Exception:
+            logger.exception("Captivate live check failed for episode %s (ignored).", episode.get("id"))
+    return False
 
 
 def process_captivate_publishes(wp, client, captivate, config, show):
@@ -1273,6 +1343,7 @@ def process_show(wp, client, captivate, vertex_client, config, show):
     run_phase(wp, show, "finalizations", check_finalizations, wp, show)
     run_phase(wp, show, "image rendering", process_image_rendering, wp, client, vertex_client, config, show)
     run_phase(wp, show, "Captivate publishes", process_captivate_publishes, wp, client, captivate, config, show)
+    run_phase(wp, show, "Captivate live check", process_captivate_live_check, wp, captivate, config, show)
     run_phase(wp, show, "website publishes", process_website_publishes, wp, client, config, show, captivate)
     run_phase(wp, show, "YouTube publishes", process_youtube_publishes, wp, client, config, show)
     run_phase(wp, show, "index refresh", process_index_refresh, wp, config, show)

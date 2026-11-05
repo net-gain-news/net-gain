@@ -65,15 +65,15 @@ class CaptivateClient:
         return self._request("GET", f"/shows/{captivate_show_id}")
 
     def verify_account_timezone(self, captivate_show_id):
-        """Raises unless Captivate reports the zone this code formats dates in (CAPTIVATE_ACCOUNT_TIMEZONE)."""
+        """Raises unless Captivate still reports the show's zone as CAPTIVATE_REPORTED_ZONE (see the note on CAPTIVATE_ACCOUNT_TIMEZONE)."""
         show = self.get_show(captivate_show_id)
         if isinstance(show, dict):
             show = show.get("show", show)
         reported = show.get("time_zone") if isinstance(show, dict) else None
-        if reported != CAPTIVATE_ACCOUNT_TIMEZONE.key:
+        if reported != CAPTIVATE_REPORTED_ZONE:
             raise CaptivateError(
-                f"Captivate reports the show's time zone as {reported!r}, but episode dates are formatted for "
-                f"{CAPTIVATE_ACCOUNT_TIMEZONE.key!r}. Nothing was published; the zone in captivate_client.py needs checking."
+                f"Captivate reports the show's time zone as {reported!r}, but episode dates are formatted for a show Captivate "
+                f"reports as {CAPTIVATE_REPORTED_ZONE!r}. Nothing was published; the zone in captivate_client.py needs checking."
             )
 
     def upload_media(self, captivate_show_id, file_bytes, filename, content_type="audio/mpeg"):
@@ -194,14 +194,22 @@ class CaptivateClient:
 # (fix_captivate_bitrate.py, a one-off from before this existed, carries its
 # own older copies of the first two - left alone deliberately.)
 
-# Captivate reads the `date` field of a create/update as wall-clock time in the show's own time zone, which the account
-# reports as America/Vancouver (confirmed against a live GET /shows/{id} on 2026-11-03). That is NOT America/Los_Angeles:
-# British Columbia stays on permanent daylight time (UTC-7) while Los Angeles went back to UTC-8 on 2026-11-01, and
-# formatting dates in Los Angeles time then stamped every new episode an hour early. verify_account_timezone() checks the
-# live value before an episode is created so a future change at Captivate stops the publish instead of mis-dating it.
-# (History: a 2026-09-12 version read the zone from the API without ever checking the response and silently fell back to
-# UTC, which scheduled an episode for the next day. Hence the explicit comparison, and no fallback.)
-CAPTIVATE_ACCOUNT_TIMEZONE = ZoneInfo("America/Vancouver")
+# Captivate reads the `date` field of a create/update (and prints published_date back) as wall-clock time in the show's zone.
+# The show reports that zone as America/Vancouver, but Captivate applies it with its OWN time-zone rules, and in November those
+# are Pacific STANDARD time (UTC-8): its RSS feed prints every pubDate with "-0800" (confirmed 2026-11-05). The server's own
+# tz database (2026c) says British Columbia is on permanent UTC-7, and formatting dates with it (2026-11-03 .. 2026-11-05,
+# CAPTIVATE_ACCOUNT_TIMEZONE = America/Vancouver) made Captivate read every date an hour too late: episodes 31 and 32 sat as
+# "Scheduled" for 59 minutes and reached the podcast feed (and Apple) an hour after the pipeline published them. The flip to
+# Published happened exactly when Captivate's reading of the date came due (episode 32: digits 14:56:33, flip at 22:57:00 UTC).
+#
+# So dates are written the way Captivate reads them: Pacific time with the US rules, which is America/Los_Angeles. If Captivate
+# ever adopts BC's change its dates would start reading an hour EARLIER than sent, which only moves the printed publish time
+# back an hour; the failure that matters (an episode left Scheduled) is caught by tick.process_captivate_live_check.
+# verify_account_timezone() still checks the name Captivate reports, so a changed account zone stops a publish instead of
+# mis-dating it. (History: a 2026-09-12 version read the zone from the API without ever checking the response and silently
+# fell back to UTC, which scheduled an episode for the next day.)
+CAPTIVATE_REPORTED_ZONE = "America/Vancouver"
+CAPTIVATE_ACCOUNT_TIMEZONE = ZoneInfo("America/Los_Angeles")
 
 
 def parse_captivate_timestamp(value):

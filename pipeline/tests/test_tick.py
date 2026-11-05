@@ -258,12 +258,12 @@ class ComputeTargetPublishMomentTests(unittest.TestCase):
 
 
 class CaptivateDateZoneTests(unittest.TestCase):
-    def test_a_scheduled_moment_is_written_as_vancouver_wall_clock(self):
-        # Finalized 2026-11-03 21:38 UTC; the next 07:00 Eastern is 2026-11-04 12:00 UTC, which is 05:00 in Vancouver
-        # (permanent UTC-7) - not 04:00, which is what Los Angeles time would give.
+    def test_a_scheduled_moment_is_written_as_pacific_wall_clock(self):
+        # Finalized 2026-11-03 21:38 UTC; the next 07:00 Eastern is 2026-11-04 12:00 UTC, which Captivate reads as 04:00
+        # (Pacific standard time, UTC-8). 05:00 - the server's own Vancouver rules - made episodes 31 and 32 an hour late.
         show = {"publish_mode": "scheduled", "publish_time": "07:00", "publish_timezone": "America/New_York"}
         finalization = {"finalized_at": "2026-11-03 21:38:00"}
-        self.assertEqual(compute_captivate_date_field(show, finalization), "2026-11-04 05:00:00")
+        self.assertEqual(compute_captivate_date_field(show, finalization), "2026-11-04 04:00:00")
 
     def test_nothing_is_created_on_captivate_when_the_zone_check_fails(self):
         from captivate_client import CaptivateError

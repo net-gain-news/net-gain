@@ -108,23 +108,29 @@ class ListEpisodesTests(unittest.TestCase):
 
 
 class AccountTimezoneTests(unittest.TestCase):
-    """Captivate reads episode dates as wall-clock time in the show's zone. British Columbia stays on permanent daylight
-    time, so from 2026-11-01 that is one hour ahead of Los Angeles; dates formatted for Los Angeles came out an hour early."""
+    """Captivate reads episode dates as wall-clock time in the show's zone, applied with ITS rules: in November that is Pacific
+    standard time (UTC-8; its feed prints -0800). The server's tz database says British Columbia is on permanent UTC-7, and
+    formatting with it made episodes 31 and 32 (2026-11-04, 2026-11-05) read an hour late and sit as Scheduled for 59 minutes."""
 
     def _client_reporting(self, response):
         client = CaptivateClient("user-id", "api-token")
         client._request = lambda method, path, **kwargs: response
         return client
 
-    def test_the_zone_is_vancouver(self):
-        self.assertEqual(CAPTIVATE_ACCOUNT_TIMEZONE.key, "America/Vancouver")
+    def test_dates_are_written_in_pacific_time_with_the_us_rules(self):
+        from datetime import datetime, timezone
+        self.assertEqual(CAPTIVATE_ACCOUNT_TIMEZONE.key, "America/Los_Angeles")
+        # Episode 32: created 21:58 UTC on 2026-11-05. Captivate flipped it to Published at exactly 22:57:00 UTC, which is when
+        # it read the digits "14:56:33" as UTC-8; "13:56:33" is the digits that mean two minutes ago.
+        due = datetime(2026, 11, 5, 21, 56, 33, tzinfo=timezone.utc)
+        self.assertEqual(due.astimezone(CAPTIVATE_ACCOUNT_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S"), "2026-11-05 13:56:33")
 
-    def test_accepts_the_zone_the_code_formats_for(self):
+    def test_accepts_the_zone_captivate_reports_for_the_show(self):
         self._client_reporting({"name": "Net Gain News", "time_zone": "America/Vancouver"}).verify_account_timezone("show")
         self._client_reporting({"show": {"time_zone": "America/Vancouver"}}).verify_account_timezone("show")
 
     def test_refuses_any_other_zone_before_anything_is_published(self):
-        for reported in ("America/Los_Angeles", "UTC", "", None):
+        for reported in ("America/Los_Angeles", "America/Toronto", "UTC", "", None):
             with self.assertRaises(CaptivateError, msg=reported):
                 self._client_reporting({"time_zone": reported}).verify_account_timezone("show")
 
@@ -132,13 +138,13 @@ class AccountTimezoneTests(unittest.TestCase):
         with self.assertRaises(CaptivateError):
             self._client_reporting({"name": "Net Gain News"}).verify_account_timezone("show")
 
-    def test_a_utc_timestamp_is_written_back_as_vancouver_wall_clock(self):
+    def test_a_utc_timestamp_is_written_back_as_pacific_wall_clock(self):
         episode = {"published_date": "2026-11-03T21:38:16.000Z", "title": "T", "status": "Published", "episode_number": 30}
         payload = episode_update_payload(episode, "show", "media")
-        self.assertEqual(payload["date"], "2026-11-03 14:38:16")
+        self.assertEqual(payload["date"], "2026-11-03 13:38:16")
 
-    def test_a_wall_clock_timestamp_is_read_as_vancouver(self):
-        parsed = parse_captivate_timestamp("2026/11/03 14:38:16")
+    def test_a_wall_clock_timestamp_is_read_as_pacific(self):
+        parsed = parse_captivate_timestamp("2026/11/03 13:38:16")
         self.assertEqual(parsed.astimezone(timezone.utc), datetime(2026, 11, 3, 21, 38, 16, tzinfo=timezone.utc))
 
 
