@@ -7,6 +7,12 @@
  *
  *   {uploads}/ng-signature/{show-slug}-strip-light.png
  *   {uploads}/ng-signature/{show-slug}-strip-dark.png
+ *   {uploads}/ng-signature/latest-strip-light.png     the NETWORK strip: the newest episode of any show
+ *   {uploads}/ng-signature/latest-strip-dark.png
+ *
+ * The signature points at the network files, so whichever show publishes last updates it. A show's episode becomes the
+ * network's only when the newest published episode post of all shows (the query behind /latest/) belongs to that show,
+ * so the image and the /latest/ address it links to always agree and an older show's re-run never takes the slot.
 
  * (The earlier 512x40 files, {show-slug}-newscast-{light,dark}.png, are left as they were: signatures sent before the
  * 340 px redesign size their image at 512x40 and would show a squashed strip if that file changed shape.)
@@ -26,7 +32,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Net_Gain_REST_Signature_Strip {
 
-	const DIR       = 'ng-signature';
+	const DIR           = 'ng-signature';
+	const NETWORK_SLUG  = 'latest';       // a show may not use this slug: its files would collide with the network's
 	const MAX_BYTES = 262144;
 	const MAX_WIDTH = 3200;
 
@@ -122,6 +129,25 @@ class Net_Gain_REST_Signature_Strip {
 		return $bytes;
 	}
 
+	/** Pure: true when the show is the one the network's newest episode belongs to. */
+	public static function owns_network_latest( $show_slug, array $newest_series_slugs ) {
+		return '' !== (string) $show_slug && in_array( (string) $show_slug, $newest_series_slugs, true );
+	}
+
+	/** Writes one light/dark pair as {slug}-strip-{light,dark}.png in $dir atomically; the two public URLs, or a WP_Error. */
+	private static function write_pair( $dir, $slug, $light, $dark ) {
+		$urls = array();
+		foreach ( array( 'light' => $light, 'dark' => $dark ) as $theme => $bytes ) {
+			$name = "{$slug}-strip-{$theme}.png";
+			$tmp  = $dir . '/.' . $name . '.tmp';
+			if ( false === file_put_contents( $tmp, $bytes ) || ! rename( $tmp, $dir . '/' . $name ) ) {
+				return new WP_Error( 'ng_storage', 'Could not write the image.', array( 'status' => 500 ) );
+			}
+			$urls[ $theme ] = home_url( '/' . self::DIR . '/' . $name );
+		}
+		return $urls;
+	}
+
 	/** Pure: true when $date (Y-m-d) is older than the date already stored. */
 	public static function is_older( $date, $stored ) {
 		return '' !== (string) $stored && strcmp( (string) $date, (string) $stored ) < 0;
@@ -150,7 +176,10 @@ class Net_Gain_REST_Signature_Strip {
 		}
 
 		$slug = sanitize_file_name( $show->post_name );
-		$dir  = trailingslashit( wp_upload_dir()['basedir'] ) . self::DIR;
+		if ( self::NETWORK_SLUG === $slug ) {
+			return new WP_Error( 'ng_reserved_slug', 'This show\'s slug is reserved for the network strip.', array( 'status' => 400 ) );
+		}
+		$dir = trailingslashit( wp_upload_dir()['basedir'] ) . self::DIR;
 		if ( ! wp_mkdir_p( $dir ) ) {
 			return new WP_Error( 'ng_storage', 'Could not create the storage folder.', array( 'status' => 500 ) );
 		}
@@ -158,17 +187,23 @@ class Net_Gain_REST_Signature_Strip {
 			file_put_contents( $dir . '/index.html', '' );
 		}
 
-		$urls = array();
-		foreach ( array( 'light' => $light, 'dark' => $dark ) as $theme => $bytes ) {
-			$name = "{$slug}-strip-{$theme}.png";
-			$tmp  = $dir . '/.' . $name . '.tmp';
-			if ( false === file_put_contents( $tmp, $bytes ) || ! rename( $tmp, $dir . '/' . $name ) ) {
-				return new WP_Error( 'ng_storage', 'Could not write the image.', array( 'status' => 500 ) );
+		$urls = self::write_pair( $dir, $slug, $light, $dark );
+		if ( is_wp_error( $urls ) ) {
+			return $urls;
+		}
+
+		// The network strip: only when this show owns the newest published episode of all shows.
+		$network = 'skipped_other_show';
+		$newest  = class_exists( 'Net_Gain_Latest_Redirect' ) ? Net_Gain_Latest_Redirect::newest_episode() : null;
+		if ( $newest && self::owns_network_latest( $show->post_name, wp_list_pluck( (array) wp_get_object_terms( $newest->ID, 'series' ), 'slug' ) ) ) {
+			$shared = self::write_pair( $dir, self::NETWORK_SLUG, $light, $dark );
+			if ( is_wp_error( $shared ) ) {
+				return $shared;
 			}
-			$urls[ $theme ] = home_url( '/' . self::DIR . '/' . $name );
+			$network = 'stored';
 		}
 
 		update_post_meta( $show_id, 'ng_signature_strip_date', $date );
-		return rest_ensure_response( array( 'status' => 'stored', 'urls' => $urls ) );
+		return rest_ensure_response( array( 'status' => 'stored', 'urls' => $urls, 'network' => $network ) );
 	}
 }

@@ -23,6 +23,9 @@ check( 'an older episode is ignored', Net_Gain_REST_Signature_Strip::is_older( '
 check( 'the same or a newer episode is accepted', ! Net_Gain_REST_Signature_Strip::is_older( '2026-10-16', '2026-10-16' ) && ! Net_Gain_REST_Signature_Strip::is_older( '2026-10-19', '2026-10-16' ) );
 check( 'nothing stored yet accepts anything', ! Net_Gain_REST_Signature_Strip::is_older( '2026-10-01', '' ) );
 
+check( 'the show that owns the newest episode owns the network strip', Net_Gain_REST_Signature_Strip::owns_network_latest( 'edtech', array( 'edtech' ) ) );
+check( 'another show does not', ! Net_Gain_REST_Signature_Strip::owns_network_latest( 'edtech', array( 'cleantech' ) ) && ! Net_Gain_REST_Signature_Strip::owns_network_latest( 'edtech', array() ) && ! Net_Gain_REST_Signature_Strip::owns_network_latest( '', array( '' ) ) );
+check( 'the network strip is served at the same image path', Net_Gain_REST_Signature_Strip::image_request( 'ng-signature/latest-strip-dark.png' ) === array( 'latest', 'dark' ) );
 check( 'image path is recognised', Net_Gain_REST_Signature_Strip::image_request( 'ng-signature/edtech-strip-dark.png' ) === array( 'edtech', 'dark' ) );
 check( 'hyphenated show slug in the image path', Net_Gain_REST_Signature_Strip::image_request( '/ng-signature/real-estate-strip-light.png/' ) === array( 'real-estate', 'light' ) );
 check( 'other paths and traversal are not images', null === Net_Gain_REST_Signature_Strip::image_request( 'ng-signature/../wp-config.php' ) && null === Net_Gain_REST_Signature_Strip::image_request( 'ng-signature/edtech-strip-blue.png' ) && null === Net_Gain_REST_Signature_Strip::image_request( 'wp-content/uploads/ng-signature/edtech-strip-light.png' ) );
