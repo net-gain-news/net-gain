@@ -69,12 +69,18 @@ a { color:#2f5379; }
           </td>
         </tr>
 
+        <!-- Sponsorship slot (Kit's ad slot tag; the tag must appear only once in the template): filled only with a sponsorship booked for
+             the send date, otherwise it renders nothing, so this row takes no space. No vertical padding on purpose. -->
+        <tr>
+          <td class="ng-pad" bgcolor="#efe7da" style="background:#efe7da;padding:0 32px;border-left:1px solid #d6cab7;border-right:1px solid #d6cab7;">{{ ck.ad_slot }}</td>
+        </tr>
+
         <!-- Footer -->
         <tr>
           <td class="ng-pad" bgcolor="#1f2a3a" style="background:#1f2a3a;padding:26px 32px 30px;">
             <div style="font-family:'IBM Plex Sans','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;line-height:22px;color:#c9d4e3;padding:0 0 14px;">Net Gain Edtech is brought to you by <a href="https://www.edsby.com/" style="color:#9fbbdb;text-decoration:none;"><img src="https://netgain.news/wp-content/plugins/net-gain-studio/assets/email/edsby-logo-white.png" width="57" height="20" alt="Edsby" style="display:inline-block;width:57px;height:20px;border:0;vertical-align:-5px;margin:0 2px 0 7px;"></a>, the student success platform for <span style="white-space:nowrap;">K&#8209;12</span>.</div>
             <div style="font-family:'IBM Plex Mono','Courier New',Courier,monospace;font-size:11px;line-height:16px;letter-spacing:0.08em;text-transform:uppercase;padding:0 0 18px;">
-              <a href="https://netgain.news/edtech/" style="color:#9fbbdb;text-decoration:none;">Website</a>&nbsp;&nbsp;<span style="color:#4d6585;">|</span>&nbsp;&nbsp;<a href="https://netgain.news/edtech/episodes/" style="color:#9fbbdb;text-decoration:none;">All episodes</a>&nbsp;&nbsp;<span style="color:#4d6585;">|</span>&nbsp;&nbsp;<a href="https://net-gain-edtech.captivate.fm/listen" style="color:#9fbbdb;text-decoration:none;">Follow the show</a>
+              <a href="https://netgain.news/edtech/" style="color:#9fbbdb;text-decoration:none;">Website</a>&nbsp;&nbsp;<span style="color:#4d6585;">|</span>&nbsp;&nbsp;<a href="https://netgain.news/edtech/episodes/" style="color:#9fbbdb;text-decoration:none;">All episodes</a>&nbsp;&nbsp;<span style="color:#4d6585;">|</span>&nbsp;&nbsp;<a href="https://net-gain-edtech.captivate.fm/listen" style="color:#9fbbdb;text-decoration:none;">Add to your podcast player</a>
             </div>
             <div style="font-family:'IBM Plex Sans','Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;line-height:19px;color:#8fa3bd;">
               You&rsquo;re receiving this because you subscribed to Net Gain Edtech.<br>
