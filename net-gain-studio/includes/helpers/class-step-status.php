@@ -52,7 +52,7 @@ class Net_Gain_Step_Status {
 		'captivate_published'  => array( 'metadata_generated', 'images_rendered' ),
 		'website_published'    => array( 'metadata_generated', 'images_rendered' ),
 		'youtube_published'    => array( 'metadata_generated', 'images_rendered' ),
-		// The email links to the episode's website page, so it cannot go before the page is live. (The pipeline also waits for YouTube.)
+		// The email links to the episode's website page, so it cannot go before the page is live. It depends on nothing else: YouTube (or Captivate) pending, stuck or failed never holds it back.
 		'kit_emailed'          => array( 'website_published' ),
 	);
 

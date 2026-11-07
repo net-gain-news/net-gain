@@ -1244,11 +1244,11 @@ def process_youtube_publishes(wp, client, config, show):
 
 
 # --- email through Kit (2026-11-06) ------------------------------------------------------------------------------
-# The last step of an episode: once its website page is live and YouTube has had its turn, the pipeline creates the daily
-# email in Kit (scheduled a minute or two ahead). The roundup is a show-level weekly job with no episode behind it.
+# The last step of an episode: once its website page is live, the pipeline creates the daily email in Kit (scheduled a minute
+# or two ahead). It never waits for, or depends on, YouTube (or Captivate): whatever YouTube is doing or fails to do cannot
+# hold the email back. The roundup is a show-level weekly job with no episode behind it.
 
-# A Kit or feed hiccup is retried every pass for this long after the email became due (the website page live and YouTube
-# finished or failed), then reported.
+# A Kit or feed hiccup is retried every pass for this long after the email became due (the website page going live), then reported.
 KIT_RETRY_WINDOW_MINUTES = 10
 
 
@@ -1263,11 +1263,10 @@ def _kit_pending_actions(show, episode):
 
 def kit_email_due(show, episode, now=None):
     """
-    True when this episode's daily email should be made now. The email is the LAST step: the episode's website page must be
-    live (it links there), YouTube must have finished or failed (a failed YouTube upload never holds the email back; a show
-    with no YouTube channel does not wait at all), and the episode must have gone live after Kit sending was switched on, so
-    switching it on can never email old episodes. A manual "Send email" request lifts the YouTube wait and the switch-on
-    bound, and is the only way to retry a failed email.
+    True when this episode's daily email should be made now: the episode's website page is live (the email links there) and
+    the episode went live after Kit sending was switched on, so switching it on can never email old episodes. Nothing about
+    YouTube (or Captivate) is consulted: it can be pending, stuck, failed or finished and the email goes out regardless.
+    A manual "Send email" request lifts the switch-on bound, and is the only way to retry a failed email.
     """
     kit = show.get("kit") or {}
     if not kit.get("enabled"):
@@ -1292,8 +1291,6 @@ def kit_email_due(show, episode, now=None):
     if not forced:
         since = _parse_site_local_at(kit.get("since"), site_zone)
         if since is None or website_at < since:
-            return False
-        if show.get("youtube_channel_id") and step_status.get("youtube_published", {}).get("status", "pending") not in ("done", "degraded", "failed"):
             return False
     return True
 
@@ -1369,18 +1366,9 @@ def send_episode_email(wp, kit_client, config, show, episode, pending, now=None)
 
 
 def _kit_ready_at(show, episode):
-    """
-    When the email became due: the later of the website page going live and YouTube finishing or failing (a show with no
-    YouTube channel has no second moment). The retry window for a Kit or feed hiccup counts from here.
-    """
-    steps = episode.get("step_status") or {}
-    zone = show_zone(show, "site_timezone")
-    moments = [_parse_site_local_at(steps.get("website_published", {}).get("at"), zone)]
-    youtube = steps.get("youtube_published", {})
-    if show.get("youtube_channel_id") and youtube.get("status") in ("done", "degraded", "failed"):
-        moments.append(_parse_site_local_at(youtube.get("at"), zone))
-    moments = [m for m in moments if m is not None]
-    return max(moments) if moments else None
+    """When the email became due: the website page going live. The retry window for a Kit or feed hiccup counts from here."""
+    website = (episode.get("step_status") or {}).get("website_published", {})
+    return _parse_site_local_at(website.get("at"), show_zone(show, "site_timezone"))
 
 
 def _revert_in_progress(wp, episode_id):
@@ -1594,7 +1582,7 @@ def refresh_in_flight(wp, show):
 def process_show(wp, client, captivate, vertex_client, config, show, kit_client=None):
     """
     One pass over one show, in the order a finished recording travels: a replaced file settles first, then images,
-    Captivate, the website (and the signature strip), YouTube, then the email through Kit; the housekeeping that can take minutes (tagging photos)
+    Captivate, the website (and the signature strip), YouTube, then the email through Kit (which depends on none of the earlier steps except the website page); the housekeeping that can take minutes (tagging photos)
     and script generation come last so they never hold up a release. Called every minute by cron under the show's lock.
     """
     run_phase(

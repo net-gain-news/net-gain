@@ -398,7 +398,7 @@ class Net_Gain_Edit_Show_Page {
 								Send this show's daily episode email and weekly roundup through Kit
 							</label>
 							<p class="description">
-								When on, the background job creates and sends each episode's email through Kit's API as the last step, after the website and YouTube are live, and sends the weekly roundup on the day and time below. <strong>Turn off Kit's own RSS automation for this show first</strong> (Kit &rarr; Automations &rarr; RSS), or subscribers get two emails. Switching this on only affects episodes published from that moment: nothing already published is emailed. The Kit API key is a secret kept on the server, not here.
+								When on, the background job creates and sends each episode's email through Kit's API as soon as its website page is live (it never waits for YouTube, whatever YouTube is doing), and sends the weekly roundup on the day and time below. <strong>Turn off Kit's own RSS automation for this show first</strong> (Kit &rarr; Automations &rarr; RSS), or subscribers get two emails. Switching this on only affects episodes published from that moment: nothing already published is emailed. The Kit API key is a secret kept on the server, not here.
 								<?php $kit_since = (string) $get( 'ng_kit_since', '' ); ?>
 								<?php if ( $kit_since ) : ?>
 									<br>Switched on at <?php echo esc_html( $kit_since ); ?> (site time).

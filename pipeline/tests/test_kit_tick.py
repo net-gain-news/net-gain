@@ -48,7 +48,7 @@ class KitEmailDueTests(unittest.TestCase):
     def due(self, show=None, episode=None, now=NOW):
         return tick.kit_email_due(show or _show(), episode or _episode(), now=now)
 
-    def test_due_once_the_website_is_live_and_youtube_has_finished(self):
+    def test_due_once_the_website_is_live(self):
         self.assertTrue(self.due())
 
     def test_not_due_when_kit_sending_is_off(self):
@@ -78,21 +78,19 @@ class KitEmailDueTests(unittest.TestCase):
         self.assertFalse(self.due(show=_show(kit=dict(KIT, since=""))))
         self.assertTrue(self.due(show=_force(_show(kit=dict(KIT, since="2026-11-06 22:00:00")))))
 
-    def test_it_waits_for_youtube_to_finish_or_fail_with_no_timer_of_its_own(self):
-        self.assertFalse(self.due(episode=_episode(youtube="in_progress")))
-        self.assertFalse(self.due(episode=_episode(youtube="pending")))
-        # No fixed wait: hours later it is still waiting for YouTube's own outcome, not sending on a clock.
-        self.assertFalse(self.due(episode=_episode(youtube="in_progress"), now=NOW + timedelta(hours=3)))
+    def test_whatever_youtube_is_doing_the_email_goes_out(self):
+        for status in ("pending", "in_progress", "done", "degraded", "failed"):
+            self.assertTrue(self.due(episode=_episode(youtube=status)), status)
+        # ...including a YouTube video stuck processing for hours.
+        self.assertTrue(self.due(episode=_episode(youtube="in_progress"), now=NOW + timedelta(hours=3)))
 
-    def test_a_failed_or_degraded_youtube_does_not_hold_the_email(self):
-        self.assertTrue(self.due(episode=_episode(youtube="failed")))
-        self.assertTrue(self.due(episode=_episode(youtube="degraded")))
-
-    def test_a_show_with_no_youtube_channel_does_not_wait(self):
+    def test_a_show_with_no_youtube_channel_is_the_same(self):
         self.assertTrue(self.due(show=_show(youtube_channel_id=""), episode=_episode(youtube="pending")))
 
-    def test_a_manual_request_does_not_wait_for_youtube(self):
-        self.assertTrue(self.due(show=_force(_show()), episode=_episode(youtube="in_progress")))
+    def test_the_youtube_step_is_not_even_consulted(self):
+        episode = _episode()
+        del episode["step_status"]["youtube_published"]
+        self.assertTrue(self.due(episode=episode))
 
 
 class SendEpisodeEmailTests(unittest.TestCase):
@@ -193,17 +191,8 @@ class SendEpisodeEmailTests(unittest.TestCase):
         self.send(now=datetime(2026, 11, 6, 21, 55, 0, tzinfo=timezone.utc))     # 11 minutes after
         self.notify.assert_called_once()
 
-    def test_the_window_counts_from_youtube_finishing_when_that_is_later(self):
-        episode = _episode()
-        episode["step_status"]["youtube_published"]["at"] = "2026-11-06 22:10:00"      # YouTube settled 26 minutes after the page
-        self.fetch.return_value = []
-        self.send(episode=episode, now=datetime(2026, 11, 6, 22, 16, 0, tzinfo=timezone.utc))   # 6 minutes after YouTube
-        self.notify.assert_not_called()
-        self.send(episode=episode, now=datetime(2026, 11, 6, 22, 21, 0, tzinfo=timezone.utc))   # 11 minutes after YouTube
-        self.notify.assert_called_once()
-
-    def test_a_failed_youtube_still_lets_the_email_go_out(self):
-        episode = _episode(youtube="failed")
+    def test_a_youtube_that_is_stuck_does_not_stop_the_email_being_made(self):
+        episode = _episode(youtube="in_progress")
         self.assertTrue(tick.kit_email_due(_show(), episode, now=NOW))
         self.send(episode=episode)
         self.kit_client.create_broadcast.assert_called_once()
