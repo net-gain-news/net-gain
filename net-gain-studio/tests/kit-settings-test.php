@@ -38,7 +38,8 @@ check( 'a done website step with no time recorded is not eligible', ! $K::episod
 
 // --- the new step ----------------------------------------------------------------
 $S = 'Net_Gain_Step_Status';
-check( 'kit_emailed is the last step and a valid one', end( $S::STEPS ) === 'kit_emailed' && $S::is_valid_step( 'kit_emailed' ) );
+$all_steps = $S::STEPS;
+check( 'kit_emailed is the last step and a valid one', end( $all_steps ) === 'kit_emailed' && $S::is_valid_step( 'kit_emailed' ) );
 check( 'new episodes start with it pending', $S::default_status()['kit_emailed']['status'] === 'pending' );
 check( 'it cannot start before the website page is live', 'website_published' === $S::unmet_prerequisite( 'kit_emailed', array() ) );
 check( 'it can start once the website page is live', null === $S::unmet_prerequisite( 'kit_emailed', array( 'website_published' => array( 'status' => 'done' ) ) ) );
