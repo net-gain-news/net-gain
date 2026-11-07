@@ -160,6 +160,24 @@ class Net_Gain_Admin_Actions {
 			'ng_captivate_notes_footer',
 			wp_kses( wp_unslash( $_POST['ng_captivate_notes_footer'] ?? '' ), array( 'p' => array(), 'a' => array( 'href' => array(), 'rel' => array() ), 'strong' => array(), 'em' => array(), 'br' => array() ) )
 		);
+
+		// Email through Kit (includes/class-kit-settings.php). Switching it on stamps ng_kit_since so only episodes published from now on
+		// are emailed; switching it off clears the stamp, so turning it on again later starts fresh rather than catching up.
+		$kit_on  = ! empty( $_POST['ng_kit_enabled'] );
+		$kit_was = (bool) get_post_meta( $show_id, 'ng_kit_enabled', true );
+		update_post_meta( $show_id, 'ng_kit_enabled', $kit_on );
+		if ( ! $kit_on ) {
+			update_post_meta( $show_id, 'ng_kit_since', '' );
+		} elseif ( ! $kit_was || '' === (string) get_post_meta( $show_id, 'ng_kit_since', true ) ) {
+			update_post_meta( $show_id, 'ng_kit_since', current_time( 'mysql' ) );
+		}
+		foreach ( array( 'ng_kit_daily_tag_id', 'ng_kit_daily_template_id', 'ng_kit_weekly_tag_id', 'ng_kit_weekly_template_id' ) as $kit_id_key ) {
+			update_post_meta( $show_id, $kit_id_key, Net_Gain_Kit_Settings::sanitize_id( wp_unslash( $_POST[ $kit_id_key ] ?? '' ) ) );
+		}
+		update_post_meta( $show_id, 'ng_kit_from_email', sanitize_email( wp_unslash( $_POST['ng_kit_from_email'] ?? '' ) ) );
+		update_post_meta( $show_id, 'ng_kit_weekly_day', Net_Gain_Kit_Settings::sanitize_day( wp_unslash( $_POST['ng_kit_weekly_day'] ?? '' ) ) );
+		update_post_meta( $show_id, 'ng_kit_weekly_time', Net_Gain_Kit_Settings::sanitize_time( wp_unslash( $_POST['ng_kit_weekly_time'] ?? '' ) ) );
+		update_post_meta( $show_id, 'ng_kit_weekly_timezone', Net_Gain_Timezones::sanitize( wp_unslash( $_POST['ng_kit_weekly_timezone'] ?? '' ) ) );
 	}
 
 	public static function connect_captivate() {

@@ -38,6 +38,7 @@ import anthropic
 import requests
 
 import edtech_index
+import kit_email
 import photo_library
 import youtube_client as yt
 from anthropic_client import generate as anthropic_generate
@@ -46,6 +47,7 @@ import alert_memory
 from audio_replacement import captivate_episode_id, process_audio_replacements
 from captivate_client import CAPTIVATE_ACCOUNT_TIMEZONE, CaptivateClient
 from config import ConfigError, load_config
+from kit_client import KitClient, KitError
 from image_generation import FALLBACK_META_KEYS, IMAGE_META_KEYS, build_vertex_client, render_images_for_episode
 from metadata_generation import generate_metadata_for_episode
 from notify import notify_failure, send_notice
@@ -1241,6 +1243,253 @@ def process_youtube_publishes(wp, client, config, show):
     return acted
 
 
+# --- email through Kit (2026-11-06) ------------------------------------------------------------------------------
+# The last step of an episode: once its website page is live and YouTube has had its turn, the pipeline creates the daily
+# email in Kit (scheduled a minute or two ahead). The roundup is a show-level weekly job with no episode behind it.
+
+# YouTube normally settles within a quarter of an hour of the website page; the email does not wait longer than this for it.
+KIT_YOUTUBE_WAIT_MINUTES = 30
+# A Kit or feed hiccup is retried every pass for this long after the email became due, then reported.
+KIT_RETRY_WINDOW_MINUTES = 20
+
+
+def _kit_pending_actions(show, episode):
+    """Manual 'Send email' requests still waiting for this episode (matched by its date when the request carries one)."""
+    return [
+        a for a in show.get("pending_actions", []) or []
+        if a.get("action") == "send_kit_email" and a.get("status") == "pending"
+        and (not a.get("episode_date") or a.get("episode_date") == episode.get("episode_date"))
+    ]
+
+
+def kit_email_due(show, episode, now=None):
+    """
+    True when this episode's daily email should be made now. The email is the LAST step: the episode's website page must be
+    live (it links there), YouTube must have finished or failed (or have had KIT_YOUTUBE_WAIT_MINUTES), and the episode must
+    have gone live after Kit sending was switched on, so switching it on can never email old episodes. A manual "Send email"
+    request lifts the YouTube wait and the switch-on bound, and is the only way to retry a failed email.
+    """
+    kit = show.get("kit") or {}
+    if not kit.get("enabled"):
+        return False
+    now = now or datetime.now(timezone.utc)
+    step_status = episode.get("step_status") or {}
+    forced = bool(_kit_pending_actions(show, episode))
+
+    if step_status.get("kit_emailed", {}).get("status", "pending") in ("done", "degraded", "failed") and not forced:
+        return False
+    if (episode.get("finalization") or {}).get("state") != "finalized":
+        return False
+
+    website = step_status.get("website_published", {})
+    if website.get("status") not in ("done", "degraded"):
+        return False
+    site_zone = show_zone(show, "site_timezone")
+    website_at = _parse_site_local_at(website.get("at"), site_zone)
+    if website_at is None:
+        return False
+
+    if not forced:
+        since = _parse_site_local_at(kit.get("since"), site_zone)
+        if since is None or website_at < since:
+            return False
+        if show.get("youtube_channel_id") and step_status.get("youtube_published", {}).get("status", "pending") not in ("done", "degraded", "failed"):
+            if now < website_at + timedelta(minutes=KIT_YOUTUBE_WAIT_MINUTES):
+                return False
+    return True
+
+
+def _fail_kit_email(wp, config, show, episode_id, message, pending):
+    wp.update_step(episode_id, "kit_emailed", "failed", note=message[:500])
+    for action in pending:
+        wp.update_action(show["id"], action["id"], "failed")
+    notify_failure(config, show["name"], "kit_emailed", message)
+
+
+def send_episode_email(wp, kit_client, config, show, episode, pending, now=None):
+    """
+    Makes the episode's daily email in Kit, once. Never raises. Safe to run again after any failure, a crash or a manual
+    re-run: it looks for the email it already made (by the marker in its description) before making one.
+    """
+    episode_id = episode["id"]
+    kit = show["kit"]
+    now = now or datetime.now(timezone.utc)
+    marked_in_progress = False
+    try:
+        problem = kit_email.check_daily_settings(kit)
+        if problem is None and kit_client is None:
+            problem = "Kit sending is on but KIT_API_KEY is not set on the server."
+        if problem:
+            _fail_kit_email(wp, config, show, episode_id, problem, pending)
+            return
+
+        step_status = episode.get("step_status") or {}
+        site_zone = show_zone(show, "site_timezone")
+        website_at = _parse_site_local_at(step_status.get("website_published", {}).get("at"), site_zone)
+        if not pending and website_at is not None and now - website_at > kit_email.DAILY_STALE_AFTER:
+            hours = int((now - website_at).total_seconds() // 3600)
+            _fail_kit_email(wp, config, show, episode_id,
+                            f"Not sent: the episode went live {hours} hours ago, too late for a daily email. Use Send email on the episode screen to send it anyway.", pending)
+            return
+
+        full = wp.get_episode(episode_id)
+        meta = full.get("meta", {})
+
+        existing = kit_client.find_broadcast(kit_email.episode_marker(episode_id))
+        if existing:
+            if existing.get("status") == "draft":
+                _fail_kit_email(wp, config, show, episode_id,
+                                f"Kit already holds an unsent draft (broadcast {existing.get('id')}) for this episode. Send or delete it in Kit, then use Send email again.", pending)
+                return
+            _record_kit_email(wp, show, episode_id, existing, pending, adopted=True)
+            return
+
+        permalink = meta.get("ng_url_website") or ""
+        item = kit_email.item_for_page(kit_email.fetch_feed(kit["feed_url"], now), permalink)
+        if item is None:
+            raise kit_email.KitEmailError(f"The email feed does not list the episode page yet: {permalink or '(no page address recorded)'}")
+
+        payload = kit_email.daily_payload(kit, show["name"], {"id": episode_id, "meta": meta}, item, now)
+        wp.update_step(episode_id, "kit_emailed", "in_progress")
+        marked_in_progress = True
+        broadcast = kit_client.create_broadcast(**payload)
+        _record_kit_email(wp, show, episode_id, broadcast, pending, adopted=False, send_at=payload["send_at"])
+    except (KitError, kit_email.KitEmailError, requests.exceptions.RequestException) as exc:
+        transient = getattr(exc, "transient", True)    # the feed not yet listing the page, or a network fault, resolves by itself
+        ready_at = _kit_ready_at(show, episode) or now
+        if transient and now - ready_at < timedelta(minutes=KIT_RETRY_WINDOW_MINUTES):
+            logger.warning("Kit email for episode %s (%s) not made yet, will retry: %s", episode_id, show["name"], exc)
+            if marked_in_progress:
+                _revert_in_progress(wp, episode_id)
+            return
+        logger.exception("Kit email failed for episode %s (%s)", episode_id, show["name"])
+        _fail_kit_email(wp, config, show, episode_id, str(exc), pending)
+    except Exception as exc:
+        logger.exception("Kit email failed for episode %s (%s)", episode_id, show["name"])
+        _fail_kit_email(wp, config, show, episode_id, str(exc), pending)
+
+
+def _kit_ready_at(show, episode):
+    """When the email first became due: the website page going live (a later YouTube finish never moves it earlier)."""
+    website = (episode.get("step_status") or {}).get("website_published", {})
+    return _parse_site_local_at(website.get("at"), show_zone(show, "site_timezone"))
+
+
+def _revert_in_progress(wp, episode_id):
+    """A retryable hiccup puts the step back to pending, so the dashboard does not show a stuck 'in progress'."""
+    try:
+        wp.update_step(episode_id, "kit_emailed", "pending")
+    except Exception:
+        logger.warning("Could not reset the Kit email step for episode %s.", episode_id, exc_info=True)
+
+
+def _record_kit_email(wp, show, episode_id, broadcast, pending, adopted, send_at=None):
+    broadcast_id = str(broadcast.get("id") or "")
+    when = send_at or broadcast.get("send_at") or "now"
+    note = (f"Already in Kit (broadcast {broadcast_id}, {broadcast.get('status') or 'scheduled'})." if adopted
+            else f"Created in Kit (broadcast {broadcast_id}) to send at {when}.")
+    wp.update_step(episode_id, "kit_emailed", "done", note=note)
+    try:
+        wp.update_episode_meta(episode_id, {"ng_kit_broadcast_id": broadcast_id})
+    except Exception:
+        logger.warning("Could not record Kit broadcast %s on episode %s; the step is done and the marker in Kit prevents a repeat.", broadcast_id, episode_id, exc_info=True)
+    for action in pending:
+        wp.update_action(show["id"], action["id"], "done")
+    logger.info("Kit email for episode %s (%s): broadcast %s. %s", episode_id, show["name"], broadcast_id, note)
+
+
+def process_kit_emails(wp, kit_client, config, show):
+    """Returns True if any episode was worked on."""
+    if not (show.get("kit") or {}).get("enabled"):
+        return False
+    acted = False
+    for episode in show.get("in_flight_episodes", []) or []:
+        if not kit_email_due(show, episode):
+            continue
+        acted = True
+        send_episode_email(wp, kit_client, config, show, episode, _kit_pending_actions(show, episode))
+    return acted
+
+
+def process_kit_weekly(wp, kit_client, config, show, now=None, memory=alert_memory):
+    """
+    The weekly roundup: once per week at the show's chosen day and time (a wall-clock time in its own zone). Lists every episode
+    published since the previous one. Returns True if it did anything. Never raises.
+    """
+    kit = show.get("kit") or {}
+    if not kit.get("enabled"):
+        return False
+    now = now or datetime.now(timezone.utc)
+    name = show["name"]
+
+    def once(key, message):
+        """Tells the operator at most once per key."""
+        try:
+            if memory.already_sent(key):
+                return
+            notify_failure(config, name, "kit_weekly", message)
+            memory.mark_sent(key)
+        except Exception:
+            logger.warning("Could not record the Kit weekly alert %s.", key, exc_info=True)
+
+    try:
+        state, slot, previous = kit_email.weekly_state(kit, now)
+        if state == "off":
+            problem = kit_email.check_weekly_settings(kit)
+            if problem:
+                once(f"kit-weekly-config:{show['id']}:{problem}", problem)
+            return False
+        if state == "handled":
+            return False
+
+        key = kit_email.slot_key(slot)
+        if state in ("baseline", "missed"):
+            wp.update_show_meta(show["id"], {"ng_kit_weekly_last_slot": key})
+            if state == "missed":
+                once(f"kit-weekly-missed:{show['id']}:{key}",
+                     f"The weekly roundup for {key} was not sent: the background job was not running within {int(kit_email.WEEKLY_LATE_LIMIT.total_seconds() // 3600)} hours of its time.")
+            else:
+                logger.info("Kit weekly roundup for %s: starting from %s (nothing sent for it).", name, key)
+            return True
+
+        if kit_client is None:
+            once(f"kit-weekly-key:{show['id']}", "Kit sending is on but KIT_API_KEY is not set on the server.")
+            return False
+
+        marker = kit_email.weekly_marker(show["id"], key)
+        existing = kit_client.find_broadcast(marker)
+        if existing:
+            wp.update_show_meta(show["id"], {"ng_kit_weekly_last_slot": key})
+            logger.info("Kit weekly roundup for %s (%s) is already in Kit (broadcast %s).", name, key, existing.get("id"))
+            return True
+
+        week = kit_email.episodes_in_window(kit_email.fetch_feed(kit["feed_url"], now), previous, slot)
+        if not week:
+            wp.update_show_meta(show["id"], {"ng_kit_weekly_last_slot": key})
+            logger.info("Kit weekly roundup for %s (%s): no episodes this week, nothing sent.", name, key)
+            return True
+
+        payload = kit_email.weekly_payload(kit, show, week, slot, now)
+        broadcast = kit_client.create_broadcast(**payload)
+        wp.update_show_meta(show["id"], {"ng_kit_weekly_last_slot": key})
+        logger.info("Kit weekly roundup for %s (%s): %d episode(s), broadcast %s, sends at %s.", name, key, len(week), broadcast.get("id"), payload["send_at"])
+        return True
+    except (KitError, kit_email.KitEmailError, requests.exceptions.RequestException) as exc:
+        if getattr(exc, "transient", True):
+            logger.warning("Kit weekly roundup for %s not sent yet, will retry: %s", name, exc)
+            return False
+        logger.exception("Kit weekly roundup failed for %s", name)
+        try:
+            wp.update_show_meta(show["id"], {"ng_kit_weekly_last_slot": kit_email.slot_key(kit_email.weekly_slots(kit, now)[0])})
+        except Exception:
+            logger.warning("Could not record the failed weekly slot.", exc_info=True)
+        once(f"kit-weekly-failed:{show['id']}:{kit_email.slot_key(kit_email.weekly_slots(kit, now)[0])}", str(exc))
+        return True
+    except Exception as exc:
+        logger.exception("Kit weekly roundup failed for %s", name)
+        return False
+
+
 def warn_photo_library_low(wp, config, show, episode_date):
     """
     The photo mode had to reuse a photo that was still resting because every usable one was. Tell the operator, at most
@@ -1330,10 +1579,10 @@ def refresh_in_flight(wp, show):
         episode["finalization"] = meta.get("ng_finalization") or episode.get("finalization")
 
 
-def process_show(wp, client, captivate, vertex_client, config, show):
+def process_show(wp, client, captivate, vertex_client, config, show, kit_client=None):
     """
     One pass over one show, in the order a finished recording travels: a replaced file settles first, then images,
-    Captivate, the website (and the signature strip), YouTube; the housekeeping that can take minutes (tagging photos)
+    Captivate, the website (and the signature strip), YouTube, then the email through Kit; the housekeeping that can take minutes (tagging photos)
     and script generation come last so they never hold up a release. Called every minute by cron under the show's lock.
     """
     run_phase(
@@ -1346,6 +1595,8 @@ def process_show(wp, client, captivate, vertex_client, config, show):
     run_phase(wp, show, "Captivate live check", process_captivate_live_check, wp, captivate, config, show)
     run_phase(wp, show, "website publishes", process_website_publishes, wp, client, config, show, captivate)
     run_phase(wp, show, "YouTube publishes", process_youtube_publishes, wp, client, config, show)
+    run_phase(wp, show, "Kit emails", process_kit_emails, wp, kit_client, config, show)
+    run_phase(wp, show, "Kit weekly roundup", process_kit_weekly, wp, kit_client, config, show)
     run_phase(wp, show, "index refresh", process_index_refresh, wp, config, show)
     run_phase(wp, show, "script generation", process_script_generation, wp, client, config, show)
     if housekeeping_due():
@@ -1460,6 +1711,7 @@ def main():
     client = anthropic.Anthropic(api_key=config["ANTHROPIC_API_KEY"], timeout=600.0)
     captivate = CaptivateClient(config["CAPTIVATE_USER_ID"], config["CAPTIVATE_API_TOKEN"])
     vertex_client = build_vertex_client(config)
+    kit_client = KitClient(config["KIT_API_KEY"]) if config.get("KIT_API_KEY") else None
 
     shows = wp.get_tick_context()
     logger.info("Tick: %d active show(s).", len(shows))
@@ -1470,7 +1722,7 @@ def main():
             # this one step aside rather than race it. Shows lock separately, so one show's slow work never holds up
             # another's.
             with show_lock(show["id"]):
-                process_show(wp, client, captivate, vertex_client, config, show)
+                process_show(wp, client, captivate, vertex_client, config, show, kit_client)
         except ShowBusy as busy:
             note_busy_show(config, show, busy)
         except Exception:

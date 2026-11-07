@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Net_Gain_Step_Status {
 
-	// Order matches Spec Section 10's 8 dashboard columns.
+	// Spec Section 10's 8 dashboard columns, plus kit_emailed (2026-11-06): the episode email sent through Kit once everything else is live.
 	const STEPS = array(
 		'script_generated',
 		'script_reviewed',
@@ -22,6 +22,7 @@ class Net_Gain_Step_Status {
 		'captivate_published',
 		'website_published',
 		'youtube_published',
+		'kit_emailed',
 	);
 
 	// Maps to the 5 dashboard colors (Section 10) plus the distinct "queued" treatment.
@@ -51,6 +52,8 @@ class Net_Gain_Step_Status {
 		'captivate_published'  => array( 'metadata_generated', 'images_rendered' ),
 		'website_published'    => array( 'metadata_generated', 'images_rendered' ),
 		'youtube_published'    => array( 'metadata_generated', 'images_rendered' ),
+		// The email links to the episode's website page, so it cannot go before the page is live. (The pipeline also waits for YouTube.)
+		'kit_emailed'          => array( 'website_published' ),
 	);
 
 	public static function is_valid_step( $step_key ) {

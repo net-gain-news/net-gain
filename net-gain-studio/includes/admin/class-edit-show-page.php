@@ -390,6 +390,62 @@ class Net_Gain_Edit_Show_Page {
 						</td>
 					</tr>
 
+					<tr>
+						<th>Email through Kit</th>
+						<td>
+							<label>
+								<input type="checkbox" id="ng_kit_enabled" name="ng_kit_enabled" value="1" <?php checked( (bool) $get( 'ng_kit_enabled', false ) ); ?>>
+								Send this show's daily episode email and weekly roundup through Kit
+							</label>
+							<p class="description">
+								When on, the background job creates and sends each episode's email through Kit's API as the last step, after the website and YouTube are live, and sends the weekly roundup on the day and time below. <strong>Turn off Kit's own RSS automation for this show first</strong> (Kit &rarr; Automations &rarr; RSS), or subscribers get two emails. Switching this on only affects episodes published from that moment: nothing already published is emailed. The Kit API key is a secret kept on the server, not here.
+								<?php $kit_since = (string) $get( 'ng_kit_since', '' ); ?>
+								<?php if ( $kit_since ) : ?>
+									<br>Switched on at <?php echo esc_html( $kit_since ); ?> (site time).
+								<?php endif; ?>
+							</p>
+						</td>
+					</tr>
+
+					<tr>
+						<th><label for="ng_kit_from_email">Email sender address</label></th>
+						<td>
+							<input type="email" id="ng_kit_from_email" name="ng_kit_from_email" class="regular-text" value="<?php echo esc_attr( $get( 'ng_kit_from_email' ) ); ?>">
+							<p class="description">The "from" address on both emails, for example news@netgain.news. It must already be a verified sending address in Kit. Leave blank to use the Kit account's default sender.</p>
+						</td>
+					</tr>
+
+					<tr>
+						<th><label for="ng_kit_daily_tag_id">Daily email: audience and layout</label></th>
+						<td>
+							Kit tag ID <input type="number" min="1" id="ng_kit_daily_tag_id" name="ng_kit_daily_tag_id" class="small-text" value="<?php echo esc_attr( $get( 'ng_kit_daily_tag_id', '' ) ?: '' ); ?>">
+							&nbsp;&nbsp;Kit layout template ID <input type="number" min="1" id="ng_kit_daily_template_id" name="ng_kit_daily_template_id" class="small-text" value="<?php echo esc_attr( $get( 'ng_kit_daily_template_id', '' ) ?: '' ); ?>">
+							<p class="description">The daily email goes to subscribers carrying this tag (the tag that this show's daily signup form applies in Kit), using this HTML layout template. Both are the numbers Kit uses internally; the template ID is the number in the template's address in Kit's Email templates screen. Both are required for the daily email to send.</p>
+						</td>
+					</tr>
+
+					<tr>
+						<th><label for="ng_kit_weekly_day">Weekly roundup</label></th>
+						<td>
+							<?php $weekly_day = Net_Gain_Kit_Settings::sanitize_day( $get( 'ng_kit_weekly_day', '' ) ); ?>
+							<select id="ng_kit_weekly_day" name="ng_kit_weekly_day">
+								<option value="">No weekly email</option>
+								<?php foreach ( Net_Gain_Kit_Settings::DAYS as $day_key => $day_label ) : ?>
+									<option value="<?php echo esc_attr( $day_key ); ?>" <?php selected( $day_key, $weekly_day ); ?>><?php echo esc_html( $day_label ); ?></option>
+								<?php endforeach; ?>
+							</select>
+							at <input type="time" id="ng_kit_weekly_time" name="ng_kit_weekly_time" value="<?php echo esc_attr( Net_Gain_Kit_Settings::sanitize_time( $get( 'ng_kit_weekly_time', '08:00' ) ) ); ?>">
+							in
+							<select id="ng_kit_weekly_timezone" name="ng_kit_weekly_timezone">
+								<?php echo Net_Gain_Timezones::select_options( Net_Gain_Timezones::sanitize( $get( 'ng_kit_weekly_timezone' ) ) ); ?>
+							</select>
+							<br><br>
+							Kit tag ID <input type="number" min="1" id="ng_kit_weekly_tag_id" name="ng_kit_weekly_tag_id" class="small-text" value="<?php echo esc_attr( $get( 'ng_kit_weekly_tag_id', '' ) ?: '' ); ?>">
+							&nbsp;&nbsp;Kit layout template ID <input type="number" min="1" id="ng_kit_weekly_template_id" name="ng_kit_weekly_template_id" class="small-text" value="<?php echo esc_attr( $get( 'ng_kit_weekly_template_id', '' ) ?: '' ); ?>">
+							<p class="description">One email on this day, at this time (in this zone, so it follows daylight saving by itself), listing every episode published since the previous one, newest first, with the same cards as the old weekly digest. A week with no new episode sends nothing. The weekly email goes to subscribers carrying the weekly tag, using the weekly layout. Choose "No weekly email" to turn it off.</p>
+						</td>
+					</tr>
+
 				</table>
 
 				<?php submit_button( 'Save changes' ); ?>

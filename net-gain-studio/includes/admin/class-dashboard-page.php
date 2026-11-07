@@ -31,6 +31,7 @@ class Net_Gain_Dashboard_Page {
 		'captivate_published' => 'Captivate',
 		'website_published'   => 'Website',
 		'youtube_published'   => 'YouTube',
+		'kit_emailed'         => 'Email',
 	);
 
 	public static function render() {
@@ -164,6 +165,8 @@ class Net_Gain_Dashboard_Page {
 				return $episode['url_website'];
 			case 'youtube_published':
 				return $episode['url_youtube'];
+			case 'kit_emailed':
+				return '';
 		}
 		return '';
 	}
@@ -220,6 +223,8 @@ class Net_Gain_Dashboard_Page {
 					// connected' is a valid, expected state for a show that doesn't
 					// publish to YouTube, not an error (Spec Section 6.3).
 					'youtube_connected' => Net_Gain_Secrets::exists( 'show', $post->ID, 'youtube_oauth' ),
+					// Drives kit_emailed's pending tooltip: a show that does not email through Kit is not behind, it just has no email step.
+					'kit_enabled'       => (bool) get_post_meta( $post->ID, 'ng_kit_enabled', true ),
 				);
 			},
 			$posts

@@ -49,6 +49,7 @@ def load_config():
         "GOOGLE_SERVICE_ACCOUNT_JSON": os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"],
         "GOOGLE_CLOUD_PROJECT": os.environ["GOOGLE_CLOUD_PROJECT"],
         "GOOGLE_CLOUD_LOCATION": os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+        "KIT_API_KEY": os.environ.get("KIT_API_KEY", ""),
         "SMTP_HOST": os.environ.get("SMTP_HOST", ""),
         "SMTP_PORT": int(os.environ.get("SMTP_PORT", "587")),
         "SMTP_USERNAME": os.environ.get("SMTP_USERNAME", ""),

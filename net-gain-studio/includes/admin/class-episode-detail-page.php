@@ -108,6 +108,16 @@ class Net_Gain_Episode_Detail_Page {
 			<?php endif; ?>
 			<p><?php self::render_trigger_button( $show_id, $episode_date, 'publish_youtube', 'youtube_published', $step_status, 'Publish to YouTube', 'Re-check YouTube publish' ); ?></p>
 
+			<?php if ( get_post_meta( $show_id, 'ng_kit_enabled', true ) ) : ?>
+				<p>
+					Email (Kit): <strong><?php echo esc_html( $step_status['kit_emailed']['status'] ?? 'pending' ); ?></strong>
+					<?php if ( ! empty( $step_status['kit_emailed']['note'] ) ) : ?>
+						— <?php echo esc_html( $step_status['kit_emailed']['note'] ); ?>
+					<?php endif; ?>
+				</p>
+				<p><?php self::render_trigger_button( $show_id, $episode_date, 'send_kit_email', 'kit_emailed', $step_status, 'Send email', 'Check email in Kit' ); ?></p>
+			<?php endif; ?>
+
 			<?php if ( $youtube_title || $youtube_description || $youtube_tags ) : ?>
 				<h3>Generated YouTube metadata</h3>
 				<p>

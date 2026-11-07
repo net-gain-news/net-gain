@@ -104,23 +104,17 @@ a {{ color:{ACCENT}; }}
                 <td style="padding:22px 24px;">
                   <div style="font-family:{MONO};font-size:10px;line-height:12px;letter-spacing:0.12em;text-transform:uppercase;color:{MUTED};padding:0 0 8px;">The Net Gain Edtech Index</div>
                   <div style="font-family:{BODY};font-size:15px;line-height:23px;color:{INK};padding:0 0 12px;">Our proprietary portfolio of fifty publicly traded edtech companies, tracked on every episode.</div>
-                  <a href="{SITE}/edtech/index/" style="font-family:{MONO};font-size:12px;line-height:16px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:{ACCENT};text-decoration:none;">See how the Index moved &rarr;</a>
+                  <a href="{SITE}/edtech/index/" style="font-family:{MONO};font-size:12px;line-height:16px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:{ACCENT};text-decoration:none;">See how the Index moved today &rarr;</a>
                 </td>
               </tr>
             </table>
           </td>
         </tr>
 
-        <!-- Sponsorship slot (Kit's ad slot tag; the tag must appear only once in the template): filled only with a sponsorship booked for
-             the send date, otherwise it renders nothing, so this row takes no space. No vertical padding on purpose. -->
-        <tr>
-          <td class="ng-pad" bgcolor="{CARD}" style="background:{CARD};padding:0 32px;border-left:1px solid {CARD_BORDER};border-right:1px solid {CARD_BORDER};">{{{{ ck.ad_slot }}}}</td>
-        </tr>
-
         <!-- Footer -->
         <tr>
           <td class="ng-pad" bgcolor="{NAVY}" style="background:{NAVY};padding:26px 32px 30px;">
-            <div style="font-family:{BODY};font-size:14px;line-height:22px;color:#c9d4e3;padding:0 0 14px;">Net Gain Edtech is brought to you by <a href="https://www.edsby.com/" style="color:{NAVY_LINK};text-decoration:none;"><img src="{EDSBY_LOGO}" width="57" height="20" alt="Edsby" style="display:inline-block;width:57px;height:20px;border:0;vertical-align:-5px;margin:0 2px 0 7px;"></a>, the student success platform for <span style="white-space:nowrap;">K&#8209;12</span>.</div>
+            <div style="font-family:{BODY};font-size:14px;line-height:22px;color:#c9d4e3;padding:0 0 14px;">Net Gain Edtech is brought to you by <a href="https://www.edsby.com/" style="color:{NAVY_LINK};text-decoration:none;"><img src="{EDSBY_LOGO}" width="57" height="20" alt="Edsby" style="display:inline-block;width:57px;height:20px;border:0;vertical-align:-5px;margin:0 2px 0 0;"></a>, the student success platform for <span style="white-space:nowrap;">K&#8209;12</span>.</div>
             <div style="font-family:{MONO};font-size:11px;line-height:16px;letter-spacing:0.08em;text-transform:uppercase;padding:0 0 18px;">
               <a href="{SITE}/edtech/" style="color:{NAVY_LINK};text-decoration:none;">Website</a>&nbsp;&nbsp;<span style="color:#4d6585;">|</span>&nbsp;&nbsp;<a href="{SITE}/edtech/episodes/" style="color:{NAVY_LINK};text-decoration:none;">All episodes</a>&nbsp;&nbsp;<span style="color:#4d6585;">|</span>&nbsp;&nbsp;<a href="https://net-gain-edtech.captivate.fm/listen" style="color:{NAVY_LINK};text-decoration:none;">Add to your podcast player</a>
             </div>
@@ -159,7 +153,6 @@ def preview(kind, html, items):
         "{{ unsubscribe_url }}": "#",
         "{{ subscriber_preferences_url }}": "#",
         "{{ address }}": "600 1st Ave, Ste 330 PMB 92768, Seattle, WA 98104-2246",
-        "{{ ck.ad_slot }}": "",      # nothing, as Kit renders it when no sponsorship is booked for the send date
     }
     if kind == "daily":
         body = items[0]["content"]

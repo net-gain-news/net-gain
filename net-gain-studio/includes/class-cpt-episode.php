@@ -126,6 +126,8 @@ class Net_Gain_CPT_Episode {
 			// 6.3's two-phase upload-then-verify) - distinct from ng_url_youtube above,
 			// which is written only once the video is confirmed live.
 			'ng_youtube_video_id'          => array( 'type' => 'string', 'default' => '' ),
+			// The Kit broadcast made for this episode's daily email (written by the pipeline's last step).
+			'ng_kit_broadcast_id'          => array( 'type' => 'string', 'default' => '' ),
 			// UTC ISO8601, written by the pipeline itself before upload begins - not
 			// derived from ng_step_status's site-local timestamp (same timezone-
 			// ambiguity class as the Captivate `date` field incident).

@@ -40,6 +40,10 @@ class Net_Gain_Dashboard_Status {
 			return 'This show has no YouTube channel connected - connect one on the show setup screen if this show should publish to YouTube. This will stay gray until then, not because anything is wrong.';
 		}
 
+		if ( 'kit_emailed' === $step_key && 'pending' === $cell_status && empty( $show['kit_enabled'] ) ) {
+			return 'This show does not send its episode email through Kit (switch it on in the show setup screen). This stays gray until then, not because anything is wrong.';
+		}
+
 		if ( 'youtube_published' === $step_key && 'in_progress' === $cell_status ) {
 			return 'Uploaded to YouTube - YouTube is still processing the video before it\'s genuinely live. This is an external delay outside our control (sometimes several minutes), not a failure; the next tick pass re-checks and resolves this to green or red.';
 		}
@@ -70,6 +74,7 @@ class Net_Gain_Dashboard_Status {
 			'images_rendered'      => 'Image generation failed and no fallback image is available for this show yet - upload a default branded image in the show\'s setup screen.',
 			'captivate_published'  => 'Captivate publish failed - check the logged raw response body first (SPEC Section 1: this API has previously returned undocumented error shapes that only the raw body reveals).',
 			'website_published'    => 'Website publish failed - confirm Seriously Simple Podcasting is active and its "series" taxonomy exists, then check the tick loop log for the specific WordPress error.',
+			'kit_emailed'          => 'The episode email was not sent through Kit - the logged note names the cause. A message about permissions or an unknown template or tag means the Kit settings on the show setup screen (or the API key) need fixing; a note that the episode is too old means Kit sending was down for over a day and the email was deliberately not sent late. Use Send email on the episode screen to try again; it never sends a second copy if Kit already has one.',
 			'youtube_published'    => 'YouTube publishing failed - the logged note names the specific cause: a pre-publish checklist failure lists exactly which criteria (title/description/tags/thumbnail) didn\'t pass; a thumbnail-only failure almost always means the channel isn\'t phone-verified yet; "invalid_grant" means the OAuth connection was revoked or expired and the channel needs reconnecting on the show setup screen.',
 		);
 		$base = $guidance[ $step_key ] ?? 'This step failed - check the tick loop log for the specific error.';

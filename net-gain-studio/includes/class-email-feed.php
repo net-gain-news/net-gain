@@ -90,7 +90,7 @@ class Net_Gain_Email_Feed {
 		}
 
 		echo '<?xml version="1.0" encoding="' . esc_attr( get_option( 'blog_charset' ) ) . '"?>' . "\n";
-		echo '<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">' . "\n<channel>\n";
+		echo '<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:ng="https://netgain.news/ns/email">' . "\n<channel>\n";
 		echo '<title>' . esc_html( $title ) . "</title>\n";
 		echo '<link>' . esc_url( $term && isset( $term->term_id ) ? get_term_link( $term ) : home_url( '/' ) ) . "</link>\n";
 		echo '<description>' . esc_html( get_bloginfo( 'description' ) ) . "</description>\n";
@@ -108,6 +108,8 @@ class Net_Gain_Email_Feed {
 			echo '<guid isPermaLink="true">' . esc_url( $e['url'] ) . "</guid>\n";
 			echo '<pubDate>' . esc_html( get_post_time( 'r', true, $post ) ) . "</pubDate>\n";
 			echo '<dc:creator>' . $cdata( get_the_author_meta( 'display_name', $post->post_author ) ) . "</dc:creator>\n";
+			// The episode's plain-text summary, for the email's inbox preview line (the pipeline sends the email through Kit's API).
+			echo '<ng:summary>' . $cdata( $e['summary'] ) . "</ng:summary>\n";
 			echo '<description>' . $cdata( self::compact_card( $e ) ) . "</description>\n";
 			echo '<content:encoded>' . $cdata( self::daily_card( $e ) ) . "</content:encoded>\n";
 			echo "</item>\n";

@@ -179,6 +179,19 @@ class Net_Gain_CPT_Show {
 			// created (the sponsor line). The website's show notes come from the generated notes themselves, so this
 			// does not appear there. Edited by the show owner, never written by the AI.
 			'ng_captivate_notes_footer' => array( 'type' => 'string', 'default' => '' ),
+			// Email through Kit's API (see includes/class-kit-settings.php). ng_kit_since is stamped when sending is switched on and
+			// bounds which episodes may be emailed; ng_kit_weekly_last_slot is written by the pipeline only (the weekly send it has handled).
+			'ng_kit_enabled'            => array( 'type' => 'boolean', 'default' => false ),
+			'ng_kit_since'              => array( 'type' => 'string', 'default' => '' ),
+			'ng_kit_daily_tag_id'       => array( 'type' => 'integer', 'default' => 0 ),
+			'ng_kit_daily_template_id'  => array( 'type' => 'integer', 'default' => 0 ),
+			'ng_kit_from_email'         => array( 'type' => 'string', 'default' => '' ),
+			'ng_kit_weekly_day'         => array( 'type' => 'string', 'default' => '' ),
+			'ng_kit_weekly_time'        => array( 'type' => 'string', 'default' => '08:00' ),
+			'ng_kit_weekly_timezone'    => array( 'type' => 'string', 'default' => '', 'sanitize_callback' => array( 'Net_Gain_Timezones', 'sanitize' ) ),
+			'ng_kit_weekly_tag_id'      => array( 'type' => 'integer', 'default' => 0 ),
+			'ng_kit_weekly_template_id' => array( 'type' => 'integer', 'default' => 0 ),
+			'ng_kit_weekly_last_slot'   => array( 'type' => 'string', 'default' => '' ),
 			// Written only by POST /shows/{id}/index-snapshot (tick.py) - never
 			// hand-edited. Whole-snapshot replace on every successful fetch, so
 			// constituents can be added/removed in the sheet at any time with no
