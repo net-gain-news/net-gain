@@ -188,6 +188,7 @@ class Net_Gain_CPT_Show {
 			'ng_kit_from_email'         => array( 'type' => 'string', 'default' => '' ),
 			'ng_kit_weekly_day'         => array( 'type' => 'string', 'default' => '' ),
 			'ng_kit_weekly_time'        => array( 'type' => 'string', 'default' => '08:00' ),
+			'ng_kit_weekly_subject'     => array( 'type' => 'string', 'default' => '' ),
 			'ng_kit_weekly_timezone'    => array( 'type' => 'string', 'default' => '', 'sanitize_callback' => array( 'Net_Gain_Timezones', 'sanitize' ) ),
 			'ng_kit_weekly_tag_id'      => array( 'type' => 'integer', 'default' => 0 ),
 			'ng_kit_weekly_template_id' => array( 'type' => 'integer', 'default' => 0 ),

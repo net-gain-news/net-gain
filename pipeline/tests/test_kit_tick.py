@@ -78,11 +78,11 @@ class KitEmailDueTests(unittest.TestCase):
         self.assertFalse(self.due(show=_show(kit=dict(KIT, since=""))))
         self.assertTrue(self.due(show=_force(_show(kit=dict(KIT, since="2026-11-06 22:00:00")))))
 
-    def test_it_waits_for_youtube_but_not_for_ever(self):
+    def test_it_waits_for_youtube_to_finish_or_fail_with_no_timer_of_its_own(self):
         self.assertFalse(self.due(episode=_episode(youtube="in_progress")))
         self.assertFalse(self.due(episode=_episode(youtube="pending")))
-        later = NOW + timedelta(minutes=tick.KIT_YOUTUBE_WAIT_MINUTES)
-        self.assertTrue(self.due(episode=_episode(youtube="in_progress"), now=later))
+        # No fixed wait: hours later it is still waiting for YouTube's own outcome, not sending on a clock.
+        self.assertFalse(self.due(episode=_episode(youtube="in_progress"), now=NOW + timedelta(hours=3)))
 
     def test_a_failed_or_degraded_youtube_does_not_hold_the_email(self):
         self.assertTrue(self.due(episode=_episode(youtube="failed")))
@@ -184,6 +184,29 @@ class SendEpisodeEmailTests(unittest.TestCase):
         self.send()
         self.assertEqual(self.steps(), ["in_progress", "pending"])
         self.notify.assert_not_called()
+
+    def test_the_retry_window_is_ten_minutes_from_when_the_email_became_due(self):
+        self.assertEqual(tick.KIT_RETRY_WINDOW_MINUTES, 10)
+        self.fetch.return_value = []
+        self.send(now=datetime(2026, 11, 6, 21, 53, 0, tzinfo=timezone.utc))     # 9 minutes after the page went live
+        self.notify.assert_not_called()
+        self.send(now=datetime(2026, 11, 6, 21, 55, 0, tzinfo=timezone.utc))     # 11 minutes after
+        self.notify.assert_called_once()
+
+    def test_the_window_counts_from_youtube_finishing_when_that_is_later(self):
+        episode = _episode()
+        episode["step_status"]["youtube_published"]["at"] = "2026-11-06 22:10:00"      # YouTube settled 26 minutes after the page
+        self.fetch.return_value = []
+        self.send(episode=episode, now=datetime(2026, 11, 6, 22, 16, 0, tzinfo=timezone.utc))   # 6 minutes after YouTube
+        self.notify.assert_not_called()
+        self.send(episode=episode, now=datetime(2026, 11, 6, 22, 21, 0, tzinfo=timezone.utc))   # 11 minutes after YouTube
+        self.notify.assert_called_once()
+
+    def test_a_failed_youtube_still_lets_the_email_go_out(self):
+        episode = _episode(youtube="failed")
+        self.assertTrue(tick.kit_email_due(_show(), episode, now=NOW))
+        self.send(episode=episode)
+        self.kit_client.create_broadcast.assert_called_once()
 
     def test_a_kit_outage_that_outlasts_the_window_is_reported(self):
         self.kit_client.find_broadcast.side_effect = KitError("Kit GET /broadcasts returned 503", status=503, transient=True)
@@ -349,6 +372,22 @@ class WeeklyTests(unittest.TestCase):
         self.assertFalse(self.run_weekly())
         self.assertEqual(self.marked(), [])
         self.notify.assert_not_called()
+
+    def test_trouble_still_there_ten_minutes_after_the_slot_is_reported_once_and_retrying_continues(self):
+        self.kit_client.create_broadcast.side_effect = KitError("Could not reach Kit", transient=True)
+        later = MONDAY_AFTER + timedelta(minutes=10)                          # 08:11, eleven minutes after the slot
+        self.assertFalse(self.run_weekly(now=later))
+        self.assertFalse(self.run_weekly(now=later + timedelta(minutes=1)))
+        self.assertEqual(self.notify.call_count, 1)
+        self.assertEqual(self.marked(), [])
+        self.assertIn("10 minutes", self.notify.call_args.args[3])
+
+    def test_the_subject_is_the_shows_own_setting_else_its_name(self):
+        self.run_weekly(show=_show(kit=dict(KIT, weekly_subject="Weekly edtech news roundup")))
+        self.assertEqual(self.kit_client.create_broadcast.call_args.kwargs["subject"], "Weekly edtech news roundup")
+        self.kit_client.create_broadcast.reset_mock()
+        self.run_weekly(show=_show(kit=dict(KIT, weekly_subject="  ", weekly_last_slot="2026-11-02T08:00:00-05:00")))
+        self.assertEqual(self.kit_client.create_broadcast.call_args.kwargs["subject"], "Net Gain Edtech")
 
     def test_a_rejected_roundup_is_reported_once_and_not_retried_every_minute(self):
         self.kit_client.create_broadcast.side_effect = KitError("Kit POST /broadcasts returned 422: bad tag", status=422)

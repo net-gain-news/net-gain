@@ -1247,10 +1247,9 @@ def process_youtube_publishes(wp, client, config, show):
 # The last step of an episode: once its website page is live and YouTube has had its turn, the pipeline creates the daily
 # email in Kit (scheduled a minute or two ahead). The roundup is a show-level weekly job with no episode behind it.
 
-# YouTube normally settles within a quarter of an hour of the website page; the email does not wait longer than this for it.
-KIT_YOUTUBE_WAIT_MINUTES = 30
-# A Kit or feed hiccup is retried every pass for this long after the email became due, then reported.
-KIT_RETRY_WINDOW_MINUTES = 20
+# A Kit or feed hiccup is retried every pass for this long after the email became due (the website page live and YouTube
+# finished or failed), then reported.
+KIT_RETRY_WINDOW_MINUTES = 10
 
 
 def _kit_pending_actions(show, episode):
@@ -1265,9 +1264,10 @@ def _kit_pending_actions(show, episode):
 def kit_email_due(show, episode, now=None):
     """
     True when this episode's daily email should be made now. The email is the LAST step: the episode's website page must be
-    live (it links there), YouTube must have finished or failed (or have had KIT_YOUTUBE_WAIT_MINUTES), and the episode must
-    have gone live after Kit sending was switched on, so switching it on can never email old episodes. A manual "Send email"
-    request lifts the YouTube wait and the switch-on bound, and is the only way to retry a failed email.
+    live (it links there), YouTube must have finished or failed (a failed YouTube upload never holds the email back; a show
+    with no YouTube channel does not wait at all), and the episode must have gone live after Kit sending was switched on, so
+    switching it on can never email old episodes. A manual "Send email" request lifts the YouTube wait and the switch-on
+    bound, and is the only way to retry a failed email.
     """
     kit = show.get("kit") or {}
     if not kit.get("enabled"):
@@ -1294,8 +1294,7 @@ def kit_email_due(show, episode, now=None):
         if since is None or website_at < since:
             return False
         if show.get("youtube_channel_id") and step_status.get("youtube_published", {}).get("status", "pending") not in ("done", "degraded", "failed"):
-            if now < website_at + timedelta(minutes=KIT_YOUTUBE_WAIT_MINUTES):
-                return False
+            return False
     return True
 
 
@@ -1370,9 +1369,18 @@ def send_episode_email(wp, kit_client, config, show, episode, pending, now=None)
 
 
 def _kit_ready_at(show, episode):
-    """When the email first became due: the website page going live (a later YouTube finish never moves it earlier)."""
-    website = (episode.get("step_status") or {}).get("website_published", {})
-    return _parse_site_local_at(website.get("at"), show_zone(show, "site_timezone"))
+    """
+    When the email became due: the later of the website page going live and YouTube finishing or failing (a show with no
+    YouTube channel has no second moment). The retry window for a Kit or feed hiccup counts from here.
+    """
+    steps = episode.get("step_status") or {}
+    zone = show_zone(show, "site_timezone")
+    moments = [_parse_site_local_at(steps.get("website_published", {}).get("at"), zone)]
+    youtube = steps.get("youtube_published", {})
+    if show.get("youtube_channel_id") and youtube.get("status") in ("done", "degraded", "failed"):
+        moments.append(_parse_site_local_at(youtube.get("at"), zone))
+    moments = [m for m in moments if m is not None]
+    return max(moments) if moments else None
 
 
 def _revert_in_progress(wp, episode_id):
@@ -1421,6 +1429,7 @@ def process_kit_weekly(wp, kit_client, config, show, now=None, memory=alert_memo
         return False
     now = now or datetime.now(timezone.utc)
     name = show["name"]
+    slot = None
 
     def once(key, message):
         """Tells the operator at most once per key."""
@@ -1477,6 +1486,9 @@ def process_kit_weekly(wp, kit_client, config, show, now=None, memory=alert_memo
     except (KitError, kit_email.KitEmailError, requests.exceptions.RequestException) as exc:
         if getattr(exc, "transient", True):
             logger.warning("Kit weekly roundup for %s not sent yet, will retry: %s", name, exc)
+            # Keep trying (the slot stays open for hours), but tell the operator once if it is still failing 10 minutes after its time.
+            if slot is not None and now - slot.astimezone(timezone.utc) >= timedelta(minutes=KIT_RETRY_WINDOW_MINUTES):
+                once(f"kit-weekly-trouble:{show['id']}:{kit_email.slot_key(slot)}", f"The weekly roundup is still not sent {KIT_RETRY_WINDOW_MINUTES} minutes after its time: {exc}")
             return False
         logger.exception("Kit weekly roundup failed for %s", name)
         try:

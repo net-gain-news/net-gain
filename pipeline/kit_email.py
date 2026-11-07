@@ -274,8 +274,8 @@ def weekly_payload(kit, show, items, slot, now):
     """Keyword arguments for KitClient.create_broadcast for the weekly roundup of `items` (already the week's, newest first)."""
     newest = items[0]
     return {
-        # Kit's own digest used the show's name as the subject; so does this.
-        "subject": text_rules.apply_text_rules(show["name"]),
+        # The show's own subject line (Edit Show > Weekly roundup), else its name, which is what Kit's own digest used.
+        "subject": text_rules.apply_text_rules((kit.get("weekly_subject") or "").strip() or show["name"]),
         "preview_text": preview_text(newest["summary"]),
         "description": f"{show['name']} weekly {slot.date().isoformat()} {weekly_marker(show['id'], slot_key(slot))}",
         "content": weekly_body(items),

@@ -80,6 +80,7 @@ class Net_Gain_Kit_Settings {
 			'from_email'         => (string) get_post_meta( $show_id, 'ng_kit_from_email', true ),
 			'weekly_day'         => $day,
 			'weekly_time'        => self::sanitize_time( get_post_meta( $show_id, 'ng_kit_weekly_time', true ) ),
+			'weekly_subject'     => (string) get_post_meta( $show_id, 'ng_kit_weekly_subject', true ),
 			'weekly_timezone'    => $zone,
 			'weekly_tag_id'      => self::sanitize_id( get_post_meta( $show_id, 'ng_kit_weekly_tag_id', true ) ),
 			'weekly_template_id' => self::sanitize_id( get_post_meta( $show_id, 'ng_kit_weekly_template_id', true ) ),

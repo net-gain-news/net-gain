@@ -234,6 +234,8 @@ class WeeklyContentTests(unittest.TestCase):
         week = kit_email.episodes_in_window(self.items, previous, slot)
         payload = kit_email.weekly_payload(KIT, {"id": 16, "name": "Net Gain Edtech"}, week, slot, utc(2026, 11, 9, 13, 1))
         self.assertEqual(payload["subject"], "Net Gain Edtech")
+        configured = kit_email.weekly_payload(dict(KIT, weekly_subject="Weekly edtech news roundup"), {"id": 16, "name": "Net Gain Edtech"}, week, slot, utc(2026, 11, 9, 13, 1))
+        self.assertEqual(configured["subject"], "Weekly edtech news roundup")
         self.assertEqual(payload["tag_id"], 23806691)
         self.assertEqual(payload["template_id"], 5595806)
         self.assertEqual(payload["preview_text"], "FRI summary")

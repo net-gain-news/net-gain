@@ -177,6 +177,7 @@ class Net_Gain_Admin_Actions {
 		update_post_meta( $show_id, 'ng_kit_from_email', sanitize_email( wp_unslash( $_POST['ng_kit_from_email'] ?? '' ) ) );
 		update_post_meta( $show_id, 'ng_kit_weekly_day', Net_Gain_Kit_Settings::sanitize_day( wp_unslash( $_POST['ng_kit_weekly_day'] ?? '' ) ) );
 		update_post_meta( $show_id, 'ng_kit_weekly_time', Net_Gain_Kit_Settings::sanitize_time( wp_unslash( $_POST['ng_kit_weekly_time'] ?? '' ) ) );
+		update_post_meta( $show_id, 'ng_kit_weekly_subject', sanitize_text_field( wp_unslash( $_POST['ng_kit_weekly_subject'] ?? '' ) ) );
 		update_post_meta( $show_id, 'ng_kit_weekly_timezone', Net_Gain_Timezones::sanitize( wp_unslash( $_POST['ng_kit_weekly_timezone'] ?? '' ) ) );
 	}
 

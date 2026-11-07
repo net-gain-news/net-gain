@@ -440,9 +440,11 @@ class Net_Gain_Edit_Show_Page {
 								<?php echo Net_Gain_Timezones::select_options( Net_Gain_Timezones::sanitize( $get( 'ng_kit_weekly_timezone' ) ) ); ?>
 							</select>
 							<br><br>
+							Subject line <input type="text" id="ng_kit_weekly_subject" name="ng_kit_weekly_subject" class="regular-text" value="<?php echo esc_attr( $get( 'ng_kit_weekly_subject' ) ); ?>" placeholder="<?php echo esc_attr( $show ? $show->post_title : '' ); ?>">
+							<br><br>
 							Kit tag ID <input type="number" min="1" id="ng_kit_weekly_tag_id" name="ng_kit_weekly_tag_id" class="small-text" value="<?php echo esc_attr( $get( 'ng_kit_weekly_tag_id', '' ) ?: '' ); ?>">
 							&nbsp;&nbsp;Kit layout template ID <input type="number" min="1" id="ng_kit_weekly_template_id" name="ng_kit_weekly_template_id" class="small-text" value="<?php echo esc_attr( $get( 'ng_kit_weekly_template_id', '' ) ?: '' ); ?>">
-							<p class="description">One email on this day, at this time (in this zone, so it follows daylight saving by itself), listing every episode published since the previous one, newest first, with the same cards as the old weekly digest. A week with no new episode sends nothing. The weekly email goes to subscribers carrying the weekly tag, using the weekly layout. Choose "No weekly email" to turn it off.</p>
+							<p class="description">One email on this day, at this time (in this zone, so it follows daylight saving by itself), listing every episode published since the previous one, newest first, with the same cards as the old weekly digest. A week with no new episode sends nothing. The subject line is what subscribers see in their inbox; leave it blank to use the show's name. The weekly email goes to subscribers carrying the weekly tag, using the weekly layout. Choose "No weekly email" to turn it off.</p>
 						</td>
 					</tr>
 
