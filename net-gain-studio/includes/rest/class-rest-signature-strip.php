@@ -20,7 +20,8 @@
  * The images are SERVED from /ng-signature/{show-slug}-strip-{light,dark}.png (not from the uploads URL): the host's
  * web server hands real files out with a Last-Modified header and no cache directive, so every cache (Apple Mail's image
  * proxy kept the strip for a whole day, 2026-10-19) invents its own lifetime. The route answers with "revalidate every
- * time" headers, an ETag and 304s, which is the most a signature can ask of a cache.
+ * time" headers (no-store since 2026-11-07, after Apple Mail kept showing an old strip despite no-cache), an ETag and 304s,
+ * which is the most a signature can ask of a cache.
  *
  * An episode older than the one already shown is ignored, so republishing or re-running an old day never rolls the
  * signature backwards. Files are validated as real PNGs of a sane size and written atomically.
@@ -83,7 +84,9 @@ class Net_Gain_REST_Signature_Strip {
 		$size = (int) filesize( $file );
 		$v    = self::validators( $size, filemtime( $file ) );
 		header( 'Content-Type: image/png' );
-		header( 'Cache-Control: no-cache, max-age=0, must-revalidate' );
+		header( 'Cache-Control: no-store, no-cache, must-revalidate, max-age=0' );    // no-store: a cache may not keep a copy at all (2026-11-07: Apple Mail kept showing an old strip)
+		header( 'Pragma: no-cache' );
+		header( 'Expires: 0' );
 		header( 'ETag: ' . $v['etag'] );
 		header( 'Last-Modified: ' . $v['last_modified'] );
 		header( 'X-Robots-Tag: noindex' );
