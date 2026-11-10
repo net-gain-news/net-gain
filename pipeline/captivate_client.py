@@ -30,7 +30,9 @@ RETRYABLE_EXCEPTIONS = (
 
 
 class CaptivateError(RuntimeError):
-    pass
+    def __init__(self, message, status_code=None):
+        super().__init__(message)
+        self.status_code = status_code      # the HTTP status when Captivate answered with one, else None
 
 
 class CaptivateClient:
@@ -147,7 +149,17 @@ class CaptivateClient:
         # FormData, and the one documented episode-create example found uses the
         # same key=value shape rather than a JSON body. Worth confirming against
         # a live response on first real use (see PHASE_5_HANDOFF.md).
+        #
+        # Exception (2026-11-10): a payload that carries `slots` is sent as JSON, the way Captivate's own dashboard
+        # creates an episode (nested slot objects cannot ride in a form body). See dashboard_post_roll_slots().
+        if "slots" in payload:
+            return self._request("POST", "/episodes", json=payload)
         return self._request("POST", "/episodes", data=payload)
+
+    def get_media_slots(self, media_id):
+        """The ad slots on one episode's audio (GET /media/{id}/slots/), a list of slot objects. Read-only."""
+        response = self._request("GET", f"/media/{media_id}/slots/")
+        return response if isinstance(response, list) else (response.get("slots") or [])
 
     def get_episode(self, episode_id):
         return self._request("GET", f"/episodes/{episode_id}")
@@ -180,7 +192,7 @@ class CaptivateClient:
         response = call_with_retries(do_request, RETRYABLE_EXCEPTIONS)
 
         if not response.ok:
-            raise CaptivateError(f"{method} {path} failed ({response.status_code}): {response.text[:1000]}")
+            raise CaptivateError(f"{method} {path} failed ({response.status_code}): {response.text[:1000]}", response.status_code)
 
         if not response.text:
             return {}
@@ -250,3 +262,71 @@ def episode_update_payload(episode, captivate_show_id, media_id):
         "episode_number": episode["episode_number"],
         "itunes_block": episode.get("itunes_block") or "false",
     }
+
+
+# --- ad slots on a new episode (2026-11-10) ------------------------------------------------------------------------
+# Captivate's campaign system fills DYNAMIC slots. A show on Captivate's v2 ad system (amie_version 2) should have each
+# episode carry ONE dynamic post-roll slot whose total_ad_slots equals the show's default (3 for Net Gain Edtech): that is
+# what Captivate's own conversion left on episodes 1-29. An episode created through the API without any slot data came out
+# (episodes 30-35) with a STATIC post-roll holding a copy of the show's legacy default house ad, which the campaign does not
+# fill and the dashboard's bulk editors refuse to touch ("cannot be used on episodes which have AMIE").
+#
+# The dashboard itself creates v2 episodes by sending `slots` (dynamic, with `adMediaAssignments`, not `subSlots`) and
+# `dashboard: true` in a JSON body, so that is what dashboard_post_roll_slots() builds. Whether the API honours it on create
+# is being tested on a live episode; tick.check_new_episode_ad_slots() reads the result back and alerts the operator
+# whenever the episode did not come out as expected, so the experiment can never fail silently.
+
+def v2_post_roll_count(show):
+    """The number of ad positions a new episode should get after its audio: the show's default post-roll count when the show
+    is on Captivate's v2 ad system, else 0 (meaning: leave slot creation to Captivate, as before)."""
+    if isinstance(show, dict):
+        show = show.get("show", show)
+    if not isinstance(show, dict) or show.get("amie_version") != 2:
+        return 0
+    try:
+        return max(0, int(show.get("default_post_roll_slots") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def dashboard_post_roll_slots(captivate_show_id, media_id, count, slot_id):
+    """The slot list the dashboard sends for a new episode on a v2 show: one dynamic post-roll with `count` positions."""
+    return [{
+        "id": slot_id,
+        "parent_media_id": media_id,
+        "show_id": captivate_show_id,
+        "start": -1,
+        "end": -1,
+        "type": "post",
+        "label": "post-roll",
+        "slot_type": "dynamic",
+        "total_ad_slots": count,
+        "adMediaAssignments": [],
+    }]
+
+
+def slot_problems(slots, expected_count):
+    """Plain-English problems with an episode's slots, [] when it is exactly what the campaign needs: one post-roll slot,
+    dynamic, with `expected_count` positions and no ad attached to it, and no other slot."""
+    slots = slots or []
+    if not slots:
+        return ["it has no ad slots at all"]
+    problems = []
+    others = [s for s in slots if s.get("type") != "post"]
+    posts = [s for s in slots if s.get("type") == "post"]
+    if others:
+        problems.append("it also has " + ", ".join(f"a {s.get('type')}-roll slot ({s.get('slot_type')})" for s in others))
+    if not posts:
+        problems.append("it has no post-roll slot")
+        return problems
+    if len(posts) > 1:
+        problems.append(f"it has {len(posts)} post-roll slots (one expected)")
+    for slot in posts:
+        if slot.get("slot_type") != "dynamic":
+            problems.append(f"its post-roll slot is {slot.get('slot_type')}, not dynamic")
+        elif slot.get("total_ad_slots") != expected_count:
+            problems.append(f"its dynamic post-roll slot has {slot.get('total_ad_slots')} ad positions, expected {expected_count}")
+        if slot.get("subSlots"):
+            names = ", ".join(str(sub.get("media_name") or sub.get("media_id")) for sub in slot["subSlots"])
+            problems.append(f"an ad is permanently attached to its post-roll slot ({names})")
+    return problems

@@ -30,6 +30,7 @@ import logging
 import sys
 import tempfile
 import time
+import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -45,7 +46,9 @@ from anthropic_client import generate as anthropic_generate
 from audio_conversion import convert_to_captivate_bitrate
 import alert_memory
 from audio_replacement import captivate_episode_id, process_audio_replacements
-from captivate_client import CAPTIVATE_ACCOUNT_TIMEZONE, CaptivateClient
+from captivate_client import (
+    CAPTIVATE_ACCOUNT_TIMEZONE, CaptivateClient, CaptivateError, dashboard_post_roll_slots, slot_problems, v2_post_roll_count,
+)
 from config import ConfigError, load_config
 from kit_client import KitClient, KitError
 from image_generation import FALLBACK_META_KEYS, IMAGE_META_KEYS, build_vertex_client, render_images_for_episode
@@ -478,7 +481,23 @@ def publish_to_captivate(wp, captivate, show, episode_id, finalization):
     if image_id:
         payload["episode_art"] = wp.get_attachment_url(image_id, original=True)    # the 3000 px file, not WordPress's 2560 px "-scaled" copy
 
-    created = captivate.create_episode(payload)
+    # Ad slots (2026-11-10): ask for the one dynamic post-roll the campaign needs, the way Captivate's own dashboard creates an
+    # episode on a v2 show. Without this Captivate made a static house-ad slot (episodes 30-35) that the campaign never fills.
+    # If Captivate rejects the request because of the slot data (a 4xx), the episode is created the old way instead so the
+    # publish is never blocked by this experiment; check_new_episode_ad_slots() then reports what the episode actually got.
+    slot_count = v2_post_roll_count(captivate.get_show(captivate_show_id))
+    if slot_count:
+        payload["slots"] = dashboard_post_roll_slots(captivate_show_id, media_id, slot_count, str(uuid.uuid4()))
+        payload["dashboard"] = True
+    try:
+        created = captivate.create_episode(payload)
+    except CaptivateError as exc:
+        if "slots" not in payload or not exc.status_code or not 400 <= exc.status_code < 500:
+            raise
+        logger.warning("Captivate rejected the slot data on episode creation (%s); creating the episode without it.", exc)
+        payload.pop("slots")
+        payload.pop("dashboard", None)
+        created = captivate.create_episode(payload)
     new_episode_id = created.get("id") or (created.get("episode") or {}).get("id")
     if not new_episode_id:
         raise RuntimeError(f"Captivate did not return an episode id from creation: {created}")
@@ -575,6 +594,48 @@ def refresh_strip_when_live(wp, show, episode_id):
         logger.exception("Signature strip check failed for episode %s (ignored).", episode_id)
 
 
+def check_new_episode_ad_slots(wp, captivate, config, show, episode_id):
+    """
+    Reads back the ad slots Captivate gave a just-created episode and alerts the operator when they are not what its campaign
+    needs (one dynamic post-roll with the show's default number of positions). Captivate's API has made a static house-ad slot on
+    every episode since the show moved to its v2 ad system (episodes 30-35, 2026-11-03 .. 2026-11-10), and nothing said so: the
+    episode simply played no campaign ads. Never raises and never writes to Captivate. Returns True when the slots are right (or
+    the show is not on the v2 system, so nothing is expected), False otherwise.
+    """
+    try:
+        expected = v2_post_roll_count(captivate.get_show(show["captivate_show_id"]))
+        if not expected:
+            return True
+        cap_id = captivate_episode_id(wp.get_episode(episode_id).get("meta", {}))
+        record = captivate.get_episode(cap_id)
+        record = record.get("episode", record) if isinstance(record, dict) else {}
+        if isinstance(record, list):
+            record = record[0] if record else {}
+        slots = captivate.get_media_slots(record["media_id"])
+        problems = slot_problems(slots, expected)
+        if not problems:
+            logger.info("Captivate episode %s has the expected ad slots (one dynamic post-roll, %s positions).", cap_id, expected)
+            return True
+        found = "; ".join(
+            f"{s.get('type')}-roll {s.get('slot_type')} (positions {s.get('total_ad_slots')}, attached ads {len(s.get('subSlots') or [])})"
+            for s in slots
+        ) or "none"
+        notify_failure(
+            config, show["name"], "captivate_ad_slots",
+            f"Captivate episode {cap_id} was created, but its ad slots are not what the campaign needs: " + "; ".join(problems) +
+            f". Slots found: {found}. The pipeline asked for one dynamic post-roll with {expected} positions. Until this is fixed "
+            "the campaign will not play ads on this episode, and the dashboard's Bulk Ad Editor will refuse to change it.",
+        )
+        return False
+    except Exception as exc:
+        logger.exception("Could not check the ad slots of episode %s (ignored).", episode_id)
+        try:
+            notify_failure(config, show["name"], "captivate_ad_slots", f"The ad-slot check could not run for this episode: {exc}")
+        except Exception:
+            logger.exception("Could not send the ad-slot check alert.")
+        return False
+
+
 def publish_episode_to_captivate(wp, client, captivate, config, show, episode):
     """Generates the episode's metadata if needed and publishes it to Captivate; never raises."""
     episode_id = episode["id"]
@@ -596,6 +657,7 @@ def publish_episode_to_captivate(wp, client, captivate, config, show, episode):
             "Published episode %s to Captivate as episode number %s for %s.",
             episode_id, episode_number, show["name"],
         )
+        check_new_episode_ad_slots(wp, captivate, config, show, episode_id)
         refresh_strip_when_live(wp, show, episode_id)
     except Exception as exc:
         logger.exception("Captivate publish failed for episode %s (%s)", episode_id, show["name"])
