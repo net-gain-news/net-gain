@@ -30,7 +30,7 @@ $copy = Net_Gain_Listen_Page::resolve( array( 'eyebrow' => '' ), $fields );
 check( 'an emptied optional box stays empty (the element is hidden)', '' === $copy['eyebrow'] );
 
 $copy = Net_Gain_Listen_Page::resolve( array( 'sponsor' => '' ), $fields );
-check( 'the sponsor line can be removed by emptying its text', '' === $copy['sponsor'] && $copy['listen_heading'] === $fields['listen_heading']['default'] );
+check( 'the sponsor line can be removed by emptying its text', '' === $copy['sponsor'] && $copy['listen_button'] === $fields['listen_button']['default'] );
 
 $copy = Net_Gain_Listen_Page::resolve( array( 'headline' => array( 'x' ), 'bogus' => 'x' ), $fields );
 check( 'junk values and unknown keys are ignored', $copy['headline'] === $fields['headline']['default'] && ! isset( $copy['bogus'] ) );
@@ -39,6 +39,8 @@ $store = Net_Gain_Listen_Page::to_store( array( 'headline' => ' New one ', 'lede
 ksort( $store );
 check( 'only changed wording is stored, trimmed', $store === array( 'eyebrow' => '', 'headline' => 'New one' ) );
 
+check( 'the listen button and signup heading have standard wording and cannot be emptied away', $fields['listen_button']['blank'] === 'default' && $fields['signup_heading']['blank'] === 'default' && '' !== Net_Gain_Listen_Page::resolve( array( 'listen_button' => '', 'signup_heading' => ' ' ), $fields )['listen_button'] && '' !== Net_Gain_Listen_Page::resolve( array( 'signup_heading' => ' ' ), $fields )['signup_heading'] );
+check( 'the retired fields are gone', ! isset( $fields['listen_first'] ) && ! isset( $fields['listen_heading'] ) );
 check( 'K-12 gets the non-breaking hyphen', Net_Gain_Listen_Page::k12( 'the K-12 news, not K-123' ) === "the K\u{2011}12 news, not K-123" );
 check( 'the standard headline renders with it', false !== strpos( Net_Gain_Listen_Page::k12( $fields['headline']['default'] ), "K\u{2011}12" ) );
 

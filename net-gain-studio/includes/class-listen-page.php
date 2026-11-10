@@ -1,6 +1,7 @@
 <?php
 /**
- * The invitation landing page (netgain.news/edtech/listen/): a campaign page whose one job is the email signup.
+ * The invitation landing page (netgain.news/edtech/listen/): a campaign page whose first job is to get the visitor to play the
+ * newest episode (Listen button + play button on the episode picture) and whose second job is the email signup under it.
  *
  * It is an ordinary WordPress page that uses the "Net Gain landing page" template this class adds. The page's text lives
  * in one post meta value (ng_listen_copy) edited in a "Landing page text" box on the page's own edit screen, so wording
@@ -31,30 +32,31 @@ class Net_Gain_Listen_Page {
 	public static function sections() {
 		return array(
 			'hero'     => array(
-				'title'  => 'Top of the page (the signup)',
-				'intro'  => 'The coloured band at the top of the page, where the email signup sits. This is the first thing a visitor sees, on a phone as well as on a computer.',
+				'title'  => 'Top of the page (listen first)',
+				'intro'  => 'The coloured band at the top of the page. Its job is to get the visitor to press play: the Listen button on the left and the play button on the episode picture on the right both start today’s episode in the player under the picture. The picture, date, headline, one-sentence summary, length and player are pulled in automatically, so they are never out of date. If the show has no published episode yet, the signup box takes the episode’s place.',
 				'fields' => array(
-					'eyebrow'      => array( 'Small label above the headline', 'text', 'hide', 'Net Gain Edtech · A Net Gain News production', 'The small capital-letter line above the headline. Empty hides it.' ),
-					'headline'     => array( 'Headline', 'text', 'default', 'Five minutes. Every business day. The K-12 news that matters.', 'The large headline. Keep it to one or two short sentences: on a phone it wraps to about four lines. Empty restores the standard wording.' ),
-					'lede'         => array( 'Sentence under the headline', 'text', 'default', 'A daily audio briefing on education technology, security and policy for district leaders. Free.', 'One or two sentences saying what the show is and who it is for. Empty restores the standard wording.' ),
-					'card_kicker'  => array( 'Small label at the top of the signup box', 'text', 'hide', 'Free · every business day', 'A few words above the email box, in small capitals. Empty hides it.' ),
-					'placeholder'  => array( 'Grey hint text inside the email box', 'text', 'default', 'Your work email', 'Shown inside the empty email box until the visitor types. Empty restores the standard wording.' ),
-					'button'       => array( 'Signup button', 'text', 'default', 'Send me the daily episode', 'The words on the big red button. An arrow is added after them automatically; do not type one. The same wording is used on the lower signup box. Empty restores the standard wording.' ),
-					'fine'         => array( 'Small print under the button', 'rich', 'default', 'One email per business day. Unsubscribe any time. We never sell your address.', 'Promises about the email, shown directly under the button. Only state what is true of the Kit list. Empty restores the standard wording.' ),
-					'listen_first' => array( 'Link that jumps down to the sample episode', 'text', 'hide', 'Or hear today’s episode first', 'A quiet text link under the signup box that scrolls to the "hear today’s episode" section. A down arrow is added automatically. Empty hides the link.' ),
+					'eyebrow'        => array( 'Small label above the headline', 'text', 'hide', 'Net Gain Edtech · A Net Gain News production', 'The small capital-letter line above the headline. Empty hides it.' ),
+					'headline'       => array( 'Headline', 'text', 'default', 'Five minutes. Every business day. The K-12 news that matters.', 'The large headline. Keep it to one or two short sentences: on a phone it wraps to about four lines. Empty restores the standard wording.' ),
+					'lede'           => array( 'Sentence under the headline', 'text', 'default', 'A daily audio briefing on education technology, security and policy for district leaders. Free.', 'One or two sentences saying what the show is and who it is for. Empty restores the standard wording.' ),
+					'listen_button'  => array( 'Listen button', 'text', 'default', 'Listen', 'The words on the red button under the sentence. A play triangle is added before them automatically; do not type one. Pressing it plays the episode. Empty restores the standard wording.' ),
+					'sponsor'        => array( 'Sponsor line', 'rich', 'hide', 'Brought to you by the <a href="https://www.edsby.com/" target="_blank" rel="sponsored noopener">Edsby</a> student success platform for K-12.', 'Shown with the Edsby logo at the bottom of the episode box. Empty hides the line and the logo.' ),
 				),
 			),
-			'listen'   => array(
-				'title'  => 'Hear today’s episode first',
-				'intro'  => 'The newest episode with its Captivate player, so a visitor can hear it before signing up. The headline, one-sentence summary, picture, date, length and player are pulled in automatically, so this section is never out of date. The picture is not clickable; the player is what plays. If the show has no published episode yet, the whole section disappears.',
+			'signup'   => array(
+				'title'  => 'Then the signup',
+				'intro'  => 'The email signup, in its own band right under the episode, so the ask comes after the visitor has had the chance to listen. The same email box, button and small print are used again at the bottom of the page.',
 				'fields' => array(
-					'listen_heading' => array( 'Section heading', 'text', 'default', 'Hear today’s episode first', 'The heading above the episode box. Empty restores the standard wording.' ),
-					'sponsor'        => array( 'Sponsor line', 'rich', 'hide', 'Brought to you by the <a href="https://www.edsby.com/" target="_blank" rel="sponsored noopener">Edsby</a> student success platform for K-12.', 'Shown with the Edsby logo under the episode player. Empty hides the line and the logo.' ),
+					'signup_heading' => array( 'Heading above the signup box', 'text', 'default', 'Liked it? Get it in your inbox every business day.', 'The heading beside the email box. Empty restores the standard wording.' ),
+					'signup_text'    => array( 'Sentence under that heading', 'text', 'hide', 'The same five minutes, plus a written summary and the source links, delivered every afternoon after market close.', 'One short sentence. Empty hides it.' ),
+					'card_kicker'    => array( 'Small label at the top of the signup box', 'text', 'hide', 'Free · every business day', 'A few words above the email box, in small capitals. Empty hides it.' ),
+					'placeholder'    => array( 'Grey hint text inside the email box', 'text', 'default', 'Your work email', 'Shown inside the empty email box until the visitor types. Empty restores the standard wording.' ),
+					'button'         => array( 'Signup button', 'text', 'default', 'Send me the daily episode', 'The words on the big red button. An arrow is added after them automatically; do not type one. The same wording is used on the lower signup box. Empty restores the standard wording.' ),
+					'fine'           => array( 'Small print under the button', 'rich', 'default', 'One email per business day. Unsubscribe any time. We never sell your address.', 'Promises about the email, shown directly under the button. Only state what is true of the Kit list. Empty restores the standard wording.' ),
 				),
 			),
 			'benefits' => array(
 				'title'  => 'What you get',
-				'intro'  => 'Three short boxes, then a list of the three newest headlines (pulled in automatically as plain text, not links, so they do not pull a visitor away from the signup).',
+				'intro'  => 'Three short boxes, then a list of the three newest headlines (pulled in automatically; each one links to its episode page).',
 				'fields' => array(
 					'benefits_heading' => array( 'Section heading', 'text', 'default', 'What you get', 'Empty restores the standard wording.' ),
 					'b1_title'         => array( 'Box 1: title', 'text', 'default', 'Short', 'One word or a few words. Empty restores the standard wording.' ),
@@ -76,7 +78,7 @@ class Net_Gain_Listen_Page {
 			),
 			'bottom'   => array(
 				'title'  => 'Bottom of the page',
-				'intro'  => 'A second signup box at the end of the page for visitors who read all the way down. It uses the same email box, button wording and small print as the top.',
+				'intro'  => 'A second signup box at the end of the page for visitors who read all the way down. It uses the same email box, button wording and small print as the signup band under the episode.',
 				'fields' => array(
 					'bottom_heading' => array( 'Heading above the second signup box', 'text', 'default', 'Get tomorrow’s briefing in your inbox.', 'Empty restores the standard wording.' ),
 					'apps_heading'   => array( 'Heading above the podcast-app links', 'text', 'hide', 'Prefer a podcast app?', 'The four podcast-app links below appear under this heading. Empty hides all four.' ),
@@ -88,7 +90,7 @@ class Net_Gain_Listen_Page {
 			),
 			'phone'    => array(
 				'title'  => 'Phone signup bar',
-				'intro'  => 'On a phone, once the visitor has scrolled past the signup box, a slim bar stays at the bottom of the screen and takes them back up to it. It is never shown on larger screens.',
+				'intro'  => 'On a phone, once the visitor has pressed play or scrolled past the episode, a slim bar stays at the bottom of the screen (except while a signup box is showing) and takes them to the signup box. It never appears before they have had the chance to listen, and is never shown on larger screens.',
 				'fields' => array(
 					'bar_text'   => array( 'Words on the bar', 'text', 'default', 'Free daily briefing', 'Keep it very short. Empty restores the standard wording.' ),
 					'bar_button' => array( 'Button on the bar', 'text', 'default', 'Sign up', 'One or two words. Empty restores the standard wording.' ),
@@ -345,7 +347,7 @@ class Net_Gain_Listen_Page {
 		</style>
 		<div class="ng-lc-intro">
 			<p>Every piece of wording on this page is edited here. Change a box and press <strong>Update</strong> above or at the right. Under each box you will find what it does, what an empty box does, and the standard wording so you can always put it back.</p>
-			<p>The newest episode’s picture, headline, date and length, the three recent headlines and the anchor’s photo are filled in automatically and are not edited here. Typing K-12 with an ordinary hyphen is fine; the page uses the non-breaking hyphen for you.</p>
+			<p>The newest episode’s picture, headline, summary, date, length and player, the three recent headlines and the anchor’s photo are filled in automatically and are not edited here. Typing K-12 with an ordinary hyphen is fine; the page uses the non-breaking hyphen for you.</p>
 			<p>This page asks search engines not to list it or crawl it. It is not linked from anywhere on the site; only people who are sent the address can find it.</p>
 		</div>
 		<?php foreach ( self::sections() as $sid => $section ) : ?>

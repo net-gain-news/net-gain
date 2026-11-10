@@ -35,7 +35,22 @@ get_header();
 
 <main class="ngl">
 
-	<section class="ngl-hero">
+	<?php
+	$ngl_len = ( $ngl_latest && function_exists( 'ng_episode_length_label' ) ) ? ng_episode_length_label( $ngl_latest->ID ) : '';
+	$ngl_summary = $ngl_latest ? trim( wp_strip_all_tags( get_the_excerpt( $ngl_latest ) ) ) : '';
+	$ngl_signup_card = function ( $which, $kicker ) use ( $ngl_copy, $ngl_t ) {
+		ob_start();
+		?>
+		<?php if ( $kicker && '' !== trim( $ngl_copy['card_kicker'] ) ) : ?>
+			<p class="ngl-kicker mono"><?php echo $ngl_t( 'card_kicker' ); ?></p>
+		<?php endif; ?>
+		<?php echo Net_Gain_Listen_Page::form_html( $ngl_copy, $which ); // phpcs:ignore WordPress.Security.EscapeOutput -- built from escaped parts ?>
+		<?php
+		return ob_get_clean();
+	};
+	?>
+
+	<section class="ngl-hero" id="ngl-hero">
 		<div class="ngl-wrap ngl-hero-grid">
 			<div class="ngl-hero-copy">
 				<?php if ( '' !== trim( $ngl_copy['eyebrow'] ) ) : ?>
@@ -43,50 +58,56 @@ get_header();
 				<?php endif; ?>
 				<h1 class="arch ngl-h1"><?php echo $ngl_t( 'headline' ); ?></h1>
 				<p class="ngl-lede"><?php echo $ngl_t( 'lede' ); ?></p>
-			</div>
-
-			<div class="ngl-card ngl-signup" id="ngl-signup">
-				<?php if ( '' !== trim( $ngl_copy['card_kicker'] ) ) : ?>
-					<p class="ngl-kicker mono"><?php echo $ngl_t( 'card_kicker' ); ?></p>
-				<?php endif; ?>
-				<?php echo Net_Gain_Listen_Page::form_html( $ngl_copy, 'top' ); // phpcs:ignore WordPress.Security.EscapeOutput -- built from escaped parts ?>
-				<?php if ( $ngl_latest && '' !== trim( $ngl_copy['listen_first'] ) ) : ?>
-					<p class="ngl-first"><a href="#listen"><?php echo $ngl_t( 'listen_first' ); ?> <span aria-hidden="true">&darr;</span></a></p>
+				<?php if ( $ngl_player ) : ?>
+					<p class="ngl-listen-row"><button type="button" class="ngl-listen-btn" data-ngl-play="button"><span class="ngl-listen-icon" aria-hidden="true">&#9658;</span> <?php echo $ngl_t( 'listen_button' ); ?></button></p>
 				<?php endif; ?>
 			</div>
-		</div>
-	</section>
 
-	<?php if ( $ngl_latest ) : ?>
-		<section class="ngl-sect" id="listen">
-			<div class="ngl-wrap">
-				<h2 class="arch ngl-h2"><?php echo $ngl_t( 'listen_heading' ); ?></h2>
-				<div class="ngl-listen">
-					<div class="ngl-art">
+			<?php if ( $ngl_latest ) : ?>
+				<div class="ngl-card ngl-ep" id="listen">
+					<?php /* The graphic carries the play button: a click sends Captivate's CP.API.PLAY to the player below (same handling as the episode page). */ ?>
+					<div class="ngl-art"<?php echo $ngl_player ? ' id="ngl-art" role="button" tabindex="0" aria-label="Play this episode" data-ngl-play="graphic"' : ''; ?>>
 						<?php echo function_exists( 'ng_episode_thumb_img' ) ? ng_episode_thumb_img( $ngl_latest->ID ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?>
-						<?php /* Only the length tag is drawn over the picture, not the play disc: the graphic is deliberately not a click target (the player below is). */ ?>
-						<?php $ngl_len = function_exists( 'ng_episode_length_label' ) ? ng_episode_length_label( $ngl_latest->ID ) : ''; ?>
-						<?php if ( '' !== $ngl_len ) : ?>
-							<span class="ng-len" aria-label="Length <?php echo esc_attr( $ngl_len ); ?>"><?php echo esc_html( $ngl_len ); ?></span>
-						<?php endif; ?>
+						<?php echo function_exists( 'ng_picture_overlay_html' ) ? ng_picture_overlay_html( $ngl_len ) : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?>
 					</div>
-					<div class="ngl-listen-text">
+					<div class="ngl-ep-body">
 						<p class="ngl-meta mono"><span class="ngl-chip">Latest</span><span><?php echo esc_html( get_the_date( 'F j, Y', $ngl_latest ) ); ?></span></p>
-						<h3 class="arch ngl-ep-title"><?php echo esc_html( Net_Gain_Listen_Page::k12( get_the_title( $ngl_latest ) ) ); ?></h3>
-						<?php $ngl_summary = trim( wp_strip_all_tags( get_the_excerpt( $ngl_latest ) ) ); ?>
+						<h2 class="arch ngl-ep-title"><?php echo esc_html( Net_Gain_Listen_Page::k12( get_the_title( $ngl_latest ) ) ); ?></h2>
 						<?php if ( '' !== $ngl_summary ) : ?>
 							<p class="ngl-summary"><?php echo esc_html( Net_Gain_Listen_Page::k12( $ngl_summary ) ); ?></p>
 						<?php endif; ?>
 						<?php if ( $ngl_player ) : ?>
-							<?php /* Same player and crop as the episode page: the iframe is pulled up inside a clipping wrapper to hide Captivate's own title row. */ ?>
+							<?php /* Same player and crop as the episode page: the iframe is pulled up inside a clipping wrapper to hide Captivate's own title row. Loaded at once (not lazily) so the play button works the moment it is pressed. */ ?>
 							<div class="ngl-player">
-								<iframe src="<?php echo esc_url( $ngl_player ); ?>" title="Episode player" frameborder="no" scrolling="no" allow="clipboard-write" seamless loading="lazy"></iframe>
+								<iframe id="ngl-player" src="<?php echo esc_url( $ngl_player ); ?>" title="Episode player" frameborder="no" scrolling="no" allow="clipboard-write; autoplay" seamless></iframe>
 							</div>
 						<?php endif; ?>
+						<?php if ( '' !== trim( $ngl_copy['sponsor'] ) ) : ?>
+							<p class="ngl-sponsor"><span><?php echo $ngl_r( 'sponsor' ); ?></span><a class="ngl-sponsor-logo" href="https://www.edsby.com/" target="_blank" rel="sponsored noopener" aria-label="Edsby"><?php echo function_exists( 'ng_edsby_logo_img' ) ? ng_edsby_logo_img() : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?></a></p>
+						<?php endif; ?>
 					</div>
-					<?php if ( '' !== trim( $ngl_copy['sponsor'] ) ) : ?>
-						<p class="ngl-sponsor"><span><?php echo $ngl_r( 'sponsor' ); ?></span><a class="ngl-sponsor-logo" href="https://www.edsby.com/" target="_blank" rel="sponsored noopener" aria-label="Edsby"><?php echo function_exists( 'ng_edsby_logo_img' ) ? ng_edsby_logo_img() : ''; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in the helper ?></a></p>
+				</div>
+			<?php else : ?>
+				<?php /* No published episode yet: the signup box takes the episode's place. */ ?>
+				<div class="ngl-card ngl-signup" id="ngl-signup">
+					<?php echo $ngl_signup_card( 'top', true ); // phpcs:ignore WordPress.Security.EscapeOutput -- built from escaped parts ?>
+				</div>
+			<?php endif; ?>
+		</div>
+	</section>
+
+	<?php if ( $ngl_latest ) : ?>
+		<?php /* The ask comes second: after the episode, not before it. */ ?>
+		<section class="ngl-sect ngl-sect-alt ngl-ask">
+			<div class="ngl-wrap ngl-ask-grid">
+				<div>
+					<h2 class="arch ngl-h2 ngl-ask-h"><?php echo $ngl_t( 'signup_heading' ); ?></h2>
+					<?php if ( '' !== trim( $ngl_copy['signup_text'] ) ) : ?>
+						<p class="ngl-ask-text"><?php echo $ngl_t( 'signup_text' ); ?></p>
 					<?php endif; ?>
+				</div>
+				<div class="ngl-card ngl-signup" id="ngl-signup">
+					<?php echo $ngl_signup_card( 'top', true ); // phpcs:ignore WordPress.Security.EscapeOutput -- built from escaped parts ?>
 				</div>
 			</div>
 		</section>
@@ -108,7 +129,7 @@ get_header();
 					<p class="mono ngl-kicker"><?php echo $ngl_t( 'recent_heading' ); ?></p>
 					<ul>
 						<?php foreach ( array_slice( $ngl_eps, 0, 3 ) as $ngl_ep ) : ?>
-							<li><?php echo esc_html( Net_Gain_Listen_Page::k12( get_the_title( $ngl_ep ) ) ); ?></li>
+							<li><a href="<?php echo esc_url( get_permalink( $ngl_ep ) ); ?>"><?php echo esc_html( Net_Gain_Listen_Page::k12( get_the_title( $ngl_ep ) ) ); ?></a></li>
 						<?php endforeach; ?>
 					</ul>
 				</div>

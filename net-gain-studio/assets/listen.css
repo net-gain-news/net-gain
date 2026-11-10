@@ -24,10 +24,11 @@ body.ng-listen-page #ast-scroll-top { display: none !important; }   /* the one f
 .ngl .ngl-input { display: block; width: 100%; height: 58px; padding: 0 16px; font: 400 18px/1.2 'IBM Plex Sans', system-ui, sans-serif; color: #22293a; background: #fff; border: 2px solid #22293a; border-radius: 0; margin: 0; -webkit-appearance: none; appearance: none; box-shadow: none; }
 .ngl .ngl-input::placeholder { color: #6e7280; opacity: 1; }
 .ngl .ngl-input:focus { outline: 3px solid rgba(47, 83, 121, .45); outline-offset: 2px; }
-.ngl .ngl-btn { display: block; width: 100%; min-height: 62px; padding: 16px 20px; margin: 0; border: 0; border-radius: 0; background: #d0202c; color: #fff; font: 700 clamp(16px, 4.5vw, 19px)/1.2 'IBM Plex Sans', system-ui, sans-serif; letter-spacing: .005em; cursor: pointer; text-align: center; transition: background .12s; }
+.ngl .ngl-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 62px; padding: 16px 14px; margin: 0; border: 0; border-radius: 0; background: #d0202c; color: #fff; font: 700 13px/1.25 'IBM Plex Mono', ui-monospace, monospace; font-size: clamp(11px, calc((100cqw - 38px) / 19), 14px); text-transform: uppercase; letter-spacing: .08em; cursor: pointer; text-align: center; white-space: nowrap; transition: background .12s; }
+.ngl .ngl-form { container-type: inline-size; }
 .ngl .ngl-btn:hover { background: #ae1a24; }
 .ngl .ngl-btn:focus-visible { outline: 3px solid #22293a; outline-offset: 3px; }
-.ngl .ngl-arrow { display: inline-block; margin-left: 4px; font-weight: 400; }
+.ngl .ngl-arrow { display: inline-block; flex: none; font-weight: 400; transition: transform .12s; }
 .ngl .ngl-btn:hover .ngl-arrow { transform: translateX(3px); }
 .ngl .ngl-fine { font-size: 13.5px; line-height: 1.5; color: var(--mu); margin: 12px 0 0; }
 .ngl .ngl-fine a { text-decoration: underline; }
@@ -36,17 +37,37 @@ body.ng-listen-page #ast-scroll-top { display: none !important; }   /* the one f
 .ngl .ngl-errors { list-style: none; margin: 0 0 10px; padding: 0; color: #b3361f; font-size: 14px; }
 .ngl .ngl-errors:empty { display: none; }
 
+/* ---- the listen-first hero: Listen button + the episode card with its play button ---- */
+.ngl-listen-row { margin: 26px 0 0; }
+.ngl .ngl-listen-btn { display: inline-flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 62px; padding: 16px 28px; margin: 0; border: 0; border-radius: 0; background: #d0202c; color: #fff; font: 700 clamp(13px, 3.7vw, 15px)/1.25 'IBM Plex Mono', ui-monospace, monospace; text-transform: uppercase; letter-spacing: .08em; cursor: pointer; text-align: center; box-shadow: 0 6px 18px rgba(14, 25, 45, .3); transition: background .12s; }
+.ngl .ngl-listen-btn:hover { background: #ae1a24; }
+.ngl .ngl-listen-btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.ngl-listen-icon { font-size: .8em; }
+.ngl-ep { padding: 0; }
+.ngl-art { position: relative; display: block; aspect-ratio: 1200 / 630; overflow: hidden; background: var(--th); cursor: pointer; }
+.ngl-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ngl-art:focus-visible { outline: 3px solid #d0202c; outline-offset: -3px; }
+.ngl-art .ng-playbtn { transition: transform .15s; }
+.ngl-art:hover .ng-playbtn { transform: translate(-50%, -50%) scale(1.08); }
+.ngl-ep-body { padding: 18px 20px 20px; }
+.ngl-ep .ngl-ep-title { font-size: 21px; margin: 0 0 12px; }
+.ngl-ep .ngl-summary { font-size: 15.5px; margin: 0 0 16px; }
+.ngl-ep .ngl-sponsor { margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--bd); color: var(--fg); }
+
+/* ---- the ask: the signup band under the episode ---- */
+.ngl-ask-grid { display: grid; grid-template-columns: 1fr; gap: 22px; align-items: center; }
+.ngl-ask-h { margin: 0 0 10px; text-wrap: balance; }
+.ngl-ask-text { color: var(--mu); font-size: 16.5px; margin: 0; max-width: 32em; }
+.ngl-ask .ngl-card { box-shadow: 0 8px 22px rgba(14, 25, 45, .14); }
+
 /* ---- the rest of the page ---- */
 .ngl-sect { padding: 44px 0; }
 .ngl-sect-alt { background: var(--hbg); border-top: 1px solid var(--bd); border-bottom: 1px solid var(--bd); }
 .ngl-h2 { font-weight: 700; font-size: 26px; letter-spacing: -.02em; line-height: 1.15; margin: 0 0 20px; }
 
-.ngl-listen { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
-.ngl-art { position: relative; display: block; aspect-ratio: 1200 / 630; overflow: hidden; border: 1px solid var(--bd); background: var(--th); }
 .ngl-meta { display: flex; align-items: center; gap: 10px; font-size: 11px; letter-spacing: .06em; color: var(--mu); margin: 0 0 10px; }
 .ngl .ngl-chip { background: #d0202c; color: #fff; font-size: 10px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; padding: 3px 8px; }
 .ngl-ep-title { font-weight: 700; font-size: 24px; line-height: 1.18; letter-spacing: -.015em; margin: 0 0 18px; }
-.ngl-art { cursor: default; }
 .ngl .ngl-summary { font-size: 16.5px; line-height: 1.6; margin: 0 0 18px; border-left: 3px solid var(--acl); padding-left: 16px; }   /* the episode page's summary quote */
 /* The Captivate player is a cross-origin iframe, so it is cropped rather than styled: pulled up inside a clipping wrapper (same as the episode page) to hide its own title row. */
 .ngl-player { --ngl-crop: 108px; height: calc(200px - var(--ngl-crop)); overflow: hidden; background: #fff; border: 1px solid var(--bd); }
@@ -59,6 +80,8 @@ body.ng-listen-page #ast-scroll-top { display: none !important; }   /* the one f
 .ngl-recent { margin-top: 26px; }
 .ngl-recent ul { list-style: none; margin: 0; padding: 0; }
 .ngl-recent li { padding: 9px 0 9px 14px; border-left: 3px solid var(--bd); margin: 0 0 8px; font-size: 16px; line-height: 1.4; }
+.ngl-recent li a { color: inherit; text-decoration: underline; text-decoration-color: var(--bd); text-underline-offset: 3px; }
+.ngl-recent li a:hover, .ngl-recent li a:focus-visible { color: var(--ac); text-decoration-color: currentColor; }
 
 .ngl-who { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; }
 .ngl-who-photo img, .ngl-who-photo .ng-anchor-ph { display: block; }
@@ -70,7 +93,6 @@ body.ng-listen-page #ast-scroll-top { display: none !important; }   /* the one f
 .ngl-sponsor-logo { display: block; margin-left: -6.4px; }
 .ngl-sponsor-logo span { -webkit-mask-position: left center !important; mask-position: left center !important; }
 .ngl-sponsor a { text-decoration: underline; }
-.ngl-listen > .ngl-sponsor { margin-top: 0; padding-top: 16px; border-top: 1px solid var(--bd); color: var(--fg); }
 
 
 .ngl-bottom-h { margin: 0; }
@@ -82,7 +104,7 @@ body.ng-listen-page #ast-scroll-top { display: none !important; }   /* the one f
 @media (max-width: 760px) {
 	.ngl-bar.is-on { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--ac); color: #fff; box-shadow: 0 -6px 18px rgba(14, 25, 45, .25); }
 	.ngl-bar-text { font-weight: 600; font-size: 15px; line-height: 1.25; }
-	.ngl-bar-btn { flex: none; border: 0; border-radius: 0; background: #d0202c; color: #fff; font: 700 16px/1 'IBM Plex Sans', system-ui, sans-serif; padding: 13px 18px; cursor: pointer; }
+	.ngl-bar-btn { flex: none; border: 0; border-radius: 0; background: #d0202c; color: #fff; font: 700 13px/1.2 'IBM Plex Mono', ui-monospace, monospace; text-transform: uppercase; letter-spacing: .08em; padding: 14px 18px; cursor: pointer; }
 }
 
 /* ---- wider screens ---- */
@@ -90,12 +112,11 @@ body.ng-listen-page #ast-scroll-top { display: none !important; }   /* the one f
 	.ngl-wrap { padding-left: 32px; padding-right: 32px; }   /* sides only: the signup bands set their own top and bottom */
 	.ngl-hero-grid, .ngl-bottom-grid { padding-top: 52px; padding-bottom: 56px; }
 	.ngl-three { grid-template-columns: repeat(3, 1fr); gap: 18px; }
-	.ngl-listen { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 20px 36px; }
-	.ngl-art { grid-column: 1; grid-row: 1; }
-	.ngl-listen-text { grid-column: 2; grid-row: 1 / span 2; }
-	.ngl-listen > .ngl-sponsor { grid-column: 1; grid-row: 2; }
+	.ngl-listen-btn { width: auto; min-width: 340px; }
+	.ngl-ask-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; }
 	.ngl-sect { padding: 60px 0; }
 	.ngl-ep-title { font-size: 30px; }
+	.ngl-ep .ngl-ep-title { font-size: 22px; }
 }
 @media (min-width: 761px) and (max-width: 899px) {
 	.ngl-card { max-width: 640px; }   /* stacked on a tablet: keep the signup box from stretching edge to edge */
