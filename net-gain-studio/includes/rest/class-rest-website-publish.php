@@ -202,6 +202,39 @@ class Net_Gain_REST_Website_Publish {
 	}
 
 	/**
+	 * Pure: one numbered links-section line -> array( 'title' => string, 'urls' => string[] ), or null when the line is
+	 * not one. A line is a link line when it is "N. Title - url", optionally followed by MORE addresses joined by
+	 * "and", "or", "&", commas or semicolons ("1. Title - url1 and url2"). Anything else after the dash (prose, a
+	 * note) makes it not a link line, exactly as before. Until 2026-11-10 a line with two addresses did not match at
+	 * all: the parser then began the list at link 2 and left the section header and link 1 as bare text in the page
+	 * body (episode 2026-11-10, where the Richmond story had a second source on its line).
+	 */
+	public static function parse_link_line( $line ) {
+		if ( ! preg_match( '/^\s*\d+\.\s*(.+?)\s*\x{2014}\s*(https?:\/\/\S.*?)\s*$/u', (string) $line, $m ) ) {
+			return null;
+		}
+		if ( ! preg_match_all( '/https?:\/\/[^\s<>"]+/u', $m[2], $found ) ) {
+			return null;
+		}
+		// Everything that is not an address must be joining words or punctuation, or this is prose, not a link line.
+		$rest = preg_replace( '/https?:\/\/[^\s<>"]+/u', ' ', $m[2] );
+		$rest = preg_replace( '/\b(?:and|or)\b|[&,;\s]+/iu', '', $rest );
+		if ( '' !== $rest ) {
+			return null;
+		}
+		$urls = array();
+		foreach ( $found[0] as $url ) {
+			$urls[] = rtrim( $url, ',;' );
+		}
+		$title = preg_replace(
+			'/^[\'"\x{2018}\x{2019}\x{201C}\x{201D}]+|[\'"\x{2018}\x{2019}\x{201C}\x{201D}]+$/u',
+			'',
+			trim( $m[1] )
+		);
+		return array( 'title' => $title, 'urls' => $urls );
+	}
+
+	/**
 	 * Splits ng_script_final into the spoken narration and a structured list
 	 * of {title, url} pairs parsed from a trailing numbered links section.
 	 *
@@ -235,11 +268,17 @@ class Net_Gain_REST_Website_Publish {
 	 * always runs as part of the wider publish flow and a missing links
 	 * section shouldn't block the episode from publishing at all.
 	 */
-	private static function split_script( $script ) {
-		$link_line_pattern = '/^\s*\d+\.\s*.+?\s*\x{2014}\s*https?:\/\/\S+?\s*$/mu';
-
-		$found = preg_match( $link_line_pattern, $script, $first_link_match );
-		if ( ! $found ) {
+	public static function split_script( $script ) {
+		// Candidate numbered lines (leading whitespace included, as before); the first one parse_link_line accepts starts the section.
+		preg_match_all( '/^\s*\d+\.\s*.+?\s*\x{2014}\s*https?:\/\/\S.*$/mu', $script, $candidates );
+		$first_link_match = null;
+		foreach ( $candidates[0] as $candidate ) {
+			if ( null !== self::parse_link_line( trim( $candidate ) ) ) {
+				$first_link_match = array( $candidate );
+				break;
+			}
+		}
+		if ( null === $first_link_match ) {
 			return array(
 				'body'  => $script,
 				'links' => array(),
@@ -270,24 +309,18 @@ class Net_Gain_REST_Website_Publish {
 
 		$links_section = mb_substr( $script, $marker_pos );
 
-		preg_match_all(
-			'/^\s*\d+\.\s*(.+?)\s*\x{2014}\s*(https?:\/\/\S+?)\s*$/mu',
-			$links_section,
-			$matches,
-			PREG_SET_ORDER
-		);
-
 		$links = array();
-		foreach ( $matches as $match ) {
-			$title = preg_replace(
-				'/^[\'"\x{2018}\x{2019}\x{201C}\x{201D}]+|[\'"\x{2018}\x{2019}\x{201C}\x{201D}]+$/u',
-				'',
-				trim( $match[1] )
-			);
-			$links[] = array(
-				'title' => $title,
-				'url'   => $match[2],
-			);
+		foreach ( preg_split( '/\R/u', $links_section ) as $line ) {
+			$parsed = self::parse_link_line( $line );
+			if ( null === $parsed ) {
+				continue;
+			}
+			foreach ( $parsed['urls'] as $url ) {      // a line with several sources gives each its own entry, same caption
+				$links[] = array(
+					'title' => $parsed['title'],
+					'url'   => $url,
+				);
+			}
 		}
 
 		return array(
