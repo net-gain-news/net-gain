@@ -52,6 +52,7 @@ def load_config():
         "KIT_API_KEY": os.environ.get("KIT_API_KEY", ""),
         # Shows whose episodes the operator posts to Captivate by hand; empty = the pipeline posts them itself (captivate_mode.py).
         "CAPTIVATE_MANUAL_SHOWS": os.environ.get("CAPTIVATE_MANUAL_SHOWS", ""),
+        "CAPTIVATE_HANDOFF_DIR": os.environ.get("CAPTIVATE_HANDOFF_DIR", ""),
         "SMTP_HOST": os.environ.get("SMTP_HOST", ""),
         "SMTP_PORT": int(os.environ.get("SMTP_PORT", "587")),
         "SMTP_USERNAME": os.environ.get("SMTP_USERNAME", ""),

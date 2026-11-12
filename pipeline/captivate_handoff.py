@@ -3,9 +3,39 @@ Manual posting to Captivate (see captivate_mode.py): the email that hands an epi
 matching of the episode they post in the dashboard back to our own record. Pure functions, no network.
 """
 import html
+import os
 import re
+import time
+import uuid
 
 DASHBOARD_URL = "https://my.captivate.fm"
+HANDOFF_FOLDER = "captivate-handoff"
+KEEP_HANDOFF_FILES_SECONDS = 14 * 24 * 3600
+
+
+def store_handoff_audio(config, audio_bytes, stem, now=None):
+    """
+    Writes the 192 kbps copy the operator uploads to Captivate into a folder of the website's own uploads (the WordPress REST upload
+    refuses a file this size) and returns its address. Needs CAPTIVATE_HANDOFF_DIR in the .env; files older than two weeks are removed.
+    """
+    directory = (config.get("CAPTIVATE_HANDOFF_DIR") or "").strip()
+    if not directory:
+        raise RuntimeError("CAPTIVATE_HANDOFF_DIR is not set in the pipeline's .env, so the audio copy for Captivate cannot be stored.")
+    os.makedirs(directory, mode=0o755, exist_ok=True)
+    now = now if now is not None else time.time()
+    for name in os.listdir(directory):
+        path = os.path.join(directory, name)
+        try:
+            if name.endswith(".mp3") and now - os.path.getmtime(path) > KEEP_HANDOFF_FILES_SECONDS:
+                os.remove(path)
+        except OSError:
+            pass
+    filename = f"{stem}-192k-{uuid.uuid4().hex[:8]}.mp3"
+    path = os.path.join(directory, filename)
+    with open(path, "wb") as out:
+        out.write(audio_bytes)
+    os.chmod(path, 0o644)
+    return f"{config['WP_BASE_URL'].rstrip('/')}/wp-content/uploads/{HANDOFF_FOLDER}/{filename}"
 
 
 def extract_episodes(response):

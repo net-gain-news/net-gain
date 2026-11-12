@@ -122,6 +122,29 @@ class MessageTests(unittest.TestCase):
         self.assertIn("status is Scheduled", ch.build_reminder_message("S", "d", TITLE, 20, "Scheduled")[1])
 
 
+class StoreAudioTests(unittest.TestCase):
+    def test_the_copy_is_written_and_addressed_and_old_ones_are_removed(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            old = os.path.join(folder, "old-192k-aaaa.mp3")
+            open(old, "wb").write(b"x")
+            os.utime(old, (1, 1))
+            keep = os.path.join(folder, "notes.txt")
+            open(keep, "w").write("x")
+            os.utime(keep, (1, 1))
+            config = {"CAPTIVATE_HANDOFF_DIR": folder, "WP_BASE_URL": "https://netgain.news/"}
+            url = ch.store_handoff_audio(config, b"mp3-bytes", "ep-2026-11-12")
+            name = url.rsplit("/", 1)[-1]
+            self.assertTrue(url.startswith("https://netgain.news/wp-content/uploads/captivate-handoff/ep-2026-11-12-192k-"))
+            self.assertEqual(open(os.path.join(folder, name), "rb").read(), b"mp3-bytes")
+            self.assertFalse(os.path.exists(old))
+            self.assertTrue(os.path.exists(keep))
+
+    def test_a_missing_setting_fails_loudly(self):
+        with self.assertRaises(RuntimeError):
+            ch.store_handoff_audio({"WP_BASE_URL": "https://x"}, b"x", "ep")
+
+
 class HandoffStartTests(unittest.TestCase):
     def run_start(self, mail_ok=True, meta_done=True):
         wp, captivate = fakes([])

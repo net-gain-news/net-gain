@@ -657,8 +657,8 @@ def pending_captivate_actions(show):
     return [a for a in show.get("pending_actions", []) or [] if a.get("action") == "publish_captivate" and a.get("status") == "pending"]
 
 
-def prepare_captivate_handoff(wp, captivate, show, episode_id, finalization):
-    """Everything the operator needs to post one episode by hand, with the 192 kbps CBR audio stored in the WordPress media library."""
+def prepare_captivate_handoff(wp, captivate, config, show, episode_id, finalization):
+    """Everything the operator needs to post one episode by hand, with the 192 kbps CBR audio stored where they can download it."""
     captivate_show_id = show.get("captivate_show_id")
     if not captivate_show_id:
         raise RuntimeError(f"Show '{show['name']}' has no Captivate show connected yet.")
@@ -671,8 +671,7 @@ def prepare_captivate_handoff(wp, captivate, show, episode_id, finalization):
         raise RuntimeError("No audio attached to this episode yet.")
     audio_url = wp.get_attachment_url(audio_id)
     converted = convert_to_captivate_bitrate(wp.download_binary(audio_url))
-    filename = Path(audio_url.rsplit("/", 1)[-1] or "episode.mp3").stem + "-192k.mp3"
-    converted_id = wp.upload_media(converted, filename, "audio/mpeg")
+    converted_url = captivate_handoff.store_handoff_audio(config, converted, Path(audio_url.rsplit("/", 1)[-1] or "episode.mp3").stem)
 
     image_id = meta.get("ng_image_square_id")
     return {
@@ -680,7 +679,7 @@ def prepare_captivate_handoff(wp, captivate, show, episode_id, finalization):
         "date": meta.get("ng_episode_date") or "",
         "title": meta.get("ng_meta_captivate_title") or "",
         "notes_html": append_notes_footer(meta.get("ng_meta_captivate_notes", ""), show.get("captivate_notes_footer")),
-        "audio_url": wp.get_attachment_url(converted_id),
+        "audio_url": converted_url,
         "art_url": wp.get_attachment_url(image_id, original=True) if image_id else "",
         "episode_number": captivate.get_next_episode_number(captivate_show_id),
         "publish_now": (show.get("publish_mode") or "immediate") != "scheduled",
@@ -712,7 +711,7 @@ def start_manual_captivate_handoff(wp, client, captivate, config, show, episode)
     try:
         if step_status.get("metadata_generated", {}).get("status", "pending") not in ("done", "degraded"):
             generate_metadata(wp, client, show, episode_id)
-        handoff = prepare_captivate_handoff(wp, captivate, show, episode_id, episode.get("finalization") or {})
+        handoff = prepare_captivate_handoff(wp, captivate, config, show, episode_id, episode.get("finalization") or {})
         subject, text, page = captivate_handoff.build_handoff_message(handoff)
         if not send_notice(config, subject, text, page):
             raise RuntimeError("The hand-off email could not be sent (is the mail setup in the pipeline's .env working?).")
