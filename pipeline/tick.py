@@ -49,6 +49,8 @@ from audio_replacement import captivate_episode_id, process_audio_replacements
 from captivate_client import (
     CAPTIVATE_ACCOUNT_TIMEZONE, CaptivateClient, CaptivateError, dashboard_post_roll_slots, slot_problems, v2_post_roll_count,
 )
+import captivate_handoff
+from captivate_mode import MANUAL_WAIT_NOTE, is_manual, waiting_for_operator
 from config import ConfigError, load_config
 from kit_client import KitClient, KitError
 from image_generation import FALLBACK_META_KEYS, IMAGE_META_KEYS, build_vertex_client, render_images_for_episode
@@ -594,7 +596,7 @@ def refresh_strip_when_live(wp, show, episode_id):
         logger.exception("Signature strip check failed for episode %s (ignored).", episode_id)
 
 
-def check_new_episode_ad_slots(wp, captivate, config, show, episode_id):
+def check_new_episode_ad_slots(wp, captivate, config, show, episode_id, by_hand=False):
     """
     Reads back the ad slots Captivate gave a just-created episode and alerts the operator when they are not what its campaign
     needs (one dynamic post-roll with the show's default number of positions). Captivate's API has made a static house-ad slot on
@@ -615,6 +617,11 @@ def check_new_episode_ad_slots(wp, captivate, config, show, episode_id):
         problems = slot_problems(slots, expected)
         if not problems:
             logger.info("Captivate episode %s has the expected ad slots (one dynamic post-roll, %s positions).", cap_id, expected)
+            if by_hand:
+                send_notice(config, f"Net Gain Studio: the episode you posted in Captivate has the right ad slots ({show['name']})",
+                            f"Captivate episode {cap_id} has one dynamic post-roll with {expected} ad positions and no ad attached by hand, "
+                            "which is what the campaign fills. The pipeline has taken the episode over and is carrying on with the website, "
+                            "YouTube and the email.")
             return True
         found = "; ".join(
             f"{s.get('type')}-roll {s.get('slot_type')} (positions {s.get('total_ad_slots')}, attached ads {len(s.get('subSlots') or [])})"
@@ -622,8 +629,8 @@ def check_new_episode_ad_slots(wp, captivate, config, show, episode_id):
         ) or "none"
         notify_failure(
             config, show["name"], "captivate_ad_slots",
-            f"Captivate episode {cap_id} was created, but its ad slots are not what the campaign needs: " + "; ".join(problems) +
-            f". Slots found: {found}. The pipeline asked for one dynamic post-roll with {expected} positions. Until this is fixed "
+            f"Captivate episode {cap_id} " + ("was posted by hand" if by_hand else "was created") + ", but its ad slots are not what the campaign needs: " + "; ".join(problems) +
+            f". Slots found: {found}. The campaign needs one dynamic post-roll with {expected} positions. Until this is fixed "
             "the campaign will not play ads on this episode, and the dashboard's Bulk Ad Editor will refuse to change it.",
         )
         return False
@@ -636,11 +643,186 @@ def check_new_episode_ad_slots(wp, captivate, config, show, episode_id):
         return False
 
 
+# --- Manual posting to Captivate (captivate_mode.py) ------------------------------------------------------------------------
+# For a show on manual posting the pipeline does not create the Captivate episode. It prepares everything, emails the operator,
+# and then looks in Captivate every minute for the episode they posted; when it appears, the rest of the chain (website,
+# YouTube, the email) carries on exactly as it does after an automatic publish. The step shows "in progress" with a note while it
+# waits, so no new status and no plugin change are needed.
+
+HANDOFF_FAILED_NOTE = "The Captivate hand-off could not be prepared:"
+HANDOFF_REMINDERS = ((15, "late"), (60, "late2"))      # minutes after the hand-off at which the operator is nudged
+
+
+def pending_captivate_actions(show):
+    return [a for a in show.get("pending_actions", []) or [] if a.get("action") == "publish_captivate" and a.get("status") == "pending"]
+
+
+def prepare_captivate_handoff(wp, captivate, show, episode_id, finalization):
+    """Everything the operator needs to post one episode by hand, with the 192 kbps CBR audio stored in the WordPress media library."""
+    captivate_show_id = show.get("captivate_show_id")
+    if not captivate_show_id:
+        raise RuntimeError(f"Show '{show['name']}' has no Captivate show connected yet.")
+    captivate.ensure_authenticated()
+    captivate.verify_account_timezone(captivate_show_id)
+
+    meta = wp.get_episode(episode_id).get("meta", {})
+    audio_id = meta.get("ng_audio_attachment_id")
+    if not audio_id:
+        raise RuntimeError("No audio attached to this episode yet.")
+    audio_url = wp.get_attachment_url(audio_id)
+    converted = convert_to_captivate_bitrate(wp.download_binary(audio_url))
+    filename = Path(audio_url.rsplit("/", 1)[-1] or "episode.mp3").stem + "-192k.mp3"
+    converted_id = wp.upload_media(converted, filename, "audio/mpeg")
+
+    image_id = meta.get("ng_image_square_id")
+    return {
+        "show_name": show["name"],
+        "date": meta.get("ng_episode_date") or "",
+        "title": meta.get("ng_meta_captivate_title") or "",
+        "notes_html": append_notes_footer(meta.get("ng_meta_captivate_notes", ""), show.get("captivate_notes_footer")),
+        "audio_url": wp.get_attachment_url(converted_id),
+        "art_url": wp.get_attachment_url(image_id, original=True) if image_id else "",
+        "episode_number": captivate.get_next_episode_number(captivate_show_id),
+        "publish_now": (show.get("publish_mode") or "immediate") != "scheduled",
+        "publish_at": compute_captivate_date_field(show, finalization),
+        "account_zone": CAPTIVATE_ACCOUNT_TIMEZONE.key,
+        "check_slots": bool(v2_post_roll_count(captivate.get_show(captivate_show_id))),
+    }
+
+
+def adopt_captivate_episode(wp, captivate, config, show, episode_id, captivate_episode_id_value, note="Posted by hand in Captivate."):
+    """
+    Takes a Captivate episode that already exists (posted by the operator) as this episode's Captivate release: records its player
+    address and length, marks the step done, and lets the rest of the chain go. Writes nothing to Captivate.
+    """
+    wp.update_episode_meta(episode_id, {"ng_url_captivate": f"https://player.captivate.fm/episode/{captivate_episode_id_value}"})
+    record_audio_seconds(wp, captivate, episode_id, captivate_episode_id_value)
+    wp.update_step(episode_id, "captivate_published", "done", note=note)
+    for action in pending_captivate_actions(show):
+        wp.update_action(show["id"], action["id"], "done")
+    logger.info("Captivate episode %s adopted as the Captivate release of episode %s for %s.", captivate_episode_id_value, episode_id, show["name"])
+    check_new_episode_ad_slots(wp, captivate, config, show, episode_id, by_hand=True)
+    refresh_strip_when_live(wp, show, episode_id)
+
+
+def start_manual_captivate_handoff(wp, client, captivate, config, show, episode):
+    """Prepares the episode's ingredients, emails them to the operator, and marks the step as waiting for them. Never raises."""
+    episode_id = episode["id"]
+    step_status = episode.get("step_status") or {}
+    try:
+        if step_status.get("metadata_generated", {}).get("status", "pending") not in ("done", "degraded"):
+            generate_metadata(wp, client, show, episode_id)
+        handoff = prepare_captivate_handoff(wp, captivate, show, episode_id, episode.get("finalization") or {})
+        subject, text, page = captivate_handoff.build_handoff_message(handoff)
+        if not send_notice(config, subject, text, page):
+            raise RuntimeError("The hand-off email could not be sent (is the mail setup in the pipeline's .env working?).")
+        wp.update_step(episode_id, "captivate_published", "in_progress", note=f"{MANUAL_WAIT_NOTE} (the details were emailed to you).")
+        logger.info("Captivate hand-off for episode %s (%s) emailed; waiting for the operator to post it.", episode_id, show["name"])
+    except Exception as exc:
+        logger.exception("Captivate hand-off failed for episode %s (%s)", episode_id, show["name"])
+        wp.update_step(episode_id, "captivate_published", "failed", note=f"{HANDOFF_FAILED_NOTE} {str(exc)[:400]}")
+        for action in pending_captivate_actions(show):
+            wp.update_action(show["id"], action["id"], "failed")
+        notify_failure(config, show["name"], "captivate_published", f"{HANDOFF_FAILED_NOTE} {exc}. Run it again from the episode screen once fixed.")
+
+
+def check_operator_captivate_post(wp, captivate, config, show, episode, memory=alert_memory, now=None):
+    """
+    One pass while an episode waits for the operator: looks for the Captivate episode with the hand-off's exact title and adopts it
+    once it is Published; otherwise nudges the operator at 15 and 60 minutes. Never raises.
+    """
+    episode_id = episode["id"]
+    now = now or datetime.now(timezone.utc)
+    try:
+        meta = wp.get_episode(episode_id).get("meta", {})
+        title = meta.get("ng_meta_captivate_title") or ""
+        captivate.ensure_authenticated()
+        matches = captivate_handoff.find_posted_episode(
+            captivate_handoff.extract_episodes(captivate.list_episodes(show["captivate_show_id"])), title,
+        )
+        if len(matches) > 1:
+            key = f"captivate-handoff-duplicate:{episode_id}"
+            if not memory.already_sent(key):
+                notify_failure(config, show["name"], "captivate_published",
+                               f"{len(matches)} episodes in Captivate are titled \"{title}\". Delete the extra one(s) in Captivate; "
+                               "nothing was taken over until there is one.")
+                memory.mark_sent(key)
+            return
+        found = matches[0] if matches else None
+        if found and found.get("status") == "Published" and found.get("id"):
+            adopt_captivate_episode(wp, captivate, config, show, episode_id, found["id"])
+            return
+
+        step = (episode.get("step_status") or {}).get("captivate_published", {})
+        handed = _parse_site_local_at(step.get("at"), show_zone(show, "site_timezone"))
+        if handed is None:
+            return
+        minutes = int((now - handed).total_seconds() // 60)
+        for threshold, label in HANDOFF_REMINDERS:
+            key = f"captivate-handoff-{label}:{episode_id}"
+            if minutes >= threshold and not memory.already_sent(key):
+                subject, body = captivate_handoff.build_reminder_message(
+                    show["name"], meta.get("ng_episode_date") or "", title, minutes, found.get("status") if found else None,
+                )
+                if send_notice(config, subject, body):
+                    memory.mark_sent(key)
+                break
+    except Exception:
+        logger.exception("Could not check Captivate for the posted episode %s (will try again).", episode_id)
+
+
+def manual_captivate_episode(wp, client, captivate, config, show, episode):
+    """The manual-posting counterpart of the automatic Captivate publish, called for each episode whose Captivate step is due."""
+    step = (episode.get("step_status") or {}).get("captivate_published", {})
+    status = step.get("status", "pending")
+    pending = pending_captivate_actions(show)
+
+    if status in ("done", "degraded"):
+        # A forced "publish to Captivate" on an episode that is already on Captivate: nothing to send, and an update through the API
+        # would add a second ad slot, so it is declined.
+        logger.warning("Captivate step for episode %s is already done; a forced publish is not repeated on a manually posted show.", episode["id"])
+        for action in pending:
+            wp.update_action(show["id"], action["id"], "done")
+        return
+    if waiting_for_operator(step):
+        check_operator_captivate_post(wp, captivate, config, show, episode)
+        return
+    if status == "failed" and (step.get("note") or "").startswith(HANDOFF_FAILED_NOTE) and not pending:
+        return      # the operator was told when the hand-off failed; trying again waits for them, not for the next minute
+    start_manual_captivate_handoff(wp, client, captivate, config, show, episode)
+
+
+def adopt_operator_episode_before_api_publish(wp, captivate, config, show, episode):
+    """
+    The automatic path's guard for one case: manual posting was switched off while an episode sat waiting for the operator. If
+    they have already posted it, take theirs rather than creating a second one. Returns True when it was taken over.
+    """
+    try:
+        meta = wp.get_episode(episode["id"]).get("meta", {})
+        captivate.ensure_authenticated()
+        matches = captivate_handoff.find_posted_episode(
+            captivate_handoff.extract_episodes(captivate.list_episodes(show["captivate_show_id"])), meta.get("ng_meta_captivate_title") or "",
+        )
+        published = [m for m in matches if m.get("status") == "Published" and m.get("id")]
+        if len(published) == 1:
+            adopt_captivate_episode(wp, captivate, config, show, episode["id"], published[0]["id"])
+            return True
+    except Exception:
+        logger.exception("Could not look for an operator-posted Captivate episode before the automatic publish (carrying on).")
+    return False
+
+
+
 def publish_episode_to_captivate(wp, client, captivate, config, show, episode):
     """Generates the episode's metadata if needed and publishes it to Captivate; never raises."""
+    if is_manual(config, show):
+        return manual_captivate_episode(wp, client, captivate, config, show, episode)
+
     episode_id = episode["id"]
     step_status = episode.get("step_status") or {}
     metadata_status = step_status.get("metadata_generated", {}).get("status", "pending")
+    if waiting_for_operator(step_status.get("captivate_published")) and adopt_operator_episode_before_api_publish(wp, captivate, config, show, episode):
+        return
 
     try:
         if metadata_status not in ("done", "degraded"):

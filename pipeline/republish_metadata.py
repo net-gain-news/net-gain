@@ -20,6 +20,7 @@ import anthropic
 
 import youtube_client as yt
 from captivate_client import CaptivateClient, episode_update_payload
+from captivate_mode import is_manual
 from config import load_config
 from metadata_generation import generate_metadata_for_episode
 from signature_strip import refresh_signature_strip
@@ -158,6 +159,10 @@ def main(argv):
     generate_metadata(wp, client, show, args.episode_id, force=True)
     meta = wp.get_episode(args.episode_id).get("meta", {})
     print("stored titles:", meta["ng_meta_captivate_title"], "|", meta["ng_meta_aioseo_title"], "|", meta["ng_meta_youtube_title"])
+    if is_manual(config, show) and "captivate" not in args.skip:
+        print("captivate -> SKIPPED: this show is posted to Captivate by hand (an update through the API adds a second ad slot). "
+              "Change the title and notes in the Captivate dashboard.")
+        args.skip = list(args.skip) + ["captivate"]
     steps = [
         ("captivate", lambda: push_to_captivate(CaptivateClient(config["CAPTIVATE_USER_ID"], config["CAPTIVATE_API_TOKEN"]), show, meta)),
         ("website", lambda: push_to_website(wp, args.episode_id, meta["ng_meta_aioseo_title"], rename=not args.keep_slug)),

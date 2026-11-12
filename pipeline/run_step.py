@@ -26,6 +26,7 @@ import anthropic
 
 import tick
 from captivate_client import CaptivateClient
+from captivate_mode import is_manual
 from config import load_config
 from image_generation import build_vertex_client
 from republish_metadata import push_to_captivate
@@ -78,6 +79,11 @@ def run_step(step, wp, client, config, show, episode_id, make_captivate, make_ve
         tick.generate_metadata(wp, client, show, episode_id, force=True)
 
     elif step == "captivate":
+        if meta.get("ng_url_captivate") and is_manual(config, show):
+            raise StepRefused(
+                "Captivate episodes for this show are posted by hand, and an update through the API adds a second ad slot. "
+                "Change the title or notes in the Captivate dashboard."
+            )
         if meta.get("ng_url_captivate"):
             captivate = make_captivate()
             outcome = push_to_captivate(captivate, show, meta)

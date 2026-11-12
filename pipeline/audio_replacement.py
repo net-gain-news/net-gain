@@ -29,6 +29,7 @@ from pathlib import Path
 import captivate_client
 import youtube_client as yt
 from audio_conversion import convert_to_captivate_bitrate
+from captivate_mode import is_manual
 
 logger = logging.getLogger("net_gain.audio_replacement")
 
@@ -159,7 +160,11 @@ def process_audio_replacements(wp, captivate, config, show, notify_failure):
                 continue
             try:
                 meta = wp.get_episode(episode_id).get("meta", {})
-                if name == "captivate":
+                if name == "captivate" and is_manual(config, show):
+                    # An update through the API adds a second ad slot to the episode; on a show posted by hand the audio is
+                    # replaced in the Captivate dashboard instead.
+                    status, note, data = "skipped", "Captivate episodes are posted by hand: replace the audio in the Captivate dashboard.", {}
+                elif name == "captivate":
                     status, note, data = swap_captivate_audio(wp, captivate, show, episode_id, meta, record)
                 else:
                     status, note, data = replace_youtube_video(wp, show, episode_id, meta)

@@ -47,6 +47,10 @@ Structurally different from Captivate/website publishing in ways worth calling o
 
 `anthropic_client.py`'s docstring explains both in full: `pause_turn` is resumed per current Anthropic documentation (no synthetic "Continue" user turn — the spec's note describes a different, standard tool-continuation pattern), and thinking is `adaptive` + `effort: low` rather than `disabled`, to avoid a documented failure mode where disabled thinking on a tool-using call can make the model write a fake tool call into visible text instead of really invoking it.
 
+## Captivate: automatic or posted by hand
+
+By default the pipeline creates each episode on Captivate itself. Set `CAPTIVATE_MANUAL_SHOWS` in `.env` (see `.env.example`, `captivate_mode.py`) and it instead emails the operator the title, notes, art, number and a 192 kbps copy of the audio, shows the Captivate step as "in progress" (note "Waiting for you to post this episode in Captivate"), and every minute looks in Captivate for an episode with exactly that title. Once one is Published it takes it over (player address, length, ad-slot check) and the website, YouTube and email follow as usual. Going back is deleting the setting; an episode waiting at that moment is adopted if the operator already posted it, otherwise it is created through the API as before. `adopt_captivate_episode.py` links a Captivate episode posted under a different title. While a show is manual, updates through the API (republish, audio replacement) are refused because each adds a second ad slot.
+
 ## Testing
 
 ```bash

@@ -55,9 +55,10 @@ def notify_failure(config, show_name, step_key, error_message):
         logger.exception("Failed to send failure alert email (show=%s step=%s)", show_name, step_key)
 
 
-def send_notice(config, subject, body):
+def send_notice(config, subject, body, html_body=None):
     """
     A plain informational email to the same alert address (the weekly photo-library note, the low-stock warning).
+    `html_body` adds a rendered version beside the plain text (the Captivate hand-off needs links that paste into the dashboard).
     Returns True if it was sent; logs and returns False if SMTP is not configured or sending fails - never raises.
     """
     if not config.get("SMTP_HOST") or not config.get("ALERT_TO_EMAIL"):
@@ -69,6 +70,8 @@ def send_notice(config, subject, body):
     message["From"] = config.get("ALERT_FROM_EMAIL") or config.get("SMTP_USERNAME")
     message["To"] = config["ALERT_TO_EMAIL"]
     message.set_content(body)
+    if html_body:
+        message.add_alternative(html_body, subtype="html")
     try:
         if config["SMTP_PORT"] == 465:
             smtp_context = smtplib.SMTP_SSL(config["SMTP_HOST"], config["SMTP_PORT"], timeout=15)
