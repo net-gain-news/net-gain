@@ -35,9 +35,15 @@ class SlotJudgementTests(unittest.TestCase):
         slots = [dict(GOOD[0], total_ad_slots=1)]
         self.assertTrue(any("1 ad positions, expected 3" in p for p in cc.slot_problems(slots, 3)))
 
-    def test_an_extra_pre_roll_is_reported(self):
-        pre = {"type": "pre", "slot_type": "dynamic", "total_ad_slots": 0, "subSlots": []}
+    def test_a_pre_roll_that_could_play_an_ad_is_reported(self):
+        pre = {"type": "pre", "slot_type": "dynamic", "total_ad_slots": 2, "subSlots": []}
         self.assertTrue(any("pre-roll" in p for p in cc.slot_problems(GOOD + [pre], 3)))
+        attached = {"type": "pre", "slot_type": "static", "total_ad_slots": 0, "subSlots": [{"media_id": "x"}]}
+        self.assertTrue(any("pre-roll" in p for p in cc.slot_problems(GOOD + [attached], 3)))
+
+    def test_the_empty_pre_roll_the_dashboard_adds_is_accepted(self):
+        pre = {"type": "pre", "slot_type": "dynamic", "total_ad_slots": 0, "subSlots": []}
+        self.assertEqual(cc.slot_problems(GOOD + [pre], 3), [])
 
     def test_no_slots_at_all_is_reported(self):
         self.assertEqual(cc.slot_problems([], 3), ["it has no ad slots at all"])

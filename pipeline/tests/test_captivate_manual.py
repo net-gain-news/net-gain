@@ -271,6 +271,35 @@ class ForcedPublishTests(unittest.TestCase):
             getattr(captivate, method).assert_not_called()
 
 
+class WebsiteWaitsTests(unittest.TestCase):
+    """The page and the email wait for the Captivate episode on a manual show (found 2026-11-12: the email went out before the episode existed)."""
+
+    def ready(self, captivate_status):
+        steps = {"images_rendered": {"status": "done"}, "captivate_published": {"status": captivate_status}}
+        return {"id": 722, "step_status": steps, "finalization": {"state": "finalized", "finalized_at": "2026-11-12 21:45:00"}}
+
+    def test_a_manual_show_waits_while_the_hand_off_is_outstanding(self):
+        for status in ("pending", "in_progress", "failed"):
+            self.assertFalse(tick.website_publish_due(show(), self.ready(status), {"CAPTIVATE_MANUAL_SHOWS": "all"}))
+
+    def test_a_manual_show_goes_once_the_episode_is_taken_over(self):
+        for status in ("done", "degraded"):
+            self.assertTrue(tick.website_publish_due(show(), self.ready(status), {"CAPTIVATE_MANUAL_SHOWS": "all"}))
+
+    def test_an_automatic_show_never_waited_and_still_does_not(self):
+        self.assertTrue(tick.website_publish_due(show(), self.ready("pending"), {}))
+        self.assertTrue(tick.website_publish_due(show(), self.ready("failed")))
+
+    def test_a_hand_posted_episode_is_not_waited_on_for_a_processed_copy(self):
+        wp = Mock()
+        wp.get_episode.return_value = {"meta": {"ng_url_captivate": "https://player.captivate.fm/episode/abc"}}
+        wp.publish_website.return_value = {"permalink": "https://x"}
+        for config, expected in (({"CAPTIVATE_MANUAL_SHOWS": "all"}, 0), ({}, 120)):
+            with patch.object(tick, "record_audio_seconds") as seconds, patch.object(tick, "verify_website_publish"), patch.object(tick, "refresh_strip_when_live"):
+                tick.publish_episode_to_website(wp, Mock(), config, show(), episode({"metadata_generated": {"status": "done"}}), Mock())
+            self.assertEqual(seconds.call_args.kwargs["wait_seconds"], expected)
+
+
 class RevertTests(unittest.TestCase):
     def test_switching_back_while_an_episode_waits_adopts_the_operators_episode(self):
         wp, captivate = fakes([{"id": "cap-9", "title": TITLE, "status": "Published"}])

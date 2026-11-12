@@ -1001,7 +1001,7 @@ def process_index_refresh(wp, config, show):
         notify_failure(config, show["name"], "index_refresh", str(exc))
 
 
-def website_publish_due(show, episode):
+def website_publish_due(show, episode, config=None):
     # No pending-action/force handling here, unlike Captivate - Section 8.3 only
     # names script generation, image generation, and Captivate publish as needing
     # a manual trigger; website publishing isn't in that list.
@@ -1019,6 +1019,11 @@ def website_publish_due(show, episode):
 
     current = step_status.get("website_published", {}).get("status", "pending")
     if current in ("done", "degraded"):
+        return False
+
+    # A show posted to Captivate by hand: the page (and the email that links to it) wait for the Captivate episode, because the page's
+    # player comes from it. The automatic path never needed this, as Captivate finishes within seconds of the page.
+    if config is not None and is_manual(config, show) and step_status.get("captivate_published", {}).get("status", "pending") not in ("done", "degraded"):
         return False
 
     return datetime.now(timezone.utc) >= compute_target_publish_moment(show, finalization)
@@ -1086,7 +1091,8 @@ def publish_episode_to_website(wp, client, config, show, episode, captivate=None
         if captivate is not None:    # Captivate swaps in its processed copy (post-roll added) shortly after creating the episode; the email must show that length
             meta_now = wp.get_episode(episode_id).get("meta", {})
             if meta_now.get("ng_url_captivate"):
-                record_audio_seconds(wp, captivate, episode_id, meta_now["ng_url_captivate"].rsplit("/", 1)[-1], wait_seconds=120)
+                # A hand-posted episode is already settled (nothing waits for a processed copy), so no pause there.
+                record_audio_seconds(wp, captivate, episode_id, meta_now["ng_url_captivate"].rsplit("/", 1)[-1], wait_seconds=0 if is_manual(config, show) else 120)
         result = wp.publish_website(episode_id)
         verify_website_publish(result.get("permalink"), wp.get_episode(episode_id).get("meta", {}))
         wp.update_step(episode_id, "website_published", "done")
@@ -1102,7 +1108,7 @@ def process_website_publishes(wp, client, config, show, captivate=None):
     """Returns True if any episode was worked on."""
     acted = False
     for episode in show.get("in_flight_episodes", []) or []:
-        if not website_publish_due(show, episode):
+        if not website_publish_due(show, episode, config):
             continue
         acted = True
         publish_episode_to_website(wp, client, config, show, episode, captivate)

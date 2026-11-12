@@ -305,14 +305,20 @@ def dashboard_post_roll_slots(captivate_show_id, media_id, count, slot_id):
     }]
 
 
+def _is_empty_dynamic(slot):
+    return slot.get("slot_type") == "dynamic" and not slot.get("total_ad_slots") and not slot.get("subSlots")
+
+
 def slot_problems(slots, expected_count):
     """Plain-English problems with an episode's slots, [] when it is exactly what the campaign needs: one post-roll slot,
-    dynamic, with `expected_count` positions and no ad attached to it, and no other slot."""
+    dynamic, with `expected_count` positions and no ad attached to it, and no other slot that could play an ad."""
     slots = slots or []
     if not slots:
         return ["it has no ad slots at all"]
     problems = []
-    others = [s for s in slots if s.get("type") != "post"]
+    # The dashboard adds an empty dynamic pre-roll (no positions, no ad) to an episode it creates; it plays nothing, so it is not a
+    # problem. Any other slot besides the one post-roll is.
+    others = [s for s in slots if s.get("type") != "post" and not _is_empty_dynamic(s)]
     posts = [s for s in slots if s.get("type") == "post"]
     if others:
         problems.append("it also has " + ", ".join(f"a {s.get('type')}-roll slot ({s.get('slot_type')})" for s in others))
