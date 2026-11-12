@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.9.40
+ * Version:           0.9.41
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -27,7 +27,7 @@ if ( ! isset( $_SERVER['HTTP_AUTHORIZATION'] ) && isset( $_SERVER['REDIRECT_HTTP
 	$_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
 }
 
-define( 'NET_GAIN_VERSION', '0.9.40' );
+define( 'NET_GAIN_VERSION', '0.9.41' );
 define( 'NET_GAIN_PLUGIN_FILE', __FILE__ );
 define( 'NET_GAIN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -80,6 +80,7 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-script-review-page.php'
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-my-show-page.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-dashboard-page.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-photos-page.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-story-links-editor.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-admin-menu.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/admin/class-admin-actions.php';
 
@@ -128,6 +129,7 @@ add_action(
 add_action( 'admin_menu', array( 'Net_Gain_Admin_Menu', 'register' ) );
 add_action( 'admin_enqueue_scripts', array( 'Net_Gain_Admin_Menu', 'enqueue_assets' ) );
 Net_Gain_Admin_Actions::register();
+Net_Gain_Story_Links_Editor::register();
 
 Net_Gain_Website_Rewrite::register();
 Net_Gain_Attachment_Guard::register();
