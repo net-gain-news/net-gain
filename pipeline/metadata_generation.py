@@ -395,6 +395,50 @@ def strip_stray_emphasis(notes):
     return cleaned, cleaned != notes
 
 
+# --- The "Stories & links" block is built by code, never by the model --------------------------------------------------
+# 2026-11-16 (episode 734): the model's last attempt wrote the header and then stopped at `<p>1. `, so the Captivate notes, the hand-off
+# email and the stored copy had no links at all (an earlier attempt had listed the stories twice). The links are not creative work: they
+# are the numbered lines at the end of the final script, so the block is rebuilt from those lines every time, whatever the model wrote.
+_LINK_LINE = re.compile(r"^\s*\d+\.\s*(?P<title>.+?)\s*\u2014\s*(?P<rest>https?://\S.*?)\s*$")
+_ADDRESS_JOIN = re.compile(r"(?:\s*[,;]\s+|\s+&\s+|\s+(?:and|or)\s+)", re.I)     # a "&" inside an address is part of it
+
+
+def script_links(final_script):
+    """The (title, address) pairs on the numbered link lines of a script, in order. A line with several addresses gives each its own
+    pair with the same caption; a line with prose after the address is not a link line (mirrors the website's parser)."""
+    links = []
+    for line in (final_script or "").splitlines():
+        match = _LINK_LINE.match(line)
+        if not match:
+            continue
+        urls = [part.strip().rstrip(",.;") for part in _ADDRESS_JOIN.split(match.group("rest")) if part.strip()]
+        if not urls or not all(re.fullmatch(r"https?://\S+", url) for url in urls):
+            continue
+        title = match.group("title").strip().strip('"\u201c\u201d').strip()
+        links.extend((title, url) for url in urls)
+    return links
+
+
+def ensure_notes_links(notes, final_script):
+    """Returns (notes, changed): the notes up to their "Stories & links:" header (added when missing) followed by the links from the
+    script, each a real anchor. Notes are returned unchanged when the script has no link lines or the notes are not text."""
+    links = script_links(final_script)
+    if not links or not isinstance(notes, str):
+        return notes, False
+    header = "<p><strong>Stories &amp; links:</strong></p>"
+    found = _NOTES_HEADER.search(notes)
+    before = notes[: found.start()] if found else notes.rstrip()
+    block = "".join(
+        '<p>{n}. "{title}" \u2014 <a href="{href}" rel="nofollow">{text}</a></p>'.format(
+            n=n, title=title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"),
+            href=url.replace("&", "&amp;").replace('"', "&quot;"), text=url.replace("&", "&amp;").replace("<", "&lt;"),
+        )
+        for n, (title, url) in enumerate(links, 1)
+    )
+    rebuilt = before + header + block
+    return rebuilt, rebuilt != notes
+
+
 def _finalize(metadata):
     """YouTube tags and the AIOSEO title/description are search keys or search-result text, where an
     ordinary hyphen matches what people type: keep ordinary hyphens there (text_rules.machine_safe)."""
@@ -443,6 +487,10 @@ def generate_metadata_for_episode(anthropic_generate, show_name, episode_date, f
             response_schema=RESPONSE_SCHEMA,
         )
         metadata = _finalize(json.loads(text))   # measure the search-result text as it will be published
+        rebuilt_notes, links_changed = ensure_notes_links(metadata.get("captivate_notes"), final_script)
+        if links_changed:
+            logger.info("Rebuilt the show notes' Stories & links block from the script's link lines.")
+            metadata["captivate_notes"] = rebuilt_notes
 
         try:
             audit = audit_story_order(anthropic_generate, final_script, metadata)
