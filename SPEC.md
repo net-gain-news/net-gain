@@ -136,7 +136,7 @@ Three output images per episode, each with its **own distinct, purpose-built com
 
 | Output | Dimensions | Format | Size cap | Purpose |
 |---|---|---|---|---|
-| Podcast art | 3000×3000 | JPEG | ≤500KB | Captivate |
+| Podcast art | 3000×3000 | JPEG | ≤1MB (Captivate allows 2MB); never downscaled below 3000×3000, only the quality steps down | Captivate |
 | YouTube art | 16:9 (1280×720) | JPEG | ≤1MB | YouTube thumbnail/video |
 | Website art | 1200×630 | WebP | — (soft-optimized toward a small filesize regardless, for page-load performance/SEO) | Open Graph / website |
 

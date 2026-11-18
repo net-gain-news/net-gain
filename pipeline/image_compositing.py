@@ -95,7 +95,7 @@ def composite_frame(image, frame_png_bytes):
     return Image.alpha_composite(base, frame).convert("RGB")
 
 
-def encode_with_size_cap(image, fmt, max_bytes):
+def encode_with_size_cap(image, fmt, max_bytes, keep_dimensions=False):
     """
     JPEG (hard cap, SPEC.md Section 7): iterative quality-stepping, bounded -
     quality 90 down to 40 in steps of 5, then dimension downscaling 90% down
@@ -104,6 +104,10 @@ def encode_with_size_cap(image, fmt, max_bytes):
     rather than aborting the whole images_rendered step over a cosmetic-asset
     size miss - that's what image-generation *failure* handling (the
     fallback path) is for, a distinct, narrower safety net.
+
+    keep_dimensions=True (the 3000x3000 podcast square, which Captivate rejects at any other size, 2026-11-18): the
+    pixel size is never reduced. Only quality steps down; if even the floor quality is over the cap, the floor-quality
+    full-size file is returned with a warning.
 
     WebP (website art): same stepping loop, but toward WEBP_SOFT_TARGET_BYTES
     as a non-fatal performance/SEO target, not a spec-mandated cap.
@@ -117,6 +121,13 @@ def encode_with_size_cap(image, fmt, max_bytes):
         image.save(buf, format=pil_format, quality=quality, optimize=True)
         if buf.tell() <= target_bytes:
             return buf.getvalue()
+
+    if keep_dimensions:
+        logger.warning(
+            "Could not get %s under %d bytes at floor quality without shrinking it - keeping the full %dx%d size (%d bytes).",
+            pil_format, target_bytes, image.width, image.height, buf.tell(),
+        )
+        return buf.getvalue()
 
     for scale in (0.9, 0.8, 0.7, 0.6, 0.5):
         resized = image.resize((max(1, int(image.width * scale)), max(1, int(image.height * scale))))
@@ -169,7 +180,7 @@ def fit_to_visible_window(base_image, frame_png_bytes, out_w, out_h):
 def composite_and_encode(base_image, frame_png_bytes, output_spec, show_slug, episode_date, spec_name):
     cropped = fit_to_visible_window(base_image, frame_png_bytes, output_spec["width"], output_spec["height"])
     composited = composite_frame(cropped, frame_png_bytes)
-    encoded = encode_with_size_cap(composited, output_spec["format"], output_spec["max_bytes"])
+    encoded = encode_with_size_cap(composited, output_spec["format"], output_spec["max_bytes"], output_spec.get("keep_dimensions", False))
     ext = "jpg" if output_spec["format"] == "JPEG" else "webp"
     filename = f"{show_slug}-{episode_date}-{spec_name}.{ext}"
     return encoded, filename

@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from io import BytesIO
 
-from image_compositing import apply_duotone, composite_and_encode, fit_to_visible_window, visible_window
+from image_compositing import apply_duotone, composite_and_encode, encode_with_size_cap, fit_to_visible_window, visible_window
 
 
 class ApplyDuotoneTests(unittest.TestCase):
@@ -106,6 +106,45 @@ class FitToVisibleWindowTests(unittest.TestCase):
         data, name = composite_and_encode(Image.new("RGB", (2100, 900), (200, 50, 50)), frame, spec, "show", "2026-10-05", "1200x630")
         self.assertTrue(name.endswith(".webp"))
         self.assertGreater(len(data), 100)
+
+
+class EncodeWithSizeCapTests(unittest.TestCase):
+    """The podcast square must stay exactly 3000x3000 for Captivate (2026-11-18: a size cap once shrank it to 2400)."""
+
+    @staticmethod
+    def noisy(side):
+        return Image.frombytes("RGB", (side, side), os.urandom(side * side * 3))
+
+    def test_a_default_encode_shrinks_the_picture_when_quality_alone_cannot_meet_the_cap(self):
+        out = Image.open(BytesIO(encode_with_size_cap(self.noisy(800), "JPEG", 60_000)))
+        self.assertLess(out.width, 800)
+
+    def test_keep_dimensions_never_shrinks_the_picture(self):
+        out = Image.open(BytesIO(encode_with_size_cap(self.noisy(800), "JPEG", 60_000, keep_dimensions=True)))
+        self.assertEqual(out.size, (800, 800))
+
+    def test_keep_dimensions_still_steps_quality_down_to_fit_a_reachable_cap(self):
+        photo = Image.effect_noise((800, 800), 40).convert("RGB")
+        small = encode_with_size_cap(photo, "JPEG", 300_000, keep_dimensions=True)
+        self.assertLessEqual(len(small), 300_000)
+        self.assertEqual(Image.open(BytesIO(small)).size, (800, 800))
+        self.assertLess(len(small), len(encode_with_size_cap(photo, "JPEG", 10_000_000, keep_dimensions=True)))
+
+    def test_the_square_spec_is_3000_px_kept_whole_under_a_1mb_cap(self):
+        from image_generation import OUTPUT_SPECS
+        spec = OUTPUT_SPECS["square"]
+        self.assertEqual((spec["width"], spec["height"]), (3000, 3000))
+        self.assertTrue(spec["keep_dimensions"])
+        self.assertLessEqual(spec["max_bytes"], 1024 * 1024)
+        self.assertGreater(spec["max_bytes"], 500 * 1024)
+        self.assertFalse(OUTPUT_SPECS["16x9"].get("keep_dimensions", False))
+
+    def test_composite_and_encode_keeps_a_3000_square_with_a_detailed_picture(self):
+        frame = make_frame(3000, 3000, 0, 2580)
+        spec = {"width": 3000, "height": 3000, "format": "JPEG", "mime": "image/jpeg", "max_bytes": 1_000_000, "keep_dimensions": True}
+        base = self.noisy(1500).resize((3000, 2580))
+        data, _name = composite_and_encode(base, frame, spec, "show", "2026-11-18", "square")
+        self.assertEqual(Image.open(BytesIO(data)).size, (3000, 3000))
 
 
 if __name__ == "__main__":

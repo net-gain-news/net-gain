@@ -47,8 +47,13 @@ logger = logging.getLogger("net_gain.image_generation")
 # centered subject).
 BASE_IMAGE_ASPECT_RATIO = "21:9"
 
+# The square is Captivate's episode art: it must be exactly 3000x3000 (Captivate rejects other sizes), so it is never
+# shrunk to fit its size cap - only the JPEG quality steps down. Captivate's own limit is 2 MB; we cap at 1 MB
+# (decimal, so under 1 MiB either way). Raised from 500 KB on 2026-11-18, when detailed photos forced a 2400 px square.
+SQUARE_MAX_BYTES = 1_000_000
+
 OUTPUT_SPECS = {
-    "square":   {"width": 3000, "height": 3000, "format": "JPEG", "mime": "image/jpeg", "max_bytes": 500 * 1024},
+    "square":   {"width": 3000, "height": 3000, "format": "JPEG", "mime": "image/jpeg", "max_bytes": SQUARE_MAX_BYTES, "keep_dimensions": True},
     "16x9":     {"width": 1280, "height": 720,  "format": "JPEG", "mime": "image/jpeg", "max_bytes": 1024 * 1024},
     "1200x630": {"width": 1200, "height": 630,  "format": "WEBP", "mime": "image/webp", "max_bytes": None},
 }
@@ -190,7 +195,7 @@ def render_cards_for_episode(wp, anthropic_generate, show, episode_id, episode, 
 
     result_meta = {CARD_TEMPLATE_META_KEY: chosen}
     for spec, output_spec in OUTPUT_SPECS.items():
-        encoded = encode_with_size_cap(rendered[spec], output_spec["format"], output_spec["max_bytes"])
+        encoded = encode_with_size_cap(rendered[spec], output_spec["format"], output_spec["max_bytes"], output_spec.get("keep_dimensions", False))
         ext = "jpg" if output_spec["format"] == "JPEG" else "webp"
         filename = f"{show['slug']}-{episode_date}-{spec}.{ext}"
         result_meta[IMAGE_META_KEYS[spec]] = wp.upload_media(encoded, filename, output_spec["mime"])
@@ -262,7 +267,7 @@ def render_photos_for_episode(wp, anthropic_generate, show, episode_id, episode,
 
     result_meta = {PHOTO_ID_META_KEY: photo["id"], PHOTO_VARIANT_META_KEY: json.dumps(variant)}
     for spec, output_spec in OUTPUT_SPECS.items():
-        encoded = encode_with_size_cap(rendered[spec], output_spec["format"], output_spec["max_bytes"])
+        encoded = encode_with_size_cap(rendered[spec], output_spec["format"], output_spec["max_bytes"], output_spec.get("keep_dimensions", False))
         ext = "jpg" if output_spec["format"] == "JPEG" else "webp"
         filename = f"{show['slug']}-{episode_date}-{spec}.{ext}"
         result_meta[IMAGE_META_KEYS[spec]] = wp.upload_media(encoded, filename, output_spec["mime"])
