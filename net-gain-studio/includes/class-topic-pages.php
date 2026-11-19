@@ -27,6 +27,7 @@ class Net_Gain_Topic_Pages {
 	public static function register() {
 		add_action( 'init', array( __CLASS__, 'add_rewrite' ) );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
 		add_filter( 'redirect_canonical', array( __CLASS__, 'keep_topic_urls' ), 10, 2 );
 		add_action( 'template_redirect', array( __CLASS__, 'check_topic' ), 1 );
 		add_filter( 'template_include', array( __CLASS__, 'use_template' ), 99 );
@@ -55,6 +56,15 @@ class Net_Gain_Topic_Pages {
 	public static function query_vars( $vars ) {
 		$vars[] = self::QUERY_VAR;
 		return $vars;
+	}
+
+	/** The page's small script (filter, tabs, sort) - only on the topics pages. */
+	public static function enqueue() {
+		if ( ! self::is_topics_page() ) {
+			return;
+		}
+		$js = NET_GAIN_PLUGIN_DIR . 'assets/topics.js';
+		wp_enqueue_script( 'ng-topics', plugin_dir_url( NET_GAIN_PLUGIN_FILE ) . 'assets/topics.js', array(), NET_GAIN_VERSION . '.' . (int) @filemtime( $js ), true );
 	}
 
 	/** WordPress would "correct" /edtech/topics/some-topic/ to the page's own address; the topic address is the right one. */
@@ -150,16 +160,23 @@ class Net_Gain_Topic_Pages {
 		return (string) $best;
 	}
 
+	/** Pure: the name as search-result text: ordinary hyphens (the house non-breaking hyphen is for on-page text only). */
+	private static function plain( $name ) {
+		return str_replace( "\xE2\x80\x91", '-', (string) $name );
+	}
+
 	/** Pure: search-result title (ordinary hyphens, as AIOSEO titles use; window about 44 to 62 characters, no site suffix). */
 	public static function topic_title( $name ) {
+		$name = self::plain( $name );
+		$k    = false === stripos( $name, 'K-12' ) ? 'K-12 ' : '';   // do not say K-12 twice
 		return self::pick_fit(
 			array(
-				"$name: K-12 education technology news and newscasts",
-				"$name in K-12 edtech news: every newscast on it",
-				"$name: K-12 edtech news and newscasts",
-				"$name news for K-12 district leaders: newscast archive",
-				"$name: K-12 edtech news",
-				"$name: K-12 edtech newscasts",
+				"$name: {$k}education technology news and newscasts",
+				"$name in {$k}edtech news: every newscast on it",
+				"$name: {$k}edtech news and newscasts",
+				"$name news for {$k}district leaders: newscast archive",
+				"$name: {$k}edtech news",
+				"$name: {$k}edtech newscasts",
 			),
 			44,
 			62
@@ -168,13 +185,17 @@ class Net_Gain_Topic_Pages {
 
 	/** Pure: meta description, 121 to 160 characters. $first is a 'Y-m-d' date. */
 	public static function topic_description( $name, $count, $first, $show_name ) {
+		$name  = self::plain( $name );
 		$since = mysql2date( 'F j, Y', $first );
+		$k     = false === stripos( $name, 'K-12' ) ? 'K-12 ' : '';
+		$n     = (int) $count;
+		$casts = 1 === $n ? "$n newscast" : "$n newscasts";
 		return self::pick_fit(
 			array(
-				"$name in K-12 edtech news: $count $show_name newscasts since $since, each with what we reported and links to the full episode.",
-				"$name in K-12 edtech news: $count $show_name newscasts since $since, with what we reported each time and the episode links.",
-				"$name in K-12 edtech news: $count newscasts since $since, with what we reported each time and links to every episode.",
-				"$name: $count $show_name newscasts since $since on K-12 education technology, security and policy, with the full episode for each.",
+				"$name in {$k}edtech news: $casts from $show_name since $since, each with what we reported and links to the full episode.",
+				"$name in {$k}edtech news: $casts from $show_name since $since, with what we reported each time and the episode links.",
+				"$name in {$k}edtech news: $casts since $since, with what we reported each time and links to every episode.",
+				"$name: $casts from $show_name since $since on {$k}education technology, security and policy, with the full episode for each.",
 			),
 			121,
 			160

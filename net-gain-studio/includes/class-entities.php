@@ -82,11 +82,16 @@ class Net_Gain_Entities {
 			if ( '' === $name || ! preg_match( '/^[a-z0-9]+(?:-[a-z0-9]+)*$/', $slug ) || ! isset( $kinds[ $kind ] ) ) {
 				continue;
 			}
+			$parent = isset( $tag['parent'] ) ? trim( (string) $tag['parent'] ) : '';
+			$level  = isset( $tag['level'] ) ? (string) $tag['level'] : '';
 			$out[ $slug ] = array(
-				'name' => $name,
-				'slug' => $slug,
-				'kind' => $kind,
-				'note' => isset( $tag['note'] ) ? trim( (string) $tag['note'] ) : '',
+				'name'     => $name,
+				'slug'     => $slug,
+				'kind'     => $kind,
+				'note'     => isset( $tag['note'] ) ? trim( (string) $tag['note'] ) : '',
+				'parent'   => preg_match( '/^[a-z0-9]+(?:-[a-z0-9]+)*$/', $parent ) && $parent !== $slug ? $parent : '',
+				'level'    => in_array( $level, array( 'local', 'region', 'country' ), true ) ? $level : '',
+				'evidence' => isset( $tag['evidence'] ) ? trim( (string) $tag['evidence'] ) : '',
 			);
 		}
 		return array_values( $out );
@@ -94,27 +99,79 @@ class Net_Gain_Entities {
 
 	/**
 	 * Pure: topics from an index (id => entry, newest first). Each topic: slug, name (the most used spelling), kind (the most
-	 * used), the episode ids newest first, first and latest dates, and each episode's own note about it.
+	 * used), the episode ids newest first, first and latest dates, each episode's own note about it, parent and children (places
+	 * nest: district > province or state > country), and `recent` (episodes in the last 30 days of $now).
+	 *
+	 * Places ROLL UP: a newscast tagged with Burnaby School District also counts for British Columbia and Canada, through the
+	 * parent links the pipeline stores, even if the episode's own tag list lacks the province. A rolled-up newscast carries the
+	 * child's note and `via` (the child's name) so the timeline can say where the story came from.
 	 */
-	public static function build_topics( array $index, $show_slug = '' ) {
+	public static function build_topics( array $index, $show_slug = '', $now = null ) {
+		$now = null === $now ? time() : (int) $now;
+
+		// The parent each place is filed under: the most used non-empty parent across all episodes of the show.
+		$parent_votes = array();
+		foreach ( $index as $entry ) {
+			if ( '' !== $show_slug && $entry['show'] !== $show_slug ) {
+				continue;
+			}
+			foreach ( $entry['entities'] as $tag ) {
+				if ( ! empty( $tag['parent'] ) ) {
+					$parent_votes[ $tag['slug'] ][ $tag['parent'] ] = ( $parent_votes[ $tag['slug'] ][ $tag['parent'] ] ?? 0 ) + 1;
+				}
+			}
+		}
+		$parent_of = array();
+		foreach ( $parent_votes as $slug => $votes ) {
+			arsort( $votes );
+			$parent_of[ $slug ] = (string) array_key_first( $votes );
+		}
+
 		$raw = array();
 		foreach ( $index as $id => $entry ) {
 			if ( '' !== $show_slug && $entry['show'] !== $show_slug ) {
 				continue;
 			}
+			$direct = array();
 			foreach ( $entry['entities'] as $tag ) {
-				$slug = $tag['slug'];
-				if ( ! isset( $raw[ $slug ] ) ) {
-					$raw[ $slug ] = array( 'names' => array(), 'kinds' => array(), 'episodes' => array(), 'notes' => array() );
+				$direct[ $tag['slug'] ] = $tag;
+			}
+			$effective = array();
+			foreach ( $direct as $slug => $tag ) {
+				$effective[ $slug ] = array( 'tag' => $tag, 'via' => '', 'note' => $tag['note'] );
+			}
+			foreach ( $direct as $slug => $tag ) {
+				$walk = $slug;
+				for ( $depth = 0; $depth < 4 && isset( $parent_of[ $walk ] ); $depth++ ) {
+					$walk = $parent_of[ $walk ];
+					if ( isset( $effective[ $walk ] ) ) {
+						continue;
+					}
+					$effective[ $walk ] = array( 'tag' => null, 'via' => $tag['name'], 'note' => $tag['note'] );
 				}
-				$raw[ $slug ]['names'][ $tag['name'] ] = ( $raw[ $slug ]['names'][ $tag['name'] ] ?? 0 ) + 1;
-				$raw[ $slug ]['kinds'][ $tag['kind'] ] = ( $raw[ $slug ]['kinds'][ $tag['kind'] ] ?? 0 ) + 1;
-				$raw[ $slug ]['episodes'][]            = $id;
-				$raw[ $slug ]['notes'][ $id ]          = $tag['note'];
+			}
+			foreach ( $effective as $slug => $row ) {
+				if ( ! isset( $raw[ $slug ] ) ) {
+					$raw[ $slug ] = array( 'names' => array(), 'kinds' => array(), 'episodes' => array(), 'notes' => array(), 'via' => array() );
+				}
+				if ( $row['tag'] ) {
+					$raw[ $slug ]['names'][ $row['tag']['name'] ] = ( $raw[ $slug ]['names'][ $row['tag']['name'] ] ?? 0 ) + 1;
+					$raw[ $slug ]['kinds'][ $row['tag']['kind'] ] = ( $raw[ $slug ]['kinds'][ $row['tag']['kind'] ] ?? 0 ) + 1;
+				}
+				$raw[ $slug ]['episodes'][]   = $id;
+				$raw[ $slug ]['notes'][ $id ] = $row['note'];
+				if ( '' !== $row['via'] ) {
+					$raw[ $slug ]['via'][ $id ] = $row['via'];
+				}
 			}
 		}
+
+		$cutoff = gmdate( 'Y-m-d', $now - 30 * DAY_IN_SECONDS );
 		$topics = array();
 		foreach ( $raw as $slug => $data ) {
+			if ( ! $data['names'] ) {
+				continue;   // only ever seen as a rolled-up parent that no episode tags directly: no name to show
+			}
 			arsort( $data['names'] );
 			arsort( $data['kinds'] );
 			$dates = array();
@@ -129,11 +186,39 @@ class Net_Gain_Entities {
 				'count'    => count( $data['episodes'] ),
 				'episodes' => $data['episodes'],
 				'notes'    => $data['notes'],
+				'via'      => $data['via'],
 				'first'    => $dates[0],
 				'latest'   => $dates[ count( $dates ) - 1 ],
+				'recent'   => count( array_filter( $dates, static function ( $d ) use ( $cutoff ) { return $d >= $cutoff; } ) ),
+				'parent'   => isset( $parent_of[ $slug ] ) && isset( $raw[ $parent_of[ $slug ] ] ) ? $parent_of[ $slug ] : '',
+				'children' => array(),
 			);
 		}
+		foreach ( $topics as $slug => $topic ) {
+			if ( '' !== $topic['parent'] ) {
+				if ( isset( $topics[ $topic['parent'] ] ) ) {
+					$topics[ $topic['parent'] ]['children'][] = $slug;
+				} else {
+					$topics[ $slug ]['parent'] = '';
+				}
+			}
+		}
 		return $topics;
+	}
+
+	/** One plain sentence for each fixed topic, shown on its page and in the topic list (the pipeline's TOPICS list has the strict definitions). */
+	public static function topic_blurbs() {
+		return array(
+			'k-12-ai-policy'                  => 'Board policies, state frameworks, bans, safety standards and lawsuits about how AI may be used in schools.',
+			'ransomware-attacks-on-schools'   => 'Cyberattacks, ransomware, data-theft claims and breaches at schools, districts, colleges and education technology vendors.',
+			'student-data-privacy'            => 'Laws, privacy statements, lawsuits and investigations about how student and staff data is collected, shared and protected.',
+			'e-rate-program'                  => 'The FCC’s E-Rate school and library connectivity funding program: rules, proceedings, comment deadlines and funding.',
+			'edtech-mergers-and-acquisitions' => 'Announced, completed and pending acquisitions, mergers and takeover bids involving education and education technology companies.',
+			'edtech-stocks-and-earnings'      => 'Share-price moves, earnings and guidance at publicly traded education companies, and the Net Gain Edtech Index.',
+			'edtech-funding-and-investment'   => 'Venture rounds, grants and other investment in education technology companies and programs.',
+			'student-online-safety'           => 'Rules, studies and incidents about children’s safety online: social media, screen time, chatbots and cellphone bans.',
+			'edtech-product-launches'         => 'New products and major updates from the companies that sell technology to schools, colleges and learners.',
+		);
 	}
 
 	/**

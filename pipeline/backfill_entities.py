@@ -15,7 +15,7 @@ import anthropic
 
 from anthropic_client import generate as anthropic_generate
 from config import load_config
-from entities import extract_entities, known_entity_names
+from entities import extract_entities, known_entity_kinds
 from wp_client import WPClient
 
 
@@ -36,16 +36,19 @@ def main(argv):
     episodes = [e for e in episodes if (e.get("meta") or {}).get("ng_website_post_id") and (e.get("meta") or {}).get("ng_script_final")]
     episodes.sort(key=lambda e: (e.get("meta") or {}).get("ng_episode_date") or "")
     stored = {e["id"]: (e.get("meta") or {}).get("ng_entities") or [] for e in episodes}
+    if args.force:
+        stored = {i: [] for i in stored}      # a full re-tag starts from nothing, so the old names cannot steer the new ones
 
     failures = 0
     for episode in episodes:
         meta = episode["meta"]
         if stored[episode["id"]] and not args.force:
             continue
-        known = known_entity_names([{"id": i, "meta": {"ng_entities": v}} for i, v in stored.items() if i != episode["id"]])
+        known = known_entity_kinds([{"id": i, "meta": {"ng_entities": v}} for i, v in stored.items() if i != episode["id"]])
+        report = {}
         try:
             entities = extract_entities(lambda **kw: anthropic_generate(client, **kw), show["name"],
-                                        meta.get("ng_episode_date", ""), meta["ng_script_final"], known)
+                                        meta.get("ng_episode_date", ""), meta["ng_script_final"], known, report=report)
         except Exception as exc:
             failures += 1
             print(f"{meta.get('ng_episode_date')}  episode {episode['id']}: FAILED ({exc})")
@@ -53,7 +56,11 @@ def main(argv):
         stored[episode["id"]] = entities
         print(f"{meta.get('ng_episode_date')}  episode {episode['id']}:")
         for e in entities:
-            print(f"    [{e['kind']}] {e['name']} - {e['note']}")
+            print(f"    [{e['kind']}] {e['name']}" + (f" (in {e['parent']})" if e.get("parent") else "") + f" - {e['note']}")
+        for name, why in report.get("dropped", []):
+            print(f"    dropped {name!r}: {why}")
+        if report.get("scanned"):
+            print(f"    added by the name scan: {', '.join(report['scanned'])}")
         if args.apply:
             wp.update_episode_meta(episode["id"], {"ng_entities": entities})
     print("\nstored" if args.apply else "\nPREVIEW ONLY (nothing stored; add --apply)", f"- {failures} failure(s)")
