@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Net Gain Studio
  * Description:       Multi-tenant vertical newscast studio: data model and REST API for Verticals, Shows, Talent, and Episodes.
- * Version:           0.9.41
+ * Version:           0.9.42
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Net Gain
@@ -27,7 +27,7 @@ if ( ! isset( $_SERVER['HTTP_AUTHORIZATION'] ) && isset( $_SERVER['REDIRECT_HTTP
 	$_SERVER['HTTP_AUTHORIZATION'] = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
 }
 
-define( 'NET_GAIN_VERSION', '0.9.41' );
+define( 'NET_GAIN_VERSION', '0.9.42' );
 define( 'NET_GAIN_PLUGIN_FILE', __FILE__ );
 define( 'NET_GAIN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -65,6 +65,9 @@ require_once NET_GAIN_PLUGIN_DIR . 'includes/class-schema-output.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-news-schema.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-news-sitemap.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-latest-redirect.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/class-entities.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/class-internal-links.php';
+require_once NET_GAIN_PLUGIN_DIR . 'includes/class-topic-pages.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-listen-page.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-signup-handoff.php';
 require_once NET_GAIN_PLUGIN_DIR . 'includes/class-email-feed.php';
@@ -141,6 +144,9 @@ Net_Gain_News_Schema::register();
 Net_Gain_News_Sitemap::register();
 Net_Gain_REST_Signature_Strip::register();
 Net_Gain_Latest_Redirect::register();
+Net_Gain_Entities::register();
+Net_Gain_Internal_Links::register();
+Net_Gain_Topic_Pages::register();
 Net_Gain_Listen_Page::register();
 Net_Gain_Signup_Handoff::register();
 Net_Gain_Email_Feed::register();

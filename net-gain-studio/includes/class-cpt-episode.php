@@ -114,6 +114,27 @@ class Net_Gain_CPT_Episode {
 					),
 				),
 			),
+			// Topic tags (pipeline/entities.py, 2026-11-19): the companies, organizations, places and recurring topics this
+			// episode covers, each with one sentence on what the newscast said about it. Read by class-entities.php to build
+			// related-newscast links and the /{show}/topics/ pages.
+			'ng_entities' => array(
+				'type'         => 'array',
+				'default'      => array(),
+				'show_in_rest' => array(
+					'schema' => array(
+						'type'  => 'array',
+						'items' => array(
+							'type'       => 'object',
+							'properties' => array(
+								'name' => array( 'type' => 'string' ),
+								'slug' => array( 'type' => 'string' ),
+								'kind' => array( 'type' => 'string' ),
+								'note' => array( 'type' => 'string' ),
+							),
+						),
+					),
+				),
+			),
 			// Website "Show notes" (episode-page-UX handoff, 2026-09-23) - a
 			// subset of ng_meta_captivate_notes with its own trailing "Stories
 			// & links" paragraph already stripped at publish time

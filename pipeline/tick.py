@@ -54,6 +54,7 @@ from captivate_mode import MANUAL_WAIT_NOTE, is_manual, waiting_for_operator
 from config import ConfigError, load_config
 from kit_client import KitClient, KitError
 from image_generation import FALLBACK_META_KEYS, IMAGE_META_KEYS, build_vertex_client, render_images_for_episode
+from entities import ensure_entities
 from metadata_generation import generate_metadata_for_episode
 from notify import notify_failure, send_notice
 from run_lock import ShowBusy, show_lock
@@ -372,6 +373,7 @@ def generate_metadata(wp, client, show, episode_id, force=False):
     status = ((meta.get("ng_step_status") or {}).get("metadata_generated") or {}).get("status")
     if not force and status in ("done", "degraded") and meta.get("ng_meta_captivate_title") and meta.get("ng_meta_aioseo_title"):
         logger.info("Metadata for episode %s is already generated; not regenerating.", episode_id)
+        ensure_entities(wp, lambda **kwargs: anthropic_generate(client, **kwargs), show, episode_id)
         return
 
     metadata = generate_metadata_for_episode(
@@ -403,6 +405,8 @@ def generate_metadata(wp, client, show, episode_id, force=False):
         fields.pop(key, None)
     wp.update_episode_meta(episode_id, fields)
     wp.update_step(episode_id, "metadata_generated", "done")
+    # Topic tags for the website's related-newscast links and topic pages: enrichment, never blocks (entities.py).
+    ensure_entities(wp, lambda **kwargs: anthropic_generate(client, **kwargs), show, episode_id)
 
 
 def append_notes_footer(notes, footer):

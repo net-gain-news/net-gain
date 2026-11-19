@@ -1,0 +1,64 @@
+/* Related newscasts, topic chips and topic pages (includes/class-internal-links.php, class-topic-pages.php).
+   Uses the theme's tokens (--fg, --mu, --bd, --acl, --hbg, --th) so it follows each show's colours. */
+
+.ng-topic-line, .ng-related-topics, .ng-topic-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.ng-related-label { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--mu); margin-right: 4px; }
+
+.ng-topic { display: inline-block; font: 500 11px/1 'IBM Plex Mono', monospace; letter-spacing: .04em; color: var(--acl); border: 1px solid var(--bd); padding: 5px 9px; text-decoration: none; background: transparent; transition: border-color 150ms ease, color 150ms ease; }
+a.ng-topic:hover, a.ng-topic:focus-visible { border-color: var(--acl); color: var(--fg); }
+.ng-topic-plain { color: var(--mu); }
+.ng-topic-count { color: var(--mu); margin-left: 3px; }
+.ng-topic-all { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--mu); margin-left: 6px; }
+
+/* Episode page: related block */
+.ng-related { margin: 44px 0 8px; padding-top: 26px; border-top: 1px solid var(--bd); }
+.ng-related-h { font-weight: 700; font-size: 22px; letter-spacing: -.01em; margin: 0 0 14px; }
+.ng-related-topics { margin: 0 0 22px; }
+.ng-related-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.ng-related-card { display: flex; flex-direction: column; color: inherit; text-decoration: none; }
+.ng-related-img { display: block; aspect-ratio: 1200 / 630; overflow: hidden; background: var(--th, var(--bd)); }
+.ng-related-body { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 14px; }
+.ng-related-date { font-size: 10px; color: var(--mu); }
+.ng-related-title { font-weight: 700; font-size: 15px; line-height: 1.25; letter-spacing: -.01em; }
+.ng-related-why { font-size: 10px; line-height: 1.4; color: var(--acl); }
+.ng-related-more { display: flex; flex-wrap: wrap; gap: 18px; margin: 18px 0 0; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.ng-related-more a { color: var(--mu); }
+.ng-related-more a:hover { color: var(--fg); }
+
+/* Show home: topic strip */
+.ng-topic-strip { max-width: 1360px; margin: 0 auto; padding: 0 40px 56px; }
+
+/* Topic pages */
+.ng-topics-page { max-width: 1100px; margin: 0 auto; padding: 0 40px 72px; }
+.ng-crumbs { font-size: 11px; letter-spacing: .06em; color: var(--mu); margin: 28px 0 14px; }
+.ng-crumbs a { color: var(--mu); }
+.ng-crumbs a:hover { color: var(--fg); }
+.ng-topic-kind { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--acl); margin-bottom: 10px; }
+.ng-topic-h1 { font-weight: 700; font-size: 40px; letter-spacing: -.02em; line-height: 1.08; margin: 0 0 12px; text-wrap: balance; }
+.ng-topic-intro { font-size: 17px; line-height: 1.6; color: var(--mu); max-width: 46em; margin: 0 0 30px; }
+.ng-timeline { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--bd); }
+.ng-timeline li { display: grid; grid-template-columns: 120px 1fr; gap: 6px 24px; padding: 20px 0; border-bottom: 1px solid var(--bd); }
+.ng-timeline-date { font-size: 11px; color: var(--mu); padding-top: 5px; }
+.ng-timeline-title { display: block; font-weight: 700; font-size: 19px; line-height: 1.25; letter-spacing: -.01em; color: var(--fg); text-decoration: none; margin-bottom: 8px; }
+.ng-timeline-title:hover { color: var(--acl); }
+.ng-timeline-note { font-size: 15px; line-height: 1.6; color: var(--mu); margin: 0 0 10px; }
+.ng-timeline-actions { display: flex; gap: 14px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.ng-topics-h2 { font-weight: 700; font-size: 20px; letter-spacing: -.01em; margin: 44px 0 14px; }
+.ng-topic-groups { display: grid; grid-template-columns: repeat(2, 1fr); gap: 34px 48px; margin-top: 8px; }
+.ng-topic-group h2 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--mu); font-weight: 500; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--bd); }
+.ng-topic-group ul { list-style: none; margin: 0; padding: 0; }
+.ng-topic-group li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: 15px; }
+.ng-topic-group li span { font-size: 11px; color: var(--mu); }
+
+@media (max-width: 900px) {
+	.ng-related-grid { grid-template-columns: repeat(2, 1fr); }
+	.ng-topic-groups { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+	.ng-related-grid { grid-template-columns: 1fr; }
+	.ng-topic-strip { padding: 0 16px 40px; }
+	.ng-topics-page { padding: 0 16px 56px; }
+	.ng-topic-h1 { font-size: 32px; }
+	.ng-timeline li { grid-template-columns: 1fr; gap: 4px; }
+	.ng-timeline-date { padding-top: 0; }
+}
