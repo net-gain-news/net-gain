@@ -1,4 +1,4 @@
-/* Topics pages (templates/topics.php): search, kind tabs and sort on the list; narrowing on a topic's timeline.
+/* Topics pages (templates/topics.php): search and sort on the list; narrowing on a topic's timeline.
    The pages are complete HTML without this script. Everything here only hides, shows and reorders what is already there. */
 (function () {
 	'use strict';
@@ -32,7 +32,6 @@
 		var input = controls.querySelector('.ng-tp-q');
 		var sortSelect = controls.querySelector('.ng-tp-sort');
 		var status = controls.querySelector('.ng-tp-status');
-		var tabs = controls.querySelectorAll('.ng-tp-tab');
 		var sections = document.querySelectorAll('.ng-tp-section');
 		var kind = 'all';
 		var expanded = {};
@@ -91,19 +90,6 @@
 		sortSelect.addEventListener('change', function () {
 			each(document.querySelectorAll('.ng-tp-list, .ng-tp-children'), function (ul) { sortItems(ul, sortSelect.value); });
 		});
-		each(tabs, function (tab) {
-			tab.addEventListener('click', function () {
-				kind = tab.getAttribute('data-kind');
-				each(tabs, function (t) { t.classList.toggle('is-on', t === tab); });
-				apply();
-			});
-		});
-
-		var ids = { topics: 'topic', companies: 'company', organizations: 'organization', places: 'place' };
-		var wanted = ids[(window.location.hash || '').replace('#', '')];
-		if (wanted) {
-			each(tabs, function (t) { if (t.getAttribute('data-kind') === wanted) { t.click(); } });
-		}
 	}
 
 	/* ---- a topic's timeline ---- */

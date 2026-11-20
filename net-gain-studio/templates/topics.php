@@ -294,11 +294,6 @@ get_header();
 				<div class="mono" style="<?php echo esc_attr( $ng_stat_label ); ?>">Newscasts</div>
 				<div class="arch" style="<?php echo esc_attr( $ng_stat_value ); ?>"><?php echo (int) count( $ng_shows_eps ); ?></div>
 			</div>
-			<div class="ng-stat-box" style="flex:2;min-width:200px">
-				<div class="mono" style="<?php echo esc_attr( $ng_stat_label ); ?>">Latest newscast</div>
-				<div class="arch" style="font-size:22px;font-weight:700"><?php echo '' !== $ng_latest_date ? esc_html( mysql2date( 'M j, Y', $ng_latest_date ) ) : '&mdash;'; ?></div>
-				<div class="mono" style="font-size:11px;color:var(--mu);margin-top:4px">A topic gets its own page after it has been covered in three newscasts</div>
-			</div>
 		</div>
 	</div>
 
@@ -307,7 +302,6 @@ get_header();
 		<?php if ( $ng_trending ) : ?>
 			<div style="<?php echo esc_attr( $ng_section_bar ); ?>">
 				<h2 class="arch" style="font-weight:700;font-size:20px;letter-spacing:-0.01em;margin:0">Trending this month</h2>
-				<span class="mono" style="font-size:10px;color:var(--mu)">Most newscasts in the last 30 days</span>
 			</div>
 			<div class="ng-topic-line" style="margin-bottom:44px">
 				<?php foreach ( $ng_trending as $ng_t ) : ?>
@@ -318,14 +312,6 @@ get_header();
 
 		<div class="ng-tp-controls" hidden>
 			<input type="search" class="ng-tp-q" placeholder="Search topics, companies, places" aria-label="Search topics, companies and places" autocomplete="off">
-			<div class="ng-tp-tabs" role="group" aria-label="Show">
-				<button type="button" class="ng-topic ng-tp-tab is-on" data-kind="all">All <span class="ng-topic-count"><?php echo (int) count( $ng_page_all ); ?></span></button>
-				<?php foreach ( $ng_kinds as $ng_kind => $ng_label ) : ?>
-					<?php if ( $ng_by_kind[ $ng_kind ] || ( 'place' === $ng_kind && $ng_place_children ) ) : ?>
-						<button type="button" class="ng-topic ng-tp-tab" data-kind="<?php echo esc_attr( $ng_kind ); ?>"><?php echo esc_html( $ng_label[1] ); ?> <span class="ng-topic-count"><?php echo (int) count( array_filter( $ng_page_all, static function ( $t ) use ( $ng_kind ) { return $t['kind'] === $ng_kind; } ) ); ?></span></button>
-					<?php endif; ?>
-				<?php endforeach; ?>
-			</div>
 			<label class="mono ng-tp-sortlabel">Sort
 				<select class="ng-tp-sort" aria-label="Sort">
 					<option value="count">Most covered</option>
