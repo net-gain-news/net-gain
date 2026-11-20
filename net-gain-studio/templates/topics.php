@@ -61,7 +61,7 @@ get_header();
 	);
 	?>
 
-	<div class="page-hero" style="padding:56px 40px 48px">
+	<div class="page-hero" style="padding-top:56px;padding-bottom:48px">
 		<div class="mono" style="<?php echo esc_attr( $ng_eyebrow ); ?>">
 			<a href="<?php echo esc_url( home_url( '/' . $ng_show . '/' ) ); ?>" style="<?php echo esc_attr( $ng_crumb_style ); ?>"><?php echo esc_html( $ng_show_name ); ?></a> &middot;
 			<a href="<?php echo esc_url( Net_Gain_Entities::topics_index_url( $ng_show ) ); ?>" style="<?php echo esc_attr( $ng_crumb_style ); ?>">Topics</a> &middot;
@@ -279,7 +279,7 @@ get_header();
 	};
 	?>
 
-	<div class="page-hero" style="padding:56px 40px 48px">
+	<div class="page-hero" style="padding-top:56px;padding-bottom:48px">
 		<div class="mono" style="<?php echo esc_attr( $ng_eyebrow ); ?>">
 			<a href="<?php echo esc_url( home_url( '/' . $ng_show . '/' ) ); ?>" style="<?php echo esc_attr( $ng_crumb_style ); ?>"><?php echo esc_html( $ng_show_name ); ?></a> &middot; Topics
 		</div>

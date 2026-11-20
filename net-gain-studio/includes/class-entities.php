@@ -222,10 +222,11 @@ class Net_Gain_Entities {
 	}
 
 	/**
-	 * Pure: up to $limit newscasts related to $id. Score = sum over the tags the two share of (kind weight / ln(1 + the tag's
-	 * newscast count)), so a rare, specific shared tag (one company) counts for more than a common one (a broad topic); ties
-	 * go to the newer newscast. Newscasts that share nothing only fill the remaining places, newest first, and are flagged
-	 * (empty 'shared') so the page can label them as more newscasts rather than as related.
+	 * Pure: up to $limit newscasts related to $id. Score = sum over the tags the two share of (kind weight x ln(N / the tag's
+	 * newscast count)), N being the show's newscast count: a tag on nearly every newscast (a broad topic) is worth almost nothing,
+	 * a rare, specific one (one company, one district) is worth a lot; ties go to the newer newscast. The shared tags come back
+	 * most specific first, so the card can say "Also covers Frontline Education" rather than the broadest topic. Newscasts that
+	 * share nothing only fill the remaining places, newest first, and have an empty 'shared' (the page labels them "more").
 	 */
 	public static function pick_related( array $index, array $topics, $id, $limit ) {
 		if ( ! isset( $index[ $id ] ) ) {
@@ -233,26 +234,31 @@ class Net_Gain_Entities {
 		}
 		$kinds = self::kinds();
 		$me    = $index[ $id ];
+		$n_all = 0;
+		foreach ( $index as $entry ) {
+			if ( $entry['show'] === $me['show'] ) {
+				$n_all++;
+			}
+		}
+		$mine = array();
+		foreach ( $me['entities'] as $tag ) {
+			$mine[ $tag['slug'] ] = $tag;
+		}
 		$scored = array();
 		foreach ( $index as $other_id => $other ) {
 			if ( $other_id === $id || $other['show'] !== $me['show'] ) {
 				continue;
 			}
-			$shared = array();
-			$score  = 0.0;
-			$mine   = array();
-			foreach ( $me['entities'] as $tag ) {
-				$mine[ $tag['slug'] ] = $tag;
-			}
+			$weights = array();
 			foreach ( $other['entities'] as $tag ) {
 				if ( ! isset( $mine[ $tag['slug'] ] ) ) {
 					continue;
 				}
-				$count    = isset( $topics[ $tag['slug'] ] ) ? max( 2, $topics[ $tag['slug'] ]['count'] ) : 2;
-				$score   += $kinds[ $tag['kind'] ][2] / log( 1 + $count );
-				$shared[] = $mine[ $tag['slug'] ]['name'];
+				$count = isset( $topics[ $tag['slug'] ] ) ? max( 2, $topics[ $tag['slug'] ]['count'] ) : 2;
+				$weights[ $mine[ $tag['slug'] ]['name'] ] = $kinds[ $tag['kind'] ][2] * log( max( 1.0001, $n_all / $count ) );
 			}
-			$scored[] = array( 'id' => $other_id, 'score' => $score, 'shared' => $shared, 'ts' => $other['ts'] );
+			arsort( $weights );
+			$scored[] = array( 'id' => $other_id, 'score' => array_sum( $weights ), 'shared' => array_keys( $weights ), 'ts' => $other['ts'] );
 		}
 		usort(
 			$scored,

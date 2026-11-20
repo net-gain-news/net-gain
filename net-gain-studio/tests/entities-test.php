@@ -67,6 +67,18 @@ check( 'shared names are reported', in_array( 'Frontline', $rel[0]['shared'], tr
 // the one sharing the rarer company+place scores above the one sharing only the broad topic
 $rel3 = Net_Gain_Entities::pick_related( $index, $topics, 3, 4 );
 check( 'a shared place and topic beats a shared topic alone', 5 === $rel3[0]['id'] );
+// specificity: a rare shared company beats a broad topic that nearly every newscast carries
+$spec = array(
+	6 => ep( 6, '2026-11-18', array( tag( 'AI policy', 'topic' ), tag( 'Nelnet' ) ) ),
+	5 => ep( 5, '2026-11-17', array( tag( 'AI policy', 'topic' ) ) ),
+	4 => ep( 4, '2026-11-16', array( tag( 'AI policy', 'topic' ) ) ),
+	3 => ep( 3, '2026-11-15', array( tag( 'AI policy', 'topic' ) ) ),
+	2 => ep( 2, '2026-11-14', array( tag( 'AI policy', 'topic' ), tag( 'Nelnet' ) ) ),
+	1 => ep( 1, '2026-11-13', array( tag( 'AI policy', 'topic' ) ) ),
+);
+$spec_topics = Net_Gain_Entities::build_topics( $spec, 'edtech' );
+$spec_rel    = Net_Gain_Entities::pick_related( $spec, $spec_topics, 6, 3 );
+check( 'a rare shared company outranks a broad shared topic, even against newer newscasts', 2 === $spec_rel[0]['id'] && array( 'Nelnet', 'AI policy' ) === $spec_rel[0]['shared'] );
 check( 'unknown id gives nothing', array() === Net_Gain_Entities::pick_related( $index, $topics, 99, 4 ) );
 check( 'limit is respected', 2 === count( Net_Gain_Entities::pick_related( $index, $topics, 5, 2 ) ) );
 
