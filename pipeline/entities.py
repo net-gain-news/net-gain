@@ -21,7 +21,8 @@ supporting story (M&A on a day with no deal). This version fixes that in code, n
   4. A name scan (gazetteer.py plus every name tagged on earlier episodes) finds places and organizations the model skipped.
      Each hit is only a candidate until a second, cheap model call confirms the sentence is really about that place or
      organization ("Washington", "Georgia", "New York Times").
-  5. The cap is 16 tags (the site shows the best few as chips; the rest feed the topic pages).
+  5. The cap is 32 tags (the site shows the best few as chips; the rest feed the topic pages). The first run capped at 16 and the
+     cap bound on 35 of 42 episodes, silently dropping the places that sort last.
 
 Standing rules kept in code: the model reads the SPOKEN script only (the numbered "Stories & links" captions can carry a name an
 editor deliberately cut from the narration); individual people and criminal groups are never tags; the home country and the
@@ -40,7 +41,7 @@ logger = logging.getLogger("net_gain.entities")
 
 KINDS = ("company", "organization", "place", "topic")
 LEVELS = ("local", "region", "country")
-MAX_ENTITIES = 16
+MAX_ENTITIES = 32
 MAX_NAME_CHARS = 60
 MAX_NOTE_CHARS = 240
 MAX_CANDIDATES = 40
@@ -116,16 +117,29 @@ _GENERIC = {"school", "schools", "district", "districts", "public", "county", "t
 
 
 def name_supported(name, quote):
-    """True when the quote actually names the tag: a distinctive word of the name, or the name's initials (FCC), is in it."""
+    """True when the quote actually names the tag: a distinctive word of the name, the name's initials (FCC), or a known short form
+    of it (gazetteer aliases) is in it."""
     quote_n = norm(quote)
-    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9.\-']*", name)
-    tokens = [w.lower().strip(".'-") for w in words if w.lower().strip(".'-") not in _GENERIC and len(w.strip(".'-")) >= 2]
+    words = re.findall(r"[A-Za-z0-9]+", name)
+    tokens = [w.lower() for w in words if w.lower() not in _GENERIC and len(w) >= 2]
     initials = "".join(w[0] for w in words if w[0].isupper()).lower()
     if not tokens and len(initials) < 2:
         return True
     if any(re.search(r"(?<![a-z0-9])" + re.escape(t) + r"(?![a-z0-9])", quote_n) for t in tokens):
         return True
+    for spoken, canonical in list(gazetteer.ORG_ALIASES.items()) + list(gazetteer.PLACE_ALIASES.items()):
+        if canonical == name and re.search(r"(?<![A-Za-z0-9])" + re.escape(spoken) + r"(?![A-Za-z0-9])", str(quote)):
+            return True
     return len(initials) >= 2 and bool(re.search(r"(?<![a-z0-9])" + re.escape(initials) + r"(?![a-z0-9])", re.sub(r"[.]", "", quote_n)))
+
+
+_GAZETTEER_PLACES = {name for name, _k, _p, _l in gazetteer.places()}
+
+
+def inferred_place(name, kind, level):
+    """A province, state or country the model added because a local place in the story sits in it. The sentence names the local place,
+    not the province, so the name is not checked against the quote - but only gazetteer places may be inferred this way."""
+    return kind == "place" and level in ("region", "country") and name in _GAZETTEER_PLACES
 
 
 # ------------------------------------------------------------------ the model's job
@@ -270,10 +284,10 @@ def flatten_and_verify(raw, script, known=None, dropped=None):
             if not quote_in_script(quote, script_n):
                 drop(name, "its quote is not in the script")
                 continue
-            if kind != "topic" and not name_supported(name, quote):
+            level = item.get("level") if item.get("level") in LEVELS else ""
+            if kind != "topic" and not inferred_place(name, kind, level) and not name_supported(name, quote):
                 drop(name, "its quote does not name it")
                 continue
-            level = item.get("level") if item.get("level") in LEVELS else ""
             parent = slugify(str(item.get("parent") or "")) if kind == "place" else ""
             if kind == "place" and not level:
                 level = gazetteer.place_level(name)

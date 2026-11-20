@@ -15,7 +15,7 @@ from config import load_config
 from entities import slugify, spoken_script
 from wp_client import WPClient
 
-ORGS = ["Frontline", "PowerSchool", "Google", "Microsoft", "OpenAI", "EDUCAUSE", "1EdTech", "FCC|Federal Communications Commission",
+ORGS = ["Frontline", "PowerSchool", "Google", "Microsoft", "OpenAI", "EDUCAUSE", "1EdTech", "Federal Communications Commission|FCC",
         "Instructure|Canvas", "Anthropic", "Department of Education", "FBI", "OASBO", "CoSN", "ISTE", "Tribal Group", "Duolingo", "Coursera"]
 
 DEAL_WORDS = re.compile(r"acqui|merger|takeover|buyout|private equity|sale to|bid\b", re.I)

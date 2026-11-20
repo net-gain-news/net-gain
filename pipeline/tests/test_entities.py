@@ -71,6 +71,18 @@ class QuoteTests(unittest.TestCase):
         self.assertFalse(entities.quote_in_script("", script_n))
         self.assertFalse(entities.quote_in_script("Hackers", script_n))
 
+    def test_an_inferred_province_does_not_need_to_be_in_the_quote(self):
+        dropped = []
+        tags = entities.flatten_and_verify({"stories": [story(tag("British Columbia", "place", "The district of 29-thousand students has had network problems all week.", level="region"),
+                                                              tag("Atlantis", "place", "The district of 29-thousand students has had network problems all week.", level="region"))]},
+                                           entities.spoken_script(NOV19), {}, dropped)
+        self.assertEqual([t["name"] for t in tags], ["British Columbia"])          # a gazetteer place is inferred; an unknown one is checked
+        self.assertEqual(dropped[0][0], "Atlantis")
+
+    def test_known_short_forms_and_punctuated_names_are_recognised(self):
+        self.assertTrue(entities.name_supported("U.S. Department of Education", "The Education Department said on Tuesday that it will pause the program."))
+        self.assertTrue(entities.name_supported("Character.AI", "Character AI filed for bankruptcy protection last week."))
+
     def test_name_must_be_in_its_quote(self):
         self.assertTrue(entities.name_supported("Burnaby School District", BURNABY_Q))
         self.assertTrue(entities.name_supported("Federal Communications Commission", "The FCC proceeding closes today."))
@@ -189,7 +201,7 @@ class ExtractTests(unittest.TestCase):
         self.assertIn("OASBO", report["scanned"])
 
     def test_cap_keeps_topics_and_companies_first(self):
-        many = [tag(f"Place {i}", "place", BURNABY_Q.replace("Burnaby", f"Burnaby"), level="local") for i in range(30)]
+        many = [tag(f"Place {i}", "place", BURNABY_Q.replace("Burnaby", f"Burnaby"), level="local") for i in range(45)]
         many = [dict(t, name=f"Burnaby Place {i}") for i, t in enumerate(many)]
         many.append(tag("K-12 AI policy", "topic", OASBO_Q))
         out = entities.extract_entities(fake_model([story(*many)]), "S", "d", NOV19, {})
