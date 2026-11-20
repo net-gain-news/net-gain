@@ -288,6 +288,9 @@ def flatten_and_verify(raw, script, known=None, dropped=None):
                 drop(name, "malformed")
                 continue
             kind = normalized_kind(name, kind)
+            if slug in gazetteer.CANONICAL_NAMES:
+                name = gazetteer.CANONICAL_NAMES[slug]
+                slug = slugify(name)
             if slug in gazetteer.NEVER_TAG:
                 continue
             if kind == "topic":

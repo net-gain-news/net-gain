@@ -116,6 +116,10 @@ class FlattenTests(unittest.TestCase):
                                           tag("Net Gain Edtech Index", "company", "That's Net Gain Edtech for Thursday, November nineteenth."))])
         self.assertEqual(tags, [])
 
+    def test_two_spellings_of_one_organization_become_one_tag(self):
+        tags, _ = self.run_flatten([story(tag("Ontario Association of School Business Officials", "organization", OASBO_Q)), story(tag("OASBO", "organization", OASBO_Q))])
+        self.assertEqual([(t["name"], t["slug"]) for t in tags], [("OASBO", "oasbo")])
+
     def test_known_spelling_is_restored_and_duplicates_merge(self):
         tags, _ = self.run_flatten([story(tag("burnaby school district", "place", BURNABY_Q, level="local", note="One.")),
                                     story(tag("Burnaby School District", "place", BURNABY_Q, level="local", note="Two."))],

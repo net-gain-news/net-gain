@@ -56,6 +56,13 @@ ORG_ALIASES = {
     "Education Department": "U.S. Department of Education",
 }
 
+# Two spellings that are one entity: the page address of the left-hand name moves to the right-hand name, so one organization
+# never gets two topic pages. (OASBO is how the script says it; the model sometimes expands it.)
+CANONICAL_NAMES = {
+    "ontario-association-of-school-business-officials": "OASBO",
+    "association-of-school-business-officials-international": "OASBO",
+}
+
 # Never tagged: the home country says nothing, the sponsor must not get editorial pages on a sponsored show, and the show's
 # own name and index are not news subjects.
 NEVER_TAG = {"united-states", "usa", "us", "america", "edsby", "net-gain-edtech", "net-gain-edtech-index", "net-gain-news"}
