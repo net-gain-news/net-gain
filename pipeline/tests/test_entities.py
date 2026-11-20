@@ -125,6 +125,23 @@ class FlattenTests(unittest.TestCase):
         self.assertEqual(tags[0]["note"], "One. Two.")
 
 
+class KindTests(unittest.TestCase):
+    def test_school_districts_are_places_even_when_labelled_organizations(self):
+        for name in ("Burnaby School District", "Richmond Public Schools", "Frederick County Public Schools", "Oneonta City School District"):
+            self.assertEqual(entities.normalized_kind(name, "organization"), "place", name)
+
+    def test_agencies_with_schools_in_the_name_stay_organizations(self):
+        for name in ("Texas State Board of Education", "Schools, Health and Libraries Broadband Coalition", "Council of the Great City Schools",
+                     "Columbia University's Teachers College", "EdTech Week", "Kansas Department of Education"):
+            self.assertEqual(entities.normalized_kind(name, "organization"), "organization", name)
+
+    def test_flatten_applies_it(self):
+        dropped = []
+        tags = entities.flatten_and_verify({"stories": [story(tag("Burnaby School District", "organization", BURNABY_Q, parent="British Columbia"))]},
+                                           entities.spoken_script(NOV19), {}, dropped)
+        self.assertEqual((tags[0]["kind"], tags[0]["level"], tags[0]["parent"]), ("place", "local", "british-columbia"))      # the model's parent is kept once it is a place
+
+
 class ChainTests(unittest.TestCase):
     def test_district_gets_its_province_and_country(self):
         tags = entities.flatten_and_verify({"stories": [story(tag("Burnaby School District", "place", BURNABY_Q, level="local", parent="British Columbia"))]}, entities.spoken_script(NOV19))

@@ -157,8 +157,8 @@ def build_system_prompt(show_name):
         "TAGS (for each story, list every tag that applies)\n"
         "- company: a business or vendor (software, services, publishers, edtech companies, investors).\n"
         "- organization: a non-profit, association, conference host, union, agency, court, regulator, legislature, university or "
-        "research body. A conference or event named in the script counts through its host (OASBO, EDUCAUSE, CITE).\n"
-        "- place: where a story happens. Give the CHAIN: the local place (district, school, city, college) with level \"local\"; its "
+        "research body. A school district, school board or school is NOT an organization: it is a place (below). A conference or event named in the script counts through its host (OASBO, EDUCAUSE, CITE).\n"
+        "- place: where a story happens, including every school district, school board and school (always kind place, level \"local\"). Give the CHAIN: the local place (district, school, city, college) with level \"local\"; its "
         "province or state with level \"region\"; its country with level \"country\", linking each to the next one up with `parent`. "
         "Always include the province or state of a story's place, even when the script names only the district, and the country when "
         "it is not the United States. Never tag the United States, and never tag \"America\".\n"
@@ -248,6 +248,19 @@ def _clean_note(note):
     return note
 
 
+_DISTRICT = re.compile(r"\b(school district|public schools|school division|school board|schools|unified|independent school district|isd|usd)\b", re.I)
+_AGENCY = re.compile(r"\b(state board|department|ministry|association|council|commission|college|university|institute|foundation|union|federation|"
+                     r"coalition|consortium|alliance|broadband|network|week)\b", re.I)
+
+
+def normalized_kind(name, kind):
+    """A school district or school board is a PLACE (it sits in a province or state and belongs to its page tree), however the model
+    labelled it; agencies, colleges and associations that merely have "schools" in their name stay organizations."""
+    if kind in ("company", "organization") and _DISTRICT.search(name) and not _AGENCY.search(name):
+        return "place"
+    return kind
+
+
 def _tag(name, kind, note="", parent="", level="", evidence=""):
     return {"name": name, "slug": slugify(name), "kind": kind, "note": note, "parent": parent, "level": level, "evidence": evidence}
 
@@ -274,6 +287,7 @@ def flatten_and_verify(raw, script, known=None, dropped=None):
             if not name or not slug or kind not in KINDS or len(name) > MAX_NAME_CHARS:
                 drop(name, "malformed")
                 continue
+            kind = normalized_kind(name, kind)
             if slug in gazetteer.NEVER_TAG:
                 continue
             if kind == "topic":
