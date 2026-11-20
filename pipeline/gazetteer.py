@@ -56,8 +56,9 @@ ORG_ALIASES = {
     "Education Department": "U.S. Department of Education",
 }
 
-# Never tagged: the home country says nothing, and the sponsor must not get editorial pages on a sponsored show.
-NEVER_TAG = {"united-states", "usa", "us", "america", "edsby"}
+# Never tagged: the home country says nothing, the sponsor must not get editorial pages on a sponsored show, and the show's
+# own name and index are not news subjects.
+NEVER_TAG = {"united-states", "usa", "us", "america", "edsby", "net-gain-edtech", "net-gain-edtech-index", "net-gain-news"}
 
 
 def places():

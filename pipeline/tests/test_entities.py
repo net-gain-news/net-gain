@@ -99,8 +99,9 @@ class FlattenTests(unittest.TestCase):
         self.assertEqual(tags[0]["slug"], "oasbo")
         self.assertEqual(tags[0]["evidence"], OASBO_Q)
 
-    def test_home_country_and_sponsor_are_never_tags(self):
-        tags, _ = self.run_flatten([story(tag("United States", "place", BURNABY_Q, level="country"), tag("Edsby", "company", BURNABY_Q))])
+    def test_home_country_sponsor_and_the_show_itself_are_never_tags(self):
+        tags, _ = self.run_flatten([story(tag("United States", "place", BURNABY_Q, level="country"), tag("Edsby", "company", BURNABY_Q),
+                                          tag("Net Gain Edtech Index", "company", "That's Net Gain Edtech for Thursday, November nineteenth."))])
         self.assertEqual(tags, [])
 
     def test_known_spelling_is_restored_and_duplicates_merge(self):
