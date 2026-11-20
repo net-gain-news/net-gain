@@ -82,11 +82,6 @@ class Net_Gain_Internal_Links {
 		$html  = '<section class="ng-related" aria-labelledby="ng-related-h">';
 		$html .= '<h2 id="ng-related-h" class="arch ng-related-h">' . esc_html( $has_shared ? 'Related newscasts' : 'More newscasts' ) . '</h2>';
 
-		$chips = self::chips_html( $podcast_id, 8 );
-		if ( '' !== $chips ) {
-			$html .= '<p class="ng-related-topics"><span class="mono ng-related-label">In this newscast</span> ' . $chips . '</p>';
-		}
-
 		$html .= '<div class="ng-related-grid">';
 		foreach ( $related as $row ) {
 			$entry = $row['entry'];
