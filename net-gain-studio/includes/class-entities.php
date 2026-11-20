@@ -214,7 +214,7 @@ class Net_Gain_Entities {
 			'student-data-privacy'            => 'Laws, privacy statements, lawsuits and investigations about how student and staff data is collected, shared and protected.',
 			'e-rate-program'                  => 'The FCC’s E-Rate school and library connectivity funding program: rules, proceedings, comment deadlines and funding.',
 			'edtech-mergers-and-acquisitions' => 'Announced, completed and pending acquisitions, mergers and takeover bids involving education and education technology companies.',
-			'edtech-stocks-and-earnings'      => 'Share-price moves, earnings and guidance at publicly traded education companies, and the Net Gain Edtech Index.',
+			'edtech-stocks-and-earnings'      => 'Earnings reports, guidance changes, analyst actions and notable share-price moves at publicly traded education companies.',
 			'edtech-funding-and-investment'   => 'Venture rounds, grants and other investment in education technology companies and programs.',
 			'student-online-safety'           => 'Rules, studies and incidents about children’s safety online: social media, screen time, chatbots and cellphone bans.',
 			'edtech-product-launches'         => 'New products and major updates from the companies that sell technology to schools, colleges and learners.',

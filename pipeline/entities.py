@@ -54,7 +54,7 @@ TOPICS = {
     "Student data privacy": "Laws, privacy statements, lawsuits or investigations about how student or staff personal data is collected, shared or protected. A report of a breach alone belongs under cyberattacks, not here.",
     "E-Rate program": "The FCC's E-Rate school and library connectivity funding program: its rules, proceedings, comment deadlines and funding.",
     "Edtech mergers and acquisitions": "An announced, completed or progressing acquisition, merger, takeover bid or sale of an education or education technology company. Share-price moves, earnings or financing alone do NOT count.",
-    "Edtech stocks and earnings": "Share-price moves, earnings reports, guidance and market commentary on publicly traded education companies, including the Net Gain Edtech Index.",
+    "Edtech stocks and earnings": "A specific company's earnings report, guidance change, analyst action or notable share-price move (about 5% or more, or one the script explains) at a publicly traded education company. The routine daily Net Gain Edtech Index recap at the end of every episode does NOT count by itself: tag this only when the script reports one of those specific developments.",
     "Edtech funding and investment": "Venture rounds, grants and other investment in education technology companies or programs. Acquisitions belong under mergers.",
     "Student online safety": "Rules, studies or incidents about children's safety online: social media, screen time, chatbots and companion apps, cellphone bans.",
     "Edtech product launches": "A company launching or materially updating a product or feature for schools, colleges or learners.",
@@ -165,6 +165,8 @@ def build_system_prompt(show_name):
         "- topic: ONLY a topic from this fixed list, spelled exactly as written, and ONLY when the story is mainly about it as the "
         "definition says:\n" + _topic_lines() + "\n\n"
         "RULES\n"
+        "- A topic must discriminate: it belongs on an episode only when that episode has a story or item that is mainly about it. "
+        "Recurring segments that appear in every episode (the daily market recap, the closing calendar) are not reasons for a topic.\n"
         "- Every tag needs `quote`: ONE sentence copied EXACTLY, character for character, from the script that shows why the tag "
         "applies (at most 40 words). If you cannot copy a sentence that supports the tag, do not give the tag.\n"
         "- NEVER tag an individual person, and never a criminal group, ransomware gang or threat actor. Those names are an "
