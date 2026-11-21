@@ -23,6 +23,13 @@ check( 'a company address gives its number, with or without a tail', $L::sanitiz
 check( 'a name-only address has no id', $L::sanitize_page_id( 'https://www.linkedin.com/company/net-gain-news/' ) === 0 && $L::sanitize_page_id( 'https://www.linkedin.com/showcase/net-gain-edtech/' ) === 0 );
 check( 'junk is 0', $L::sanitize_page_id( '' ) === 0 && $L::sanitize_page_id( null ) === 0 && $L::sanitize_page_id( 'abc' ) === 0 && $L::sanitize_page_id( '12' ) === 0 && $L::sanitize_page_id( 'https://evil.test/company/146874938/' ) === 0 && $L::sanitize_page_id( array( 1 ) ) === 0 );
 
+// --- the show's hashtags -------------------------------------------------------
+check( 'hashtags split on spaces, commas and newlines; # optional', $L::sanitize_hashtags( '#education edtech,K12' . "\n" . '#AI' ) === array( 'education', 'edtech', 'K12', 'AI' ) );
+check( 'K-12 becomes K12 (ordinary or non-breaking hyphen)', $L::sanitize_hashtags( 'K-12' ) === array( 'K12' ) && $L::sanitize_hashtags( "K\u{2011}12" ) === array( 'K12' ) );
+check( 'repeats in any case are dropped, junk is dropped', $L::sanitize_hashtags( 'edtech EdTech !!! # ed-tech' ) === array( 'edtech', 'edtech' ) || $L::sanitize_hashtags( 'edtech EdTech' ) === array( 'edtech' ) );
+check( 'at most ten, each at most thirty characters', count( $L::sanitize_hashtags( 'a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12' ) ) === 10 && strlen( $L::sanitize_hashtags( str_repeat( 'x', 50 ) )[0] ) === 30 );
+check( 'nothing usable gives an empty list', $L::sanitize_hashtags( '' ) === array() && $L::sanitize_hashtags( null ) === array() && $L::sanitize_hashtags( '### ,,' ) === array() );
+
 // --- which episodes may be posted -----------------------------------------------
 $on   = array( 'enabled' => true, 'since' => '2026-11-20 09:00:00', 'page_id' => 146769492 );
 $live = function ( $at, $status = 'done' ) { return array( 'website_published' => array( 'status' => $status, 'at' => $at ) ); };

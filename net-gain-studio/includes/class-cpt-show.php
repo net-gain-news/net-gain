@@ -198,6 +198,7 @@ class Net_Gain_CPT_Show {
 			'ng_linkedin_enabled'       => array( 'type' => 'boolean', 'default' => false ),
 			'ng_linkedin_since'         => array( 'type' => 'string', 'default' => '' ),
 			'ng_linkedin_page_id'       => array( 'type' => 'integer', 'default' => 0 ),
+			'ng_linkedin_hashtags'      => array( 'type' => 'string', 'default' => '' ),
 			// Written only by POST /shows/{id}/index-snapshot (tick.py) - never
 			// hand-edited. Whole-snapshot replace on every successful fetch, so
 			// constituents can be added/removed in the sheet at any time with no

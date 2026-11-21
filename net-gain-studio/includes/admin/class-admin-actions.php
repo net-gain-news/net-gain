@@ -191,6 +191,7 @@ class Net_Gain_Admin_Actions {
 			update_post_meta( $show_id, 'ng_linkedin_since', current_time( 'mysql' ) );
 		}
 		update_post_meta( $show_id, 'ng_linkedin_page_id', Net_Gain_LinkedIn_Settings::sanitize_page_id( sanitize_text_field( wp_unslash( $_POST['ng_linkedin_page_id'] ?? '' ) ) ) );
+		update_post_meta( $show_id, 'ng_linkedin_hashtags', implode( ' ', Net_Gain_LinkedIn_Settings::sanitize_hashtags( sanitize_text_field( wp_unslash( $_POST['ng_linkedin_hashtags'] ?? '' ) ) ) ) );
 	}
 
 	public static function connect_captivate() {

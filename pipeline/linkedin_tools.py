@@ -97,9 +97,12 @@ def cmd_check(config, page_id):
 def cmd_preview(config, episode_id):
     from wp_client import WPClient
     wp = WPClient(config["WP_BASE_URL"], config["WP_SERVICE_USERNAME"], config["WP_SERVICE_APP_PASSWORD"])
-    meta = wp.get_episode(int(episode_id)).get("meta", {})
+    episode = wp.get_episode(int(episode_id))
+    meta = episode.get("meta", {})
+    settings = next((show.get("linkedin") or {} for show in wp.get_tick_context() if show.get("id") == episode.get("parent")), {})
+    hashtags = linkedin_post.choose_hashtags(settings.get("hashtags"), meta.get("ng_entities"))
     paragraphs = linkedin_post.notes_paragraphs(meta.get("ng_meta_captivate_notes", ""))
-    text = linkedin_post.build_commentary(paragraphs, meta.get("ng_url_website", ""))
+    text = linkedin_post.build_commentary(paragraphs, meta.get("ng_url_website", ""), hashtags)
     print(text)
     print(f"\n--- {len(text)} of {linkedin_post.COMMENTARY_LIMIT} characters; card: {meta.get('ng_meta_captivate_title')!r}")
 

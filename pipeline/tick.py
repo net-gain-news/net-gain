@@ -1795,7 +1795,8 @@ def post_episode_to_linkedin(wp, linkedin_client, config, show, episode, pending
 
         if not meta.get("ng_meta_captivate_notes"):
             raise linkedin_post.LinkedInPostError("The episode has no show notes to post.")
-        commentary = linkedin_post.build_commentary(linkedin_post.notes_paragraphs(meta.get("ng_meta_captivate_notes")), permalink)
+        hashtags = linkedin_post.choose_hashtags(linkedin.get("hashtags"), meta.get("ng_entities"))
+        commentary = linkedin_post.build_commentary(linkedin_post.notes_paragraphs(meta.get("ng_meta_captivate_notes")), permalink, hashtags)
         title = meta.get("ng_meta_captivate_title") or full.get("title", {}).get("rendered", "")
         description = meta.get("ng_meta_website_excerpt") or meta.get("ng_meta_aioseo_description") or ""
 

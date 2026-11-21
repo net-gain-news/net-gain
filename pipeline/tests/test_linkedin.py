@@ -19,7 +19,7 @@ NOTES = ("<p>Australia moves to curb AI in classrooms (pilot) by term two.</p><p
          "<p><strong>Stories &amp; links:</strong></p><p>1. Australia - <a href=\"https://example.com/a\">link</a></p>")
 WEBSITE_AT = "2026-11-20 21:44:06"
 NOW = datetime(2026, 11, 20, 21, 50, 0, tzinfo=timezone.utc)
-LI = {"enabled": True, "since": "2026-11-20 00:00:00", "page_id": 146769492}
+LI = {"enabled": True, "since": "2026-11-20 00:00:00", "page_id": 146769492, "hashtags": ["education", "edtech", "K12"]}
 
 
 class PostText(unittest.TestCase):
@@ -72,6 +72,42 @@ class PostText(unittest.TestCase):
         self.assertTrue(lp.post_mentions_episode({"content": {"article": {"source": PAGE}}}, PAGE))
         self.assertTrue(lp.post_mentions_episode({"commentary": "x https\\://netgain.news/edtech/australia-curbs-school-ai/".replace("\\:", ":")}, PAGE))
         self.assertFalse(lp.post_mentions_episode({"commentary": "other", "content": {"article": {"source": PAGE + "x"}}}, PAGE))
+
+
+class Hashtags(unittest.TestCase):
+    def test_the_shows_tags_come_first_and_are_always_kept(self):
+        self.assertEqual(lp.choose_hashtags(["education", "edtech", "K12"], []), ["education", "edtech", "K12"])
+        many = ["a", "b", "c", "d", "e", "f"]
+        self.assertEqual(lp.choose_hashtags(many, [{"kind": "topic", "slug": "k-12-ai-policy"}]), many)
+
+    def test_topic_tags_fill_up_to_five(self):
+        entities = [{"kind": "topic", "slug": "ransomware-attacks-on-schools"}, {"kind": "topic", "slug": "k-12-ai-policy"},
+                    {"kind": "topic", "slug": "e-rate-program"}]
+        self.assertEqual(lp.choose_hashtags(["education", "edtech", "K12"], entities), ["education", "edtech", "K12", "cybersecurity", "AI"])
+
+    def test_only_topics_add_tags_and_unknown_topics_add_nothing(self):
+        entities = [{"kind": "company", "slug": "google"}, {"kind": "place", "slug": "ontario"}, {"kind": "topic", "slug": "edtech-product-launches"}]
+        self.assertEqual(lp.choose_hashtags(["edtech"], entities), ["edtech"])
+
+    def test_no_repeats_in_any_case_and_no_hyphens(self):
+        self.assertEqual(lp.choose_hashtags(["ai", "K-12", "AI", "k12"], [{"kind": "topic", "slug": "k-12-ai-policy"}]), ["ai", "K12"])
+
+    def test_every_mapped_topic_is_a_real_topic(self):
+        import entities
+        for slug in lp.TOPIC_HASHTAGS:
+            self.assertIn(slug, entities.TOPIC_BY_SLUG)
+
+    def test_tags_close_the_post_in_linkedins_hashtag_markup(self):
+        text = lp.build_commentary(["Story."], PAGE, ["education", "edtech", "K12"])
+        self.assertTrue(text.endswith(PAGE + "\n\n{hashtag|\\#|education} {hashtag|\\#|edtech} {hashtag|\\#|K12}"))
+
+    def test_tags_survive_trimming_and_count_toward_the_limit(self):
+        text = lp.build_commentary(["A" * 1400, "B" * 1400], PAGE, ["education", "edtech", "K12"])
+        self.assertLessEqual(len(text), lp.COMMENTARY_LIMIT)
+        self.assertTrue(text.endswith("{hashtag|\\#|K12}"))
+
+    def test_no_tags_leaves_the_post_unchanged(self):
+        self.assertEqual(lp.build_commentary(["x"], PAGE), lp.build_commentary(["x"], PAGE, []))
 
 
 class TokenFile(unittest.TestCase):
@@ -219,8 +255,9 @@ class Posting(unittest.TestCase):
         payload = client.create_post.call_args[0][0]
         self.assertEqual(payload["author"], "urn:li:organization:146769492")
         self.assertTrue(payload["commentary"].startswith("Today in edtech:\n\nAustralia moves"))
-        self.assertTrue(payload["commentary"].endswith(PAGE))
+        self.assertIn("\n" + PAGE + "\n\n", payload["commentary"])
         self.assertNotIn("Stories", payload["commentary"])
+        self.assertTrue(payload["commentary"].endswith(PAGE + "\n\n{hashtag|\\#|education} {hashtag|\\#|edtech} {hashtag|\\#|K12}"))
         self.assertEqual(payload["content"]["article"]["thumbnail"], "urn:li:image:1")
         self.assertEqual(_steps(wp), [("linkedin_posted", "in_progress"), ("linkedin_posted", "done")])
         wp.update_episode_meta.assert_any_call(700, {"ng_linkedin_post_urn": "urn:li:share:99", "ng_linkedin_attempt": ""})

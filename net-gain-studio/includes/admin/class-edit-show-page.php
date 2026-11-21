@@ -474,6 +474,14 @@ class Net_Gain_Edit_Show_Page {
 						</td>
 					</tr>
 
+					<tr>
+						<th><label for="ng_linkedin_hashtags">LinkedIn hashtags</label></th>
+						<td>
+							<input type="text" id="ng_linkedin_hashtags" name="ng_linkedin_hashtags" class="regular-text" value="<?php echo esc_attr( implode( ' ', Net_Gain_LinkedIn_Settings::sanitize_hashtags( (string) $get( 'ng_linkedin_hashtags', '' ) ) ) ); ?>" placeholder="education edtech K12">
+							<p class="description">The show's own hashtags, separated by spaces, put at the end of every post (the # is added for you). Letters and digits only, so write K12, not K-12. After these the job adds a hashtag or two for the episode's own topics (for example cybersecurity when the day covers a school cyberattack), up to five in all; your own tags are never dropped for them.</p>
+						</td>
+					</tr>
+
 				</table>
 
 				<?php submit_button( 'Save changes' ); ?>
