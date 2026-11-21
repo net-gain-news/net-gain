@@ -50,6 +50,12 @@ def load_config():
         "GOOGLE_CLOUD_PROJECT": os.environ["GOOGLE_CLOUD_PROJECT"],
         "GOOGLE_CLOUD_LOCATION": os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
         "KIT_API_KEY": os.environ.get("KIT_API_KEY", ""),
+        # LinkedIn: the app's id and secret are used only by linkedin_tools.py when someone signs in; the daily posting uses the
+        # saved token (linkedin_token.py), never these.
+        "LINKEDIN_CLIENT_ID": os.environ.get("LINKEDIN_CLIENT_ID", ""),
+        "LINKEDIN_CLIENT_SECRET": os.environ.get("LINKEDIN_CLIENT_SECRET", ""),
+        "LINKEDIN_REDIRECT_URI": os.environ.get("LINKEDIN_REDIRECT_URI", ""),
+        "LINKEDIN_API_VERSION": os.environ.get("LINKEDIN_API_VERSION", "") or "202605",
         # Shows whose episodes the operator posts to Captivate by hand; empty = the pipeline posts them itself (captivate_mode.py).
         "CAPTIVATE_MANUAL_SHOWS": os.environ.get("CAPTIVATE_MANUAL_SHOWS", ""),
         "CAPTIVATE_HANDOFF_DIR": os.environ.get("CAPTIVATE_HANDOFF_DIR", ""),

@@ -152,6 +152,10 @@ class Net_Gain_CPT_Episode {
 			'ng_youtube_video_id'          => array( 'type' => 'string', 'default' => '' ),
 			// The Kit broadcast made for this episode's daily email (written by the pipeline's last step).
 			'ng_kit_broadcast_id'          => array( 'type' => 'string', 'default' => '' ),
+			// The LinkedIn post made for this episode (its urn), and - while a post is being made - the moment the attempt began. The
+			// attempt marker tells the pipeline an earlier try may have posted, so it checks the page before posting again.
+			'ng_linkedin_post_urn'         => array( 'type' => 'string', 'default' => '' ),
+			'ng_linkedin_attempt'          => array( 'type' => 'string', 'default' => '' ),
 			// UTC ISO8601, written by the pipeline itself before upload begins - not
 			// derived from ng_step_status's site-local timestamp (same timezone-
 			// ambiguity class as the Captivate `date` field incident).

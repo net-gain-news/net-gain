@@ -40,6 +40,8 @@ import requests
 
 import edtech_index
 import kit_email
+import linkedin_post
+import linkedin_token
 import photo_library
 import youtube_client as yt
 from anthropic_client import generate as anthropic_generate
@@ -53,6 +55,7 @@ import captivate_handoff
 from captivate_mode import MANUAL_WAIT_NOTE, is_manual, waiting_for_operator
 from config import ConfigError, load_config
 from kit_client import KitClient, KitError
+from linkedin_client import LinkedInClient, LinkedInError
 from image_generation import FALLBACK_META_KEYS, IMAGE_META_KEYS, build_vertex_client, render_images_for_episode
 from entities import ensure_entities
 from metadata_generation import generate_metadata_for_episode
@@ -1660,6 +1663,234 @@ def process_kit_emails(wp, kit_client, config, show):
     return acted
 
 
+# --- LinkedIn (2026-11-20) -------------------------------------------------------------------------------------------------
+# One post per episode on the show's LinkedIn page, once the website page is live (the post links there). Like the email, it
+# waits for nothing else and nothing else waits for it. A creating call is never repeated blindly: before every attempt the
+# page's recent posts are searched for one that already points at this episode's page (linkedin_client.find_post).
+
+LINKEDIN_RETRY_WINDOW_MINUTES = 10
+LINKEDIN_STALE_AFTER = timedelta(hours=12)
+LINKEDIN_AMBIGUOUS_WAIT = timedelta(minutes=10)
+
+
+def _linkedin_pending_actions(show, episode):
+    """Manual 'Post to LinkedIn' requests still waiting for this episode (matched by its date when the request carries one)."""
+    return [
+        a for a in show.get("pending_actions", []) or []
+        if a.get("action") == "post_linkedin" and a.get("status") == "pending"
+        and (not a.get("episode_date") or a.get("episode_date") == episode.get("episode_date"))
+    ]
+
+
+def linkedin_post_due(show, episode):
+    """
+    True when this episode's LinkedIn post should be made now: the show posts to LinkedIn, the episode's website page is live,
+    and the episode went live after posting was switched on (so switching it on can never post old episodes). A manual request
+    lifts the switch-on bound, and is the only way to retry a failed post.
+    """
+    linkedin = show.get("linkedin") or {}
+    if not linkedin.get("enabled"):
+        return False
+    step_status = episode.get("step_status") or {}
+    forced = bool(_linkedin_pending_actions(show, episode))
+
+    if step_status.get("linkedin_posted", {}).get("status", "pending") in ("done", "degraded", "failed") and not forced:
+        return False
+    if (episode.get("finalization") or {}).get("state") != "finalized":
+        return False
+
+    website = step_status.get("website_published", {})
+    if website.get("status") not in ("done", "degraded"):
+        return False
+    site_zone = show_zone(show, "site_timezone")
+    website_at = _parse_site_local_at(website.get("at"), site_zone)
+    if website_at is None:
+        return False
+
+    if not forced:
+        since = _parse_site_local_at(linkedin.get("since"), site_zone)
+        if since is None or website_at < since:
+            return False
+    return True
+
+
+def _fail_linkedin_post(wp, config, show, episode_id, message, pending):
+    wp.update_step(episode_id, "linkedin_posted", "failed", note=message[:500])
+    for action in pending:
+        wp.update_action(show["id"], action["id"], "failed")
+    notify_failure(config, show["name"], "linkedin_posted", message)
+
+
+def _linkedin_status_message(exc):
+    """What a LinkedIn error means for the person reading the dashboard."""
+    if exc.status == 401:
+        return "LinkedIn rejected the saved sign-in (it expired or was revoked). Sign in again with linkedin_tools.py, then use Post to LinkedIn on the episode screen. " + str(exc)
+    if exc.status == 403:
+        return "LinkedIn refused the post: the signed-in member must be an administrator of the page and the app must be approved to post for it. " + str(exc)
+    return str(exc)
+
+
+def _record_linkedin_post(wp, show, episode_id, post_urn, pending, adopted):
+    note = f"Already on LinkedIn ({post_urn})." if adopted else f"Posted to LinkedIn ({post_urn})."
+    wp.update_step(episode_id, "linkedin_posted", "done", note=note)
+    try:
+        wp.update_episode_meta(episode_id, {"ng_linkedin_post_urn": post_urn, "ng_linkedin_attempt": ""})
+    except Exception:
+        logger.warning("Could not record LinkedIn post %s on episode %s; the step is done and the page search prevents a repeat.", post_urn, episode_id, exc_info=True)
+    for action in pending:
+        wp.update_action(show["id"], action["id"], "done")
+    logger.info("LinkedIn post for episode %s (%s): %s", episode_id, show["name"], note)
+
+
+def post_episode_to_linkedin(wp, linkedin_client, config, show, episode, pending, now=None):
+    """Posts the episode to the show's LinkedIn page, once. Never raises. Safe to run again after any failure, crash or manual re-run."""
+    episode_id = episode["id"]
+    linkedin = show["linkedin"]
+    now = now or datetime.now(timezone.utc)
+    try:
+        page_id = linkedin.get("page_id")
+        if not page_id:
+            _fail_linkedin_post(wp, config, show, episode_id, "LinkedIn posting is on, but the show has no LinkedIn page set on its setup screen.", pending)
+            return
+        if linkedin_client is None:
+            _fail_linkedin_post(wp, config, show, episode_id, "LinkedIn posting is on, but the server has no LinkedIn sign-in saved. Run linkedin_tools.py to sign in, then use Post to LinkedIn on the episode screen.", pending)
+            return
+        if linkedin_client.expires_at is not None and linkedin_client.expires_at <= now.timestamp():
+            _fail_linkedin_post(wp, config, show, episode_id, "The saved LinkedIn sign-in has expired. Sign in again with linkedin_tools.py, then use Post to LinkedIn on the episode screen.", pending)
+            return
+
+        step_status = episode.get("step_status") or {}
+        site_zone = show_zone(show, "site_timezone")
+        website_at = _parse_site_local_at(step_status.get("website_published", {}).get("at"), site_zone)
+        if not pending and website_at is not None and now - website_at > LINKEDIN_STALE_AFTER:
+            hours = int((now - website_at).total_seconds() // 3600)
+            _fail_linkedin_post(wp, config, show, episode_id,
+                                f"Not posted: the episode went live {hours} hours ago, too late for a daily post. Use Post to LinkedIn on the episode screen to post it anyway.", pending)
+            return
+
+        full = wp.get_episode(episode_id)
+        meta = full.get("meta", {})
+        permalink = meta.get("ng_url_website") or ""
+        if meta.get("ng_linkedin_post_urn"):
+            _record_linkedin_post(wp, show, episode_id, meta["ng_linkedin_post_urn"], pending, adopted=True)
+            return
+
+        author = linkedin_post.author_urn(page_id)
+        attempted = bool(meta.get("ng_linkedin_attempt"))
+        try:
+            existing = linkedin_client.find_post(author, lambda post: linkedin_post.post_mentions_episode(post, permalink))
+        except LinkedInError as exc:
+            if attempted:
+                # An earlier try may have posted and the page cannot be searched now: posting again could double it.
+                _fail_linkedin_post(wp, config, show, episode_id,
+                                    f"An earlier attempt may already have posted this episode, and LinkedIn's list of the page's posts could not be read to check ({exc}). Look at the page; if the post is there, nothing more is needed.", pending)
+                return
+            if exc.transient:
+                raise
+            logger.warning("Could not search the LinkedIn page for an existing post (%s); no earlier attempt is recorded, so posting.", exc)
+            existing = None
+        if existing:
+            _record_linkedin_post(wp, show, episode_id, existing.get("id") or "(unknown id)", pending, adopted=True)
+            return
+
+        if not meta.get("ng_meta_captivate_notes"):
+            raise linkedin_post.LinkedInPostError("The episode has no show notes to post.")
+        commentary = linkedin_post.build_commentary(linkedin_post.notes_paragraphs(meta.get("ng_meta_captivate_notes")), permalink)
+        title = meta.get("ng_meta_captivate_title") or full.get("title", {}).get("rendered", "")
+        description = meta.get("ng_meta_website_excerpt") or meta.get("ng_meta_aioseo_description") or ""
+
+        thumbnail_urn = None
+        image_id = meta.get("ng_image_16x9_id")
+        if image_id:
+            try:
+                thumbnail_urn = linkedin_client.upload_image(author, wp.download_binary(wp.get_attachment_url(image_id)))
+            except Exception as exc:
+                if isinstance(exc, LinkedInError) and exc.transient:
+                    raise
+                logger.warning("The LinkedIn picture for episode %s could not be uploaded (%s); posting without it.", episode_id, exc)
+
+        payload = linkedin_post.post_payload(author, commentary, permalink, title, description, thumbnail_urn)
+        wp.update_step(episode_id, "linkedin_posted", "in_progress")
+        wp.update_episode_meta(episode_id, {"ng_linkedin_attempt": now.isoformat()})
+        try:
+            post_urn = linkedin_client.create_post(payload)
+        except LinkedInError as exc:
+            if exc.status is not None and 400 <= exc.status < 500:
+                if exc.status != 429:
+                    wp.update_episode_meta(episode_id, {"ng_linkedin_attempt": ""})     # LinkedIn said no: nothing was created
+                raise
+            raise LinkedInError(f"LinkedIn did not confirm the post ({exc}). Check the page: if it is there, nothing more is needed; if not, use Post to LinkedIn on the episode screen (it checks for an existing post first).", status=exc.status) from exc
+        _record_linkedin_post(wp, show, episode_id, post_urn, pending, adopted=False)
+    except LinkedInError as exc:
+        if exc.transient and now - (_linkedin_ready_at(show, episode) or now) < timedelta(minutes=LINKEDIN_RETRY_WINDOW_MINUTES):
+            logger.warning("LinkedIn post for episode %s (%s) not made yet, will retry: %s", episode_id, show["name"], exc)
+            _revert_linkedin_in_progress(wp, episode_id)
+            return
+        logger.exception("LinkedIn post failed for episode %s (%s)", episode_id, show["name"])
+        _fail_linkedin_post(wp, config, show, episode_id, _linkedin_status_message(exc), pending)
+    except Exception as exc:
+        logger.exception("LinkedIn post failed for episode %s (%s)", episode_id, show["name"])
+        _fail_linkedin_post(wp, config, show, episode_id, str(exc), pending)
+
+
+def _linkedin_ready_at(show, episode):
+    website = (episode.get("step_status") or {}).get("website_published", {})
+    return _parse_site_local_at(website.get("at"), show_zone(show, "site_timezone"))
+
+
+def _revert_linkedin_in_progress(wp, episode_id):
+    try:
+        wp.update_step(episode_id, "linkedin_posted", "pending")
+    except Exception:
+        logger.warning("Could not reset the LinkedIn step for episode %s.", episode_id, exc_info=True)
+
+
+def warn_linkedin_sign_in(config, linkedin_client, memory=alert_memory, now=None):
+    """Tells the operator, once a day, that the LinkedIn sign-in is missing or close to expiring (it lasts about 60 days)."""
+    now = now if now is not None else time.time()
+    day = datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%d")
+    if linkedin_client is None:
+        problem = "No LinkedIn sign-in is saved on the server, so nothing can be posted. Run linkedin_tools.py to sign in."
+    elif linkedin_client.expires_at is None:
+        return
+    else:
+        left = linkedin_client.expires_at - now
+        if left > linkedin_token.WARN_DAYS * 86400:
+            return
+        problem = ("The LinkedIn sign-in has expired. Sign in again with linkedin_tools.py." if left <= 0
+                   else f"The LinkedIn sign-in expires in {int(left // 86400)} day(s). Sign in again with linkedin_tools.py before then.")
+    key = f"linkedin-sign-in:{day}"
+    if memory.already_sent(key):
+        return
+    if send_notice(config, "Net Gain Studio: LinkedIn sign-in needs attention", problem):
+        try:
+            memory.mark_sent(key)
+        except OSError:
+            logger.warning("Could not record the LinkedIn sign-in alert as sent.", exc_info=True)
+
+
+def process_linkedin_posts(wp, linkedin_client, config, show):
+    """Returns True if any episode was worked on."""
+    if not (show.get("linkedin") or {}).get("enabled"):
+        return False
+    warn_linkedin_sign_in(config, linkedin_client)
+    acted = False
+    for episode in show.get("in_flight_episodes", []) or []:
+        if not linkedin_post_due(show, episode):
+            continue
+        acted = True
+        post_episode_to_linkedin(wp, linkedin_client, config, show, episode, _linkedin_pending_actions(show, episode))
+    return acted
+
+
+def build_linkedin_client(config):
+    """The client for the saved sign-in, or None when there is none."""
+    record = linkedin_token.load_token()
+    if record is None:
+        return None
+    return LinkedInClient(record["access_token"], expires_at=record["expires_at"], version=config.get("LINKEDIN_API_VERSION") or "202605")
+
+
 def process_kit_weekly(wp, kit_client, config, show, now=None, memory=alert_memory):
     """
     The weekly roundup: once per week at the show's chosen day and time (a wall-clock time in its own zone). Lists every episode
@@ -1832,10 +2063,10 @@ def refresh_in_flight(wp, show):
         episode["finalization"] = meta.get("ng_finalization") or episode.get("finalization")
 
 
-def process_show(wp, client, captivate, vertex_client, config, show, kit_client=None):
+def process_show(wp, client, captivate, vertex_client, config, show, kit_client=None, linkedin_client=None):
     """
     One pass over one show, in the order a finished recording travels: a replaced file settles first, then images,
-    Captivate, the website (and the signature strip), YouTube, then the email through Kit (which depends on none of the earlier steps except the website page); the housekeeping that can take minutes (tagging photos)
+    Captivate, the website (and the signature strip), YouTube, then the email through Kit and the LinkedIn post (each depends on none of the earlier steps except the website page); the housekeeping that can take minutes (tagging photos)
     and script generation come last so they never hold up a release. Called every minute by cron under the show's lock.
     """
     run_phase(
@@ -1850,6 +2081,7 @@ def process_show(wp, client, captivate, vertex_client, config, show, kit_client=
     run_phase(wp, show, "YouTube publishes", process_youtube_publishes, wp, client, config, show)
     run_phase(wp, show, "Kit emails", process_kit_emails, wp, kit_client, config, show)
     run_phase(wp, show, "Kit weekly roundup", process_kit_weekly, wp, kit_client, config, show)
+    run_phase(wp, show, "LinkedIn posts", process_linkedin_posts, wp, linkedin_client, config, show)
     run_phase(wp, show, "index refresh", process_index_refresh, wp, config, show)
     run_phase(wp, show, "script generation", process_script_generation, wp, client, config, show)
     if housekeeping_due():
@@ -1965,6 +2197,7 @@ def main():
     captivate = CaptivateClient(config["CAPTIVATE_USER_ID"], config["CAPTIVATE_API_TOKEN"])
     vertex_client = build_vertex_client(config)
     kit_client = KitClient(config["KIT_API_KEY"]) if config.get("KIT_API_KEY") else None
+    linkedin_client = build_linkedin_client(config)
 
     shows = wp.get_tick_context()
     logger.info("Tick: %d active show(s).", len(shows))
@@ -1975,7 +2208,7 @@ def main():
             # this one step aside rather than race it. Shows lock separately, so one show's slow work never holds up
             # another's.
             with show_lock(show["id"]):
-                process_show(wp, client, captivate, vertex_client, config, show, kit_client)
+                process_show(wp, client, captivate, vertex_client, config, show, kit_client, linkedin_client)
         except ShowBusy as busy:
             note_busy_show(config, show, busy)
         except Exception:

@@ -32,6 +32,7 @@ class Net_Gain_Dashboard_Page {
 		'website_published'   => 'Website',
 		'youtube_published'   => 'YouTube',
 		'kit_emailed'         => 'Email',
+		'linkedin_posted'     => 'LinkedIn',
 	);
 
 	public static function render() {
@@ -167,6 +168,8 @@ class Net_Gain_Dashboard_Page {
 				return $episode['url_youtube'];
 			case 'kit_emailed':
 				return '';
+			case 'linkedin_posted':
+				return $episode['linkedin_urn'] ? 'https://www.linkedin.com/feed/update/' . rawurlencode( $episode['linkedin_urn'] ) . '/' : '';
 		}
 		return '';
 	}
@@ -197,6 +200,7 @@ class Net_Gain_Dashboard_Page {
 			'url_captivate' => get_post_meta( $post->ID, 'ng_url_captivate', true ),
 			'url_website'   => get_post_meta( $post->ID, 'ng_url_website', true ),
 			'url_youtube'   => get_post_meta( $post->ID, 'ng_url_youtube', true ),
+			'linkedin_urn'  => (string) get_post_meta( $post->ID, 'ng_linkedin_post_urn', true ),
 		);
 	}
 
@@ -225,6 +229,8 @@ class Net_Gain_Dashboard_Page {
 					'youtube_connected' => Net_Gain_Secrets::exists( 'show', $post->ID, 'youtube_oauth' ),
 					// Drives kit_emailed's pending tooltip: a show that does not email through Kit is not behind, it just has no email step.
 					'kit_enabled'       => (bool) get_post_meta( $post->ID, 'ng_kit_enabled', true ),
+					// Drives linkedin_posted's pending tooltip, the same way.
+					'linkedin_enabled'  => (bool) get_post_meta( $post->ID, 'ng_linkedin_enabled', true ),
 				);
 			},
 			$posts

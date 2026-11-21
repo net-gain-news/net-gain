@@ -193,6 +193,11 @@ class Net_Gain_CPT_Show {
 			'ng_kit_weekly_tag_id'      => array( 'type' => 'integer', 'default' => 0 ),
 			'ng_kit_weekly_template_id' => array( 'type' => 'integer', 'default' => 0 ),
 			'ng_kit_weekly_last_slot'   => array( 'type' => 'string', 'default' => '' ),
+			// Posting each episode to the show's LinkedIn page (see includes/class-linkedin-settings.php). ng_linkedin_since is stamped when
+			// posting is switched on and bounds which episodes may be posted.
+			'ng_linkedin_enabled'       => array( 'type' => 'boolean', 'default' => false ),
+			'ng_linkedin_since'         => array( 'type' => 'string', 'default' => '' ),
+			'ng_linkedin_page_id'       => array( 'type' => 'integer', 'default' => 0 ),
 			// Written only by POST /shows/{id}/index-snapshot (tick.py) - never
 			// hand-edited. Whole-snapshot replace on every successful fetch, so
 			// constituents can be added/removed in the sheet at any time with no

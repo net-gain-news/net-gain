@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Net_Gain_Step_Status {
 
-	// Spec Section 10's 8 dashboard columns, plus kit_emailed (2026-11-06): the episode email sent through Kit once everything else is live.
+	// Spec Section 10's 8 dashboard columns, plus kit_emailed (2026-11-06): the episode email sent through Kit once everything else is live, and linkedin_posted (2026-11-20): the post on the show's LinkedIn page.
 	const STEPS = array(
 		'script_generated',
 		'script_reviewed',
@@ -23,6 +23,7 @@ class Net_Gain_Step_Status {
 		'website_published',
 		'youtube_published',
 		'kit_emailed',
+		'linkedin_posted',
 	);
 
 	// Maps to the 5 dashboard colors (Section 10) plus the distinct "queued" treatment.
@@ -54,6 +55,8 @@ class Net_Gain_Step_Status {
 		'youtube_published'    => array( 'metadata_generated', 'images_rendered' ),
 		// The email links to the episode's website page, so it cannot go before the page is live. It depends on nothing else: YouTube (or Captivate) pending, stuck or failed never holds it back.
 		'kit_emailed'          => array( 'website_published' ),
+		// The post links to the episode's website page, so it cannot go before the page is live; nothing else holds it back.
+		'linkedin_posted'      => array( 'website_published' ),
 	);
 
 	public static function is_valid_step( $step_key ) {

@@ -448,6 +448,32 @@ class Net_Gain_Edit_Show_Page {
 						</td>
 					</tr>
 
+					<tr>
+						<th>Post to LinkedIn</th>
+						<td>
+							<label>
+								<input type="checkbox" id="ng_linkedin_enabled" name="ng_linkedin_enabled" value="1" <?php checked( (bool) $get( 'ng_linkedin_enabled', false ) ); ?>>
+								Post each episode to this show's LinkedIn page
+							</label>
+							<p class="description">
+								When on, the background job posts each episode's show notes (without the story links) to the LinkedIn page below, opened with "Today in edtech:" and closed with a link to the episode's page on the website, as soon as that page is live. It never waits for YouTube or the email. Switching this on only affects episodes published from that moment: nothing already published is posted. The LinkedIn sign-in is a secret kept on the server, not here.
+								<?php $li_since = (string) $get( 'ng_linkedin_since', '' ); ?>
+								<?php if ( $li_since ) : ?>
+									<br>Switched on at <?php echo esc_html( $li_since ); ?> (site time).
+								<?php endif; ?>
+							</p>
+						</td>
+					</tr>
+
+					<tr>
+						<th><label for="ng_linkedin_page_id">LinkedIn page</label></th>
+						<td>
+							<?php $li_page = (int) $get( 'ng_linkedin_page_id', 0 ); ?>
+							<input type="text" id="ng_linkedin_page_id" name="ng_linkedin_page_id" class="regular-text" value="<?php echo esc_attr( $li_page ? (string) $li_page : '' ); ?>" placeholder="https://www.linkedin.com/showcase/146769492/">
+							<p class="description">The page's address from LinkedIn (a showcase page or a company page), or just its number. It must contain the page's number, as in <code>linkedin.com/showcase/146769492/</code>; an address that uses only a name does not. The person who signs the server in to LinkedIn must be an administrator of this page. <?php echo $li_page ? 'Saved as page number ' . esc_html( (string) $li_page ) . '.' : ''; ?></p>
+						</td>
+					</tr>
+
 				</table>
 
 				<?php submit_button( 'Save changes' ); ?>

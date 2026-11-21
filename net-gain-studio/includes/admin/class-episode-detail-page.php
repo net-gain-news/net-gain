@@ -118,6 +118,20 @@ class Net_Gain_Episode_Detail_Page {
 				<p><?php self::render_trigger_button( $show_id, $episode_date, 'send_kit_email', 'kit_emailed', $step_status, 'Send email', 'Check email in Kit' ); ?></p>
 			<?php endif; ?>
 
+			<?php if ( get_post_meta( $show_id, 'ng_linkedin_enabled', true ) ) : ?>
+				<?php $linkedin_urn = (string) get_post_meta( $episode_id, 'ng_linkedin_post_urn', true ); ?>
+				<p>
+					LinkedIn: <strong><?php echo esc_html( $step_status['linkedin_posted']['status'] ?? 'pending' ); ?></strong>
+					<?php if ( ! empty( $step_status['linkedin_posted']['note'] ) ) : ?>
+						— <?php echo esc_html( $step_status['linkedin_posted']['note'] ); ?>
+					<?php endif; ?>
+					<?php if ( $linkedin_urn ) : ?>
+						— <a href="<?php echo esc_url( 'https://www.linkedin.com/feed/update/' . rawurlencode( $linkedin_urn ) . '/' ); ?>" target="_blank" rel="noopener">View the post</a>
+					<?php endif; ?>
+				</p>
+				<p><?php self::render_trigger_button( $show_id, $episode_date, 'post_linkedin', 'linkedin_posted', $step_status, 'Post to LinkedIn', 'Check LinkedIn post' ); ?></p>
+			<?php endif; ?>
+
 			<?php if ( $youtube_title || $youtube_description || $youtube_tags ) : ?>
 				<h3>Generated YouTube metadata</h3>
 				<p>

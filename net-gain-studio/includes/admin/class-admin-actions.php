@@ -179,6 +179,18 @@ class Net_Gain_Admin_Actions {
 		update_post_meta( $show_id, 'ng_kit_weekly_time', Net_Gain_Kit_Settings::sanitize_time( wp_unslash( $_POST['ng_kit_weekly_time'] ?? '' ) ) );
 		update_post_meta( $show_id, 'ng_kit_weekly_subject', sanitize_text_field( wp_unslash( $_POST['ng_kit_weekly_subject'] ?? '' ) ) );
 		update_post_meta( $show_id, 'ng_kit_weekly_timezone', Net_Gain_Timezones::sanitize( wp_unslash( $_POST['ng_kit_weekly_timezone'] ?? '' ) ) );
+
+		// Post to LinkedIn (includes/class-linkedin-settings.php). Same rule as Kit: switching it on stamps ng_linkedin_since so only episodes
+		// published from now on are posted; switching it off clears the stamp, so turning it on again starts fresh rather than catching up.
+		$li_on  = ! empty( $_POST['ng_linkedin_enabled'] );
+		$li_was = (bool) get_post_meta( $show_id, 'ng_linkedin_enabled', true );
+		update_post_meta( $show_id, 'ng_linkedin_enabled', $li_on );
+		if ( ! $li_on ) {
+			update_post_meta( $show_id, 'ng_linkedin_since', '' );
+		} elseif ( ! $li_was || '' === (string) get_post_meta( $show_id, 'ng_linkedin_since', true ) ) {
+			update_post_meta( $show_id, 'ng_linkedin_since', current_time( 'mysql' ) );
+		}
+		update_post_meta( $show_id, 'ng_linkedin_page_id', Net_Gain_LinkedIn_Settings::sanitize_page_id( sanitize_text_field( wp_unslash( $_POST['ng_linkedin_page_id'] ?? '' ) ) ) );
 	}
 
 	public static function connect_captivate() {

@@ -66,6 +66,7 @@ class Net_Gain_REST_Tick_Context {
 				'youtube_description_boilerplate' => get_post_meta( $show->ID, 'ng_youtube_description_boilerplate', true ),
 				'captivate_notes_footer' => get_post_meta( $show->ID, 'ng_captivate_notes_footer', true ),
 				'kit'                 => Net_Gain_Kit_Settings::for_show( $show->ID, $show->post_name ),
+				'linkedin'            => Net_Gain_LinkedIn_Settings::for_show( $show->ID ),
 				'effective_talent_today' => Net_Gain_Talent_Assignments::get_effective_talent( $show->ID, wp_date( 'Y-m-d', null, new DateTimeZone( Net_Gain_Timezones::script_zone( $show->ID ) ) ) ),
 				'in_flight_episodes'  => $this->in_flight_episodes( $show->ID ),
 				// Separate from in_flight_episodes: a replaced episode is usually fully
@@ -88,7 +89,7 @@ class Net_Gain_REST_Tick_Context {
 	 * @return array<string,bool> episode_date => true
 	 */
 	public static function pending_retry_dates( $actions ) {
-		$retryable = array( 'generate_images', 'publish_captivate', 'publish_youtube', 'send_kit_email' );
+		$retryable = array( 'generate_images', 'publish_captivate', 'publish_youtube', 'send_kit_email', 'post_linkedin' );
 		$dates     = array();
 		foreach ( (array) $actions as $action ) {
 			if ( ! is_array( $action ) || 'pending' !== ( $action['status'] ?? '' ) || ! in_array( $action['action'] ?? '', $retryable, true ) ) {
@@ -123,6 +124,7 @@ class Net_Gain_REST_Tick_Context {
 
 		$retry_dates = self::pending_retry_dates( get_post_meta( $show_id, 'ng_pending_actions', true ) );
 		$kit         = Net_Gain_Kit_Settings::for_show( $show_id );
+		$linkedin    = Net_Gain_LinkedIn_Settings::for_show( $show_id );
 
 		$in_flight = array();
 		foreach ( $episodes as $episode ) {
@@ -136,6 +138,10 @@ class Net_Gain_REST_Tick_Context {
 				// The Kit email only counts for an episode that is meant to get one: sending is on and the episode went live after it
 				// was switched on. Every older episode would otherwise stay "in flight" for ever, waiting for an email it will never get.
 				if ( 'kit_emailed' === $step && ! Net_Gain_Kit_Settings::episode_is_eligible( $kit, is_array( $step_status ) ? $step_status : array() ) ) {
+					continue;
+				}
+				// Likewise the LinkedIn post: only an episode that went live after posting was switched on is waiting for one.
+				if ( 'linkedin_posted' === $step && ! Net_Gain_LinkedIn_Settings::episode_is_eligible( $linkedin, is_array( $step_status ) ? $step_status : array() ) ) {
 					continue;
 				}
 				$status = isset( $step_status[ $step ]['status'] ) ? $step_status[ $step ]['status'] : 'pending';
